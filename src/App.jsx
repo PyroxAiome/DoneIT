@@ -5,6 +5,7 @@ import LoginPage from './components/LoginPage';
 import AdminDashboard from './components/AdminDashboard';
 import ManagerDashboard from './components/ManagerDashboard';
 import EmployeeDashboard from './components/EmployeeDashboard';
+import ChangePasswordModal from './components/ChangePasswordModal';
 
 export const AuthContext = createContext(null);
 
@@ -15,6 +16,7 @@ export function useAuth() {
 export default function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [showChangePassword, setShowChangePassword] = useState(false);
 
   useEffect(() => {
     const token = localStorage.getItem('km_token');
@@ -55,13 +57,14 @@ export default function App() {
   return (
     <AuthContext.Provider value={user}>
       <div className="min-h-screen bg-gray-100">
-        <Header user={user} onLogout={handleLogout} />
+        <Header user={user} onLogout={handleLogout} onChangePassword={() => setShowChangePassword(true)} />
         <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           {user.role === 'admin' && <AdminDashboard user={user} />}
           {user.role === 'manager' && <ManagerDashboard user={user} />}
           {user.role === 'employee' && <EmployeeDashboard user={user} />}
         </main>
       </div>
+      <ChangePasswordModal isOpen={showChangePassword} onClose={() => setShowChangePassword(false)} />
     </AuthContext.Provider>
   );
 }
