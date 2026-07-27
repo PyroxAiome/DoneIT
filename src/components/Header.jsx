@@ -1,8 +1,11 @@
-import { LogOut, User, Shield, Users } from 'lucide-react';
+import { useState } from 'react';
+import { LogOut, User, Shield, Users, Key } from 'lucide-react';
+import ChangePasswordModal from './ChangePasswordModal';
 
 const roleIcons = { admin: Shield, manager: Users, employee: User };
 
 export default function Header({ user, onLogout }) {
+  const [showChangePassword, setShowChangePassword] = useState(false);
   const roleLabel = user.role === 'admin' ? 'Admin' : user.role === 'manager' ? 'Manager' : 'Employee';
   const RoleIcon = roleIcons[user.role] || User;
 
@@ -31,6 +34,13 @@ export default function Header({ user, onLogout }) {
             </span>
           </div>
           <button
+            onClick={() => setShowChangePassword(true)}
+            className="p-2 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
+            title="Change Password"
+          >
+            <Key className="w-4 h-4" />
+          </button>
+          <button
             onClick={onLogout}
             className="p-2 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
             title="Logout"
@@ -39,6 +49,7 @@ export default function Header({ user, onLogout }) {
           </button>
         </div>
       </div>
+      <ChangePasswordModal isOpen={showChangePassword} onClose={() => setShowChangePassword(false)} />
     </header>
   );
 }

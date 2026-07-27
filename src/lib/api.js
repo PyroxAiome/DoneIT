@@ -24,6 +24,9 @@ export const api = {
 
   me: () => request('/auth/me'),
 
+  changePassword: (currentPassword, newPassword) =>
+    request('/auth/change-password', { method: 'PUT', body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }) }),
+
   getEmployees: (all = false) =>
     request(`/employees?all=${all}`),
 

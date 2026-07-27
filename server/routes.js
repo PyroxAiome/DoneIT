@@ -63,6 +63,25 @@ router.get('/auth/me', auth, (req, res) => {
   res.json(user);
 });
 
+router.put('/auth/change-password', auth, (req, res) => {
+  const { current_password, new_password } = req.body;
+  if (!current_password || !new_password) {
+    return res.status(400).json({ error: 'Current and new password required' });
+  }
+
+  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+
+  if (!bcrypt.compareSync(current_password, user.password_hash)) {
+    return res.status(400).json({ error: 'Incorrect current password' });
+  }
+
+  const newHash = bcrypt.hashSync(new_password, 10);
+  db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(newHash, req.user.id);
+
+  res.json({ success: true });
+});
+
 // ─── USERS ──────────────────────────────────────────────────────
 router.get('/employees', auth, (req, res) => {
   const includeAll = req.query.all === 'true';
