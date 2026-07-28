@@ -25,6 +25,7 @@ export default function AdminDashboard({ user }) {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('');
   const [employeeFilter, setEmployeeFilter] = useState(null);
   const [compact, setCompact] = useState(false);
 
@@ -40,6 +41,7 @@ export default function AdminDashboard({ user }) {
     setLoading(true);
     const params = {};
     if (statusFilter) params.status = statusFilter;
+    if (categoryFilter) params.category = categoryFilter;
     if (search) params.search = search;
     if (employeeFilter) params.assignee_id = employeeFilter;
 
@@ -55,7 +57,11 @@ export default function AdminDashboard({ user }) {
     }).catch(() => {}).finally(() => setLoading(false));
   };
 
-  useEffect(() => { fetchAll(); }, [statusFilter, search, employeeFilter]);
+  useEffect(() => {
+    fetchAll();
+    window.addEventListener('task-updated', fetchAll);
+    return () => window.removeEventListener('task-updated', fetchAll);
+  }, [statusFilter, categoryFilter, search, employeeFilter]);
 
   const handleDeleteTask = async () => {
     if (deleteTask) {
@@ -182,6 +188,20 @@ export default function AdminDashboard({ user }) {
                     {s ? s.replace('_', ' ') : 'All'}
                   </button>
                 ))}
+              </div>
+              <div className="flex items-center gap-1.5">
+                <select
+                  value={categoryFilter}
+                  onChange={(e) => setCategoryFilter(e.target.value)}
+                  className="text-xs bg-white border border-gray-200 rounded-lg px-2.5 py-1 text-gray-500 hover:text-gray-700 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                >
+                  <option value="">All Categories</option>
+                  <option value="General">General</option>
+                  <option value="Software">Software</option>
+                  <option value="Electronics">Electronics</option>
+                  <option value="Mechanical">Mechanical</option>
+                  <option value="Production">Production</option>
+                </select>
               </div>
             </div>
             <div className="flex items-center gap-2">

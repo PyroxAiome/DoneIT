@@ -11,6 +11,7 @@ export default function EmployeeDashboard({ user }) {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('');
   const [detailTask, setDetailTask] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [showTaskModal, setShowTaskModal] = useState(false);
@@ -20,11 +21,16 @@ export default function EmployeeDashboard({ user }) {
     setLoading(true);
     const params = { assignee_id: user.id };
     if (statusFilter) params.status = statusFilter;
+    if (categoryFilter) params.category = categoryFilter;
     if (search) params.search = search;
     api.getTasks(params).then(setTasks).catch(() => {}).finally(() => setLoading(false));
   };
 
-  useEffect(() => { fetchTasks(); }, [statusFilter, search]);
+  useEffect(() => {
+    fetchTasks();
+    window.addEventListener('task-updated', fetchTasks);
+    return () => window.removeEventListener('task-updated', fetchTasks);
+  }, [statusFilter, categoryFilter, search]);
 
   const statusOptions = ['', 'todo', 'in_progress', 'under_review', 'completed'];
 
@@ -72,6 +78,20 @@ export default function EmployeeDashboard({ user }) {
               {s ? s.replace('_', ' ') : 'All'}
             </button>
           ))}
+        </div>
+        <div className="flex items-center gap-1.5">
+          <select
+            value={categoryFilter}
+            onChange={(e) => setCategoryFilter(e.target.value)}
+            className="text-xs bg-white border border-gray-200 rounded-lg px-2.5 py-1 text-gray-500 hover:text-gray-700 focus:outline-none focus:ring-1 focus:ring-amber-500"
+          >
+            <option value="">All Categories</option>
+            <option value="General">General</option>
+            <option value="Software">Software</option>
+            <option value="Electronics">Electronics</option>
+            <option value="Mechanical">Mechanical</option>
+            <option value="Production">Production</option>
+          </select>
         </div>
       </div>
 

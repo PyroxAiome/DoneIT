@@ -31,6 +31,16 @@ const statusStyles = {
   completed: 'text-emerald-600 border-emerald-200 bg-emerald-50',
 };
 
+const canModifyTask = (user, task) => {
+  if (!user) return false;
+  if (user.role === 'admin') return true;
+  if (user.role === 'employee') return task.creator_id === user.id;
+  if (user.role === 'manager') {
+    return task.creator_id === user.id || (task.creator_role === 'employee' && task.creator_department === user.department);
+  }
+  return false;
+};
+
 export default function TaskCard({ task, compact, onEdit, onDelete, onSelect, onViewDetail }) {
   const user = useAuth();
   const colors = colorMap[task.color] || colorMap.slate;
@@ -80,12 +90,9 @@ export default function TaskCard({ task, compact, onEdit, onDelete, onSelect, on
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <div className={`w-2.5 h-2.5 rounded-full ${colors.dot}`} />
-            <h3 className="font-medium text-gray-900 text-sm truncate">{task.title}</h3>
+            <div className={`w-2.5 h-2.5 rounded-full ${colors.dot} shrink-0`} />
+            <h3 className="font-medium text-gray-900 text-sm whitespace-normal">{task.title}</h3>
           </div>
-          {task.description && (
-            <p className="text-xs text-gray-500 mt-1 line-clamp-2">{task.description}</p>
-          )}
           <div className="flex items-center gap-3 mt-2 text-xs text-gray-500 flex-wrap">
             {task.assignee_name && (
               <span className="flex items-center gap-1"><User className="w-3 h-3" />{task.assignee_name}</span>
@@ -107,7 +114,7 @@ export default function TaskCard({ task, compact, onEdit, onDelete, onSelect, on
             {statusLabels[task.status] || task.status}
           </span>
           <span className={`text-[10px] px-1.5 py-0.5 rounded border capitalize ${priorityStyles[task.priority]}`}>{task.priority}</span>
-          {(user.role === 'admin' || task.creator_id === user.id) && (
+          {canModifyTask(user, task) && (
             <button onClick={(e) => { e.stopPropagation(); onDelete?.(task); }} className="p-1 hover:bg-red-50 rounded text-gray-400 hover:text-red-500 transition-colors" title="Delete task">
               <Trash2 className="w-3.5 h-3.5" />
             </button>
@@ -128,12 +135,12 @@ export default function TaskCard({ task, compact, onEdit, onDelete, onSelect, on
                   <button key={s} onClick={() => handleStatusChange(s)} className="w-full text-left px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50">{statusLabels[s]}</button>
                 ))}
                 <div className="border-t border-gray-100 my-1" />
-                {(user.role !== 'employee' || task.creator_id === user.id) && (
+                {canModifyTask(user, task) && (
                   <button onClick={() => { onSelect?.(task); setShowMenu(false); }} className="w-full text-left px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2">
                     <Edit3 className="w-3.5 h-3.5" /> Edit Task
                   </button>
                 )}
-                {(user.role === 'admin' || task.creator_id === user.id) && (
+                {canModifyTask(user, task) && (
                   <button onClick={() => { onDelete?.(task); setShowMenu(false); }} className="w-full text-left px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2">
                     <Trash2 className="w-3.5 h-3.5" /> Delete Task
                   </button>

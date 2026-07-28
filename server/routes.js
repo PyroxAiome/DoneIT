@@ -31,6 +31,37 @@ const adminOnly = (req, res, next) => {
   next();
 };
 
+let sseClients = [];
+
+const notifyAdmins = (updaterId, message, taskId) => {
+  try {
+    console.log(`[Notification Triggered] message: "${message}", taskId: ${taskId}`);
+    const admins = db.prepare("SELECT id FROM users WHERE role = 'admin'").all();
+    const insertStmt = db.prepare("INSERT INTO notifications (user_id, message, task_id) VALUES (?, ?, ?)");
+    for (const admin of admins) {
+      if (admin.id !== updaterId) {
+        const result = insertStmt.run(admin.id, message, taskId);
+        const notificationId = result.lastInsertRowid;
+
+        const notification = db.prepare(`
+          SELECT n.*, t.title as task_title
+          FROM notifications n
+          LEFT JOIN tasks t ON n.task_id = t.id
+          WHERE n.id = ?
+        `).get(notificationId);
+
+        console.log(`[Notification SSE Broadcast] sending to admin user id: ${admin.id}`);
+        const client = sseClients.find(c => c.userId === admin.id);
+        if (client) {
+          client.res.write(`data: ${JSON.stringify(notification)}\n\n`);
+        }
+      }
+    }
+  } catch (err) {
+    console.error("Error creating notifications:", err);
+  }
+};
+
 const adminOrManager = (req, res, next) => {
   if (req.user.role !== 'admin' && req.user.role !== 'manager') {
     return res.status(403).json({ error: 'Admin or Manager access required' });
@@ -85,7 +116,7 @@ router.put('/auth/change-password', auth, (req, res) => {
 // ─── USERS ──────────────────────────────────────────────────────
 router.get('/employees', auth, (req, res) => {
   const includeAll = req.query.all === 'true';
-  let roleFilter = "role IN ('employee','manager')";
+  let roleFilter = "role = 'employee'";
   if (includeAll) roleFilter = "role IN ('admin','manager','employee')";
 
   const users = db.prepare(`
@@ -141,7 +172,7 @@ router.get('/tasks', auth, (req, res) => {
   let sql = `
     SELECT t.*, 
       u.name as assignee_name, u.email as assignee_email,
-      c.name as creator_name, e.name as last_edited_by_name
+      c.name as creator_name, c.role as creator_role, c.department as creator_department, e.name as last_edited_by_name
     FROM tasks t
     LEFT JOIN users u ON t.assignee_id = u.id
     LEFT JOIN users c ON t.creator_id = c.id
@@ -157,6 +188,10 @@ router.get('/tasks', auth, (req, res) => {
   if (req.query.status) {
     sql += ' AND t.status = ?';
     params.push(req.query.status);
+  }
+  if (req.query.category) {
+    sql += ' AND LOWER(t.category) = LOWER(?)';
+    params.push(req.query.category);
   }
   if (req.query.search) {
     sql += ' AND (t.title LIKE ? OR t.description LIKE ?)';
@@ -177,7 +212,7 @@ router.get('/tasks', auth, (req, res) => {
 router.get('/tasks/:id', auth, (req, res) => {
   const task = db.prepare(`
     SELECT t.*, u.name as assignee_name, u.email as assignee_email,
-      c.name as creator_name, e.name as last_edited_by_name
+      c.name as creator_name, c.role as creator_role, c.department as creator_department, e.name as last_edited_by_name
     FROM tasks t
     LEFT JOIN users u ON t.assignee_id = u.id
     LEFT JOIN users c ON t.creator_id = c.id
@@ -209,13 +244,15 @@ router.post('/tasks', auth, (req, res) => {
   );
 
   const task = db.prepare(`
-    SELECT t.*, u.name as assignee_name, c.name as creator_name, e.name as last_edited_by_name
+    SELECT t.*, u.name as assignee_name, c.name as creator_name, c.role as creator_role, c.department as creator_department, e.name as last_edited_by_name
     FROM tasks t
     LEFT JOIN users u ON t.assignee_id = u.id
     LEFT JOIN users c ON t.creator_id = c.id
     LEFT JOIN users e ON t.last_edited_by = e.id
     WHERE t.id = ?
   `).get(result.lastInsertRowid);
+
+  notifyAdmins(req.user.id, `${req.user.name} created task: ${title}`, task.id);
 
   res.status(201).json(task);
 });
@@ -227,6 +264,25 @@ router.put('/tasks/:id', auth, (req, res) => {
 
   if (req.user.role === 'employee' && task.assignee_id !== req.user.id) {
     return res.status(403).json({ error: 'Not authorized to update this task' });
+  }
+
+  const creator = db.prepare('SELECT role, department FROM users WHERE id = ?').get(task.creator_id);
+  const creatorRole = creator ? creator.role : 'admin';
+  const creatorDept = creator ? creator.department : 'Engineering';
+
+  if (req.user.role === 'manager') {
+    const isSelf = task.creator_id === req.user.id;
+    const isSameDeptEmployee = creatorRole === 'employee' && creatorDept === req.user.department;
+    if (!isSelf && !isSameDeptEmployee) {
+      // Manager is attempting to modify a task created by an admin or employee from another department.
+      // They are only allowed to update status, priority, progress_percent, and logical_explanation.
+      const allowedFieldsForRestricted = ['status', 'priority', 'progress_percent', 'logical_explanation'];
+      const attemptedFields = Object.keys(req.body);
+      const hasDisallowed = attemptedFields.some(f => !allowedFieldsForRestricted.includes(f));
+      if (hasDisallowed) {
+        return res.status(403).json({ error: 'Managers are only authorized to change status, priority, progress, and explanation for this task.' });
+      }
+    }
   }
 
   const fields = ['title', 'description', 'color', 'status', 'priority', 'category',
@@ -254,13 +310,15 @@ router.put('/tasks/:id', auth, (req, res) => {
 
   const updated = db.prepare(`
     SELECT t.*, u.name as assignee_name, u.email as assignee_email,
-      c.name as creator_name, e.name as last_edited_by_name
+      c.name as creator_name, c.role as creator_role, c.department as creator_department, e.name as last_edited_by_name
     FROM tasks t
     LEFT JOIN users u ON t.assignee_id = u.id
     LEFT JOIN users c ON t.creator_id = c.id
     LEFT JOIN users e ON t.last_edited_by = e.id
     WHERE t.id = ?
   `).get(id);
+
+  notifyAdmins(req.user.id, `${req.user.name} updated task: ${updated.title}`, updated.id);
 
   res.json(updated);
 });
@@ -272,6 +330,18 @@ router.delete('/tasks/:id', auth, (req, res) => {
 
   if (req.user.role === 'employee' && task.creator_id !== req.user.id) {
     return res.status(403).json({ error: 'Not authorized to delete this task' });
+  }
+
+  const creator = db.prepare('SELECT role, department FROM users WHERE id = ?').get(task.creator_id);
+  const creatorRole = creator ? creator.role : 'admin';
+  const creatorDept = creator ? creator.department : 'Engineering';
+
+  if (req.user.role === 'manager') {
+    const isSelf = task.creator_id === req.user.id;
+    const isSameDeptEmployee = creatorRole === 'employee' && creatorDept === req.user.department;
+    if (!isSelf && !isSameDeptEmployee) {
+      return res.status(403).json({ error: 'Not authorized to delete tasks created by admins or employees in other departments' });
+    }
   }
 
   db.prepare('DELETE FROM tasks WHERE id = ?').run(id);
@@ -384,6 +454,71 @@ router.get('/dashboard/stats', auth, adminOrManager, (req, res) => {
     statusBreakdown,
     recentTasks,
   });
+});
+
+// ─── NOTIFICATIONS ──────────────────────────────────────────────
+router.get('/notifications', auth, (req, res) => {
+  const list = db.prepare(`
+    SELECT n.*, t.title as task_title 
+    FROM notifications n
+    LEFT JOIN tasks t ON n.task_id = t.id
+    WHERE n.user_id = ? 
+    ORDER BY n.created_at DESC 
+    LIMIT 50
+  `).all(req.user.id);
+  res.json(list);
+});
+
+router.get('/notifications/sse', (req, res) => {
+  const token = req.query.token;
+  if (!token) return res.status(401).end();
+
+  let userId;
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    userId = decoded.id;
+  } catch {
+    return res.status(401).end();
+  }
+
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache, no-transform');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+  res.flushHeaders();
+
+  const client = { userId, res };
+  sseClients.push(client);
+
+  const keepAlive = setInterval(() => {
+    res.write(': keepalive\n\n');
+  }, 20000);
+
+  req.on('close', () => {
+    clearInterval(keepAlive);
+    sseClients = sseClients.filter(c => c !== client);
+    res.end();
+  });
+});
+
+router.put('/notifications/:id/read', auth, (req, res) => {
+  db.prepare('UPDATE notifications SET is_read = 1 WHERE id = ? AND user_id = ?').run(req.params.id, req.user.id);
+  res.json({ success: true });
+});
+
+router.post('/notifications/read-all', auth, (req, res) => {
+  db.prepare('UPDATE notifications SET is_read = 1 WHERE user_id = ?').run(req.user.id);
+  res.json({ success: true });
+});
+
+router.delete('/notifications/:id', auth, (req, res) => {
+  db.prepare('DELETE FROM notifications WHERE id = ? AND user_id = ?').run(req.params.id, req.user.id);
+  res.json({ success: true });
+});
+
+router.delete('/notifications', auth, (req, res) => {
+  db.prepare('DELETE FROM notifications WHERE user_id = ?').run(req.user.id);
+  res.json({ success: true });
 });
 
 export default router;

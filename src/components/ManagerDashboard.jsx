@@ -6,7 +6,7 @@ import ConfirmDeleteModal from './ConfirmDeleteModal';
 import TaskDetailModal from './TaskDetailModal';
 import {
   BarChart3, Users, CheckCircle, Plus, Search, Filter,
-  ListTodo, User, LayoutGrid
+  ListTodo, User, LayoutGrid, X
 } from 'lucide-react';
 
 export default function ManagerDashboard({ user }) {
@@ -16,16 +16,22 @@ export default function ManagerDashboard({ user }) {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('');
+  const [employeeFilter, setEmployeeFilter] = useState(null);
+  const [selectedEmp, setSelectedEmp] = useState(null);
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [editTask, setEditTask] = useState(null);
   const [deleteTask, setDeleteTask] = useState(null);
   const [detailTask, setDetailTask] = useState(null);
+  const [myTasksOnly, setMyTasksOnly] = useState(false);
 
   const fetchAll = () => {
     setLoading(true);
     const params = {};
     if (statusFilter) params.status = statusFilter;
+    if (categoryFilter) params.category = categoryFilter;
     if (search) params.search = search;
+    if (employeeFilter) params.assignee_id = employeeFilter;
     Promise.all([
       api.getDashboardStats(),
       api.getTasks(params),
@@ -34,10 +40,30 @@ export default function ManagerDashboard({ user }) {
       setStats(s);
       setTasks(t);
       setEmployees(e);
+      if (employeeFilter) setSelectedEmp(e.find(emp => emp.id === Number(employeeFilter)));
     }).catch(() => {}).finally(() => setLoading(false));
   };
 
-  useEffect(() => { fetchAll(); }, [statusFilter, search]);
+  useEffect(() => {
+    fetchAll();
+    window.addEventListener('task-updated', fetchAll);
+    return () => window.removeEventListener('task-updated', fetchAll);
+  }, [statusFilter, categoryFilter, search, employeeFilter]);
+
+  useEffect(() => {
+    const handleToggle = () => setMyTasksOnly(prev => !prev);
+    window.addEventListener('toggle-my-tasks', handleToggle);
+    return () => window.removeEventListener('toggle-my-tasks', handleToggle);
+  }, []);
+
+  const clearEmployeeFilter = () => {
+    setEmployeeFilter(null);
+    setSelectedEmp(null);
+  };
+
+  const handleViewEmployeeTasks = (emp) => {
+    setEmployeeFilter(emp.id);
+  };
 
   const handleDeleteTask = async () => {
     if (deleteTask) {
@@ -53,6 +79,13 @@ export default function ManagerDashboard({ user }) {
   ] : [];
 
   const statusOptions = ['', 'todo', 'in_progress', 'under_review', 'completed'];
+
+  const filteredTasks = tasks.filter(t => {
+    if (myTasksOnly) {
+      return t.creator_id === user.id || t.assignee_id === user.id;
+    }
+    return true;
+  });
 
   return (
     <div className="space-y-6">
@@ -80,7 +113,7 @@ export default function ManagerDashboard({ user }) {
           <h3 className="text-sm font-medium text-gray-700 mb-3">Team Members</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {employees.map((emp) => (
-              <div key={emp.id} className="flex items-center gap-3 bg-white shadow-sm border border-gray-200 rounded-xl px-4 py-3">
+              <div key={emp.id} onClick={() => handleViewEmployeeTasks(emp)} className={`flex items-center gap-3 bg-white shadow-sm border rounded-xl px-4 py-3 cursor-pointer hover:border-amber-300 transition-all ${employeeFilter === emp.id ? 'ring-2 ring-amber-500 border-amber-500' : 'border-gray-200'}`}>
                 <div className="w-8 h-8 rounded-full bg-white border border-gray-200 flex items-center justify-center text-sm font-medium text-gray-500">
                   {emp.name.charAt(0)}
                 </div>
@@ -118,6 +151,32 @@ export default function ManagerDashboard({ user }) {
             </button>
           ))}
         </div>
+        <div className="flex items-center gap-1.5">
+          <select
+            value={categoryFilter}
+            onChange={(e) => setCategoryFilter(e.target.value)}
+            className="text-xs bg-white border border-gray-200 rounded-lg px-2.5 py-1 text-gray-500 hover:text-gray-700 focus:outline-none focus:ring-1 focus:ring-amber-500"
+          >
+            <option value="">All Categories</option>
+            <option value="General">General</option>
+            <option value="Software">Software</option>
+            <option value="Electronics">Electronics</option>
+            <option value="Mechanical">Mechanical</option>
+            <option value="Production">Production</option>
+          </select>
+        </div>
+        {employeeFilter && (
+          <span className="text-xs flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 animate-fade-in">
+            {selectedEmp?.name}
+            <button onClick={clearEmployeeFilter} className="hover:bg-amber-100 rounded p-0.5"><X className="w-3.5 h-3.5" /></button>
+          </span>
+        )}
+        {myTasksOnly && (
+          <span className="text-xs flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 animate-fade-in">
+            My Tasks & Creations
+            <button onClick={() => setMyTasksOnly(false)} className="hover:bg-amber-100 rounded p-0.5"><X className="w-3.5 h-3.5" /></button>
+          </span>
+        )}
         <button onClick={() => { setEditTask(null); setShowTaskModal(true); }} className="btn-amber text-sm flex items-center gap-2">
           <Plus className="w-4 h-4" /> New Task
         </button>
@@ -127,15 +186,15 @@ export default function ManagerDashboard({ user }) {
         <div className="flex justify-center py-12">
           <div className="animate-spin w-6 h-6 border-2 border-gray-300 border-t-gray-600 rounded-full" />
         </div>
-      ) : tasks.length === 0 ? (
+      ) : filteredTasks.length === 0 ? (
         <div className="card text-center py-12">
           <LayoutGrid className="w-10 h-10 text-gray-300 mx-auto mb-3" />
           <p className="text-gray-500 text-sm">No tasks found</p>
         </div>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {tasks.map((task) => (
-            <TaskCard key={task.id} task={task} onEdit={fetchAll} onDelete={setDeleteTask} onSelect={(t) => setEditTask(t)} onViewDetail={setDetailTask} />
+          {filteredTasks.map((task) => (
+            <TaskCard key={task.id} task={task} onEdit={fetchAll} onDelete={setDeleteTask} onSelect={(t) => { setEditTask(t); setShowTaskModal(true); }} onViewDetail={setDetailTask} />
           ))}
         </div>
       )}

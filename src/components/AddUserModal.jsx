@@ -3,14 +3,14 @@ import { api } from '../lib/api';
 import { X, AlertCircle, Check } from 'lucide-react';
 
 export default function AddUserModal({ isOpen, onClose, onCreated }) {
-  const [form, setForm] = useState({ name: '', email: '', password: '', role: 'employee', department: 'Engineering' });
+  const [form, setForm] = useState({ name: '', email: '', password: '', role: 'employee', department: 'General' });
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
   if (!isOpen) return null;
 
   const handleChange = (field) => (e) => setForm({ ...form, [field]: e.target.value });
-  const reset = () => { setForm({ name: '', email: '', password: '', role: 'employee', department: 'Engineering' }); setError(''); };
+  const reset = () => { setForm({ name: '', email: '', password: '', role: 'employee', department: 'General' }); setError(''); };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -72,8 +72,13 @@ export default function AddUserModal({ isOpen, onClose, onCreated }) {
               </select>
             </div>
             <div>
-              <label className="text-xs text-gray-500 uppercase tracking-wider block mb-1">Department</label>
+              <label className="text-xs text-gray-500 uppercase tracking-wider block mb-1">Category (Team)</label>
               <select value={form.department} onChange={handleChange('department')} className="input-field">
+                <option>General</option>
+                <option>Software</option>
+                <option>Electronics</option>
+                <option>Mechanical</option>
+                <option>Production</option>
                 <option>Engineering</option>
                 <option>Design</option>
                 <option>Marketing</option>

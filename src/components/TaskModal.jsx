@@ -129,7 +129,16 @@ export default function TaskModal({ isOpen, onClose, onSaved, task, employees })
             </div>
             <div>
               <label className="text-xs text-gray-500 uppercase tracking-wider block mb-1">Category</label>
-              <input value={form.category} onChange={handleChange('category')} className="input-field" placeholder="Frontend, Backend..." />
+              <select value={form.category} onChange={handleChange('category')} className="input-field">
+                {!['General', 'Software', 'Electronics', 'Mechanical', 'Production'].includes(form.category) && form.category && (
+                  <option value={form.category}>{form.category}</option>
+                )}
+                <option value="General">General</option>
+                <option value="Software">Software</option>
+                <option value="Electronics">Electronics</option>
+                <option value="Mechanical">Mechanical</option>
+                <option value="Production">Production</option>
+              </select>
             </div>
           </div>
 

@@ -40,6 +40,7 @@ export const api = {
     const qs = new URLSearchParams();
     if (params.assignee_id) qs.set('assignee_id', params.assignee_id);
     if (params.status) qs.set('status', params.status);
+    if (params.category) qs.set('category', params.category);
     if (params.search) qs.set('search', params.search);
     const q = qs.toString();
     return request(`/tasks${q ? '?' + q : ''}`);
@@ -71,4 +72,19 @@ export const api = {
 
   getDashboardStats: () =>
     request('/dashboard/stats'),
+
+  getNotifications: () =>
+    request('/notifications'),
+
+  markNotificationRead: (id) =>
+    request(`/notifications/${id}/read`, { method: 'PUT' }),
+
+  markAllNotificationsRead: () =>
+    request('/notifications/read-all', { method: 'POST' }),
+
+  deleteNotification: (id) =>
+    request(`/notifications/${id}`, { method: 'DELETE' }),
+
+  clearNotifications: () =>
+    request('/notifications', { method: 'DELETE' }),
 };

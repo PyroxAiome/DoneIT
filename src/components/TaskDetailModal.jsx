@@ -104,6 +104,14 @@ export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated }
           </button>
         </div>
 
+        {/* Description section */}
+        {(taskData?.description || task.description) && (
+          <div className="px-5 py-3.5 bg-gray-50 border-b border-gray-100">
+            <h4 className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Description</h4>
+            <p className="text-sm text-gray-700 whitespace-pre-wrap">{taskData?.description || task.description}</p>
+          </div>
+        )}
+
         {/* Tab buttons */}
         <div className="flex border-b border-gray-100">
           <button onClick={() => setTab('reviews')}

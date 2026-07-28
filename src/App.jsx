@@ -6,6 +6,7 @@ import AdminDashboard from './components/AdminDashboard';
 import ManagerDashboard from './components/ManagerDashboard';
 import EmployeeDashboard from './components/EmployeeDashboard';
 import ChangePasswordModal from './components/ChangePasswordModal';
+import TaskDetailModal from './components/TaskDetailModal';
 
 export const AuthContext = createContext(null);
 
@@ -17,6 +18,7 @@ export default function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showChangePassword, setShowChangePassword] = useState(false);
+  const [detailTask, setDetailTask] = useState(null);
 
   useEffect(() => {
     const token = localStorage.getItem('km_token');
@@ -57,7 +59,7 @@ export default function App() {
   return (
     <AuthContext.Provider value={user}>
       <div className="min-h-screen bg-gray-100">
-        <Header user={user} onLogout={handleLogout} onChangePassword={() => setShowChangePassword(true)} />
+        <Header user={user} onLogout={handleLogout} onChangePassword={() => setShowChangePassword(true)} onViewTask={(task) => setDetailTask(task)} />
         <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           {user.role === 'admin' && <AdminDashboard user={user} />}
           {user.role === 'manager' && <ManagerDashboard user={user} />}
@@ -65,6 +67,16 @@ export default function App() {
         </main>
       </div>
       <ChangePasswordModal isOpen={showChangePassword} onClose={() => setShowChangePassword(false)} />
+      {detailTask && (
+        <TaskDetailModal
+          isOpen={!!detailTask}
+          onClose={() => setDetailTask(null)}
+          task={detailTask}
+          onTaskUpdated={() => {
+            window.dispatchEvent(new CustomEvent('task-updated'));
+          }}
+        />
+      )}
     </AuthContext.Provider>
   );
 }
