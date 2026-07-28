@@ -2,14 +2,10 @@ import { Clock, User, MessageSquare, ChevronRight, MoreHorizontal, Edit3, Trash2
 import { useState, useEffect } from 'react';
 import { api } from '../lib/api';
 import { useAuth } from '../App';
-
-const colorMap = {
-  slate: { border: 'border-gray-300', bg: 'bg-gray-50', dot: 'bg-gray-400' },
-  yellow: { border: 'border-yellow-300', bg: 'bg-yellow-50', dot: 'bg-yellow-500' },
-  blue: { border: 'border-blue-300', bg: 'bg-blue-50', dot: 'bg-blue-500' },
-  green: { border: 'border-emerald-300', bg: 'bg-emerald-50', dot: 'bg-emerald-500' },
-  purple: { border: 'border-purple-300', bg: 'bg-purple-50', dot: 'bg-purple-500' },
-  red: { border: 'border-red-300', bg: 'bg-red-50', dot: 'bg-red-500' },
+const roleColorMap = {
+  admin: { border: 'border-red-300', bg: 'bg-red-50', dot: 'bg-red-500' },
+  manager: { border: 'border-blue-300', bg: 'bg-blue-50', dot: 'bg-blue-500' },
+  employee: { border: 'border-gray-950', bg: 'bg-gray-50/50', dot: 'bg-gray-950' },
 };
 
 const priorityStyles = {
@@ -43,7 +39,7 @@ const canModifyTask = (user, task) => {
 
 export default function TaskCard({ task, compact, onEdit, onDelete, onSelect, onViewDetail }) {
   const user = useAuth();
-  const colors = colorMap[task.color] || colorMap.slate;
+  const colors = roleColorMap[task.creator_role] || roleColorMap.employee;
   const [showMenu, setShowMenu] = useState(false);
   const [fbCount, setFbCount] = useState(0);
   const isOverdue = task.due_date && new Date(task.due_date) < new Date() && task.status !== 'completed';
@@ -124,28 +120,31 @@ export default function TaskCard({ task, compact, onEdit, onDelete, onSelect, on
               <MoreHorizontal className="w-4 h-4 text-gray-400" />
             </button>
             {showMenu && (
-              <div className="absolute right-0 top-8 w-48 bg-white border border-gray-200 rounded-xl shadow-lg py-1 z-20" onClick={(e) => e.stopPropagation()}>
-                <div className="px-3 py-1.5 text-[10px] text-gray-400 uppercase tracking-wider">Set Priority</div>
-                {['urgent', 'high', 'medium', 'low'].filter(p => p !== task.priority).map(p => (
-                  <button key={p} onClick={() => { api.updateTask(task.id, { priority: p }).then(() => onEdit?.()); setShowMenu(false); }} className="w-full text-left px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 capitalize">{p}</button>
-                ))}
-                <div className="border-t border-gray-100 my-1" />
-                <div className="px-3 py-1.5 text-[10px] text-gray-400 uppercase tracking-wider">Set Status</div>
-                {statusActions.map(s => (
-                  <button key={s} onClick={() => handleStatusChange(s)} className="w-full text-left px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50">{statusLabels[s]}</button>
-                ))}
-                <div className="border-t border-gray-100 my-1" />
-                {canModifyTask(user, task) && (
-                  <button onClick={() => { onSelect?.(task); setShowMenu(false); }} className="w-full text-left px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2">
-                    <Edit3 className="w-3.5 h-3.5" /> Edit Task
-                  </button>
-                )}
-                {canModifyTask(user, task) && (
-                  <button onClick={() => { onDelete?.(task); setShowMenu(false); }} className="w-full text-left px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2">
-                    <Trash2 className="w-3.5 h-3.5" /> Delete Task
-                  </button>
-                )}
-              </div>
+              <>
+                <div className="fixed inset-0 z-10" onClick={(e) => { e.stopPropagation(); setShowMenu(false); }} />
+                <div className="absolute right-0 top-8 w-48 bg-white border border-gray-200 rounded-xl shadow-lg py-1 z-20" onClick={(e) => e.stopPropagation()}>
+                  <div className="px-3 py-1.5 text-[10px] text-gray-400 uppercase tracking-wider">Set Priority</div>
+                  {['urgent', 'high', 'medium', 'low'].filter(p => p !== task.priority).map(p => (
+                    <button key={p} onClick={() => { api.updateTask(task.id, { priority: p }).then(() => onEdit?.()); setShowMenu(false); }} className="w-full text-left px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 capitalize">{p}</button>
+                  ))}
+                  <div className="border-t border-gray-100 my-1" />
+                  <div className="px-3 py-1.5 text-[10px] text-gray-400 uppercase tracking-wider">Set Status</div>
+                  {statusActions.map(s => (
+                    <button key={s} onClick={() => handleStatusChange(s)} className="w-full text-left px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50">{statusLabels[s]}</button>
+                  ))}
+                  <div className="border-t border-gray-100 my-1" />
+                  {canModifyTask(user, task) && (
+                    <button onClick={() => { onSelect?.(task); setShowMenu(false); }} className="w-full text-left px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2">
+                      <Edit3 className="w-3.5 h-3.5" /> Edit Task
+                    </button>
+                  )}
+                  {canModifyTask(user, task) && (
+                    <button onClick={() => { onDelete?.(task); setShowMenu(false); }} className="w-full text-left px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2">
+                      <Trash2 className="w-3.5 h-3.5" /> Delete Task
+                    </button>
+                  )}
+                </div>
+              </>
             )}
           </div>
         </div>
@@ -162,7 +161,26 @@ export default function TaskCard({ task, compact, onEdit, onDelete, onSelect, on
         )}
       </div>
 
-      <div className="flex items-center justify-between mt-3 pt-2 border-t border-gray-100">
+      <div className="mt-2.5 pt-1.5 border-t border-dashed border-gray-100 flex items-center gap-1.5 text-[10px] text-gray-400">
+        {task.creator_id === task.assignee_id ? (
+          <span className="bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded font-medium">Self Assigned</span>
+        ) : (
+          <span>
+            Assigned by <span className="font-semibold text-gray-600">{task.creator_name || 'System'}</span>
+            {task.creator_role && (
+              <span className={`text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded font-semibold ml-1.5 ${
+                task.creator_role === 'admin' 
+                  ? 'bg-red-50 text-red-600 border border-red-100' 
+                  : 'bg-blue-50 text-blue-600 border border-blue-100'
+              }`}>
+                {task.creator_role}
+              </span>
+            )}
+          </span>
+        )}
+      </div>
+
+      <div className="flex items-center justify-between mt-2.5 pt-2 border-t border-gray-100">
         <span className="text-[10px] uppercase text-gray-400">{task.category}</span>
         <span className="text-[11px] text-gray-400 flex items-center gap-1">
           <MessageSquare className="w-3 h-3" /> {fbCount}

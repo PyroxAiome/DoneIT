@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { LogOut, User, Shield, Users, Key, Bell, X } from 'lucide-react';
 import { api } from '../lib/api';
 
@@ -38,6 +38,19 @@ export default function Header({ user, onLogout, onChangePassword, onViewTask })
       eventSource.close();
     };
   }, [user.role]);
+
+  const notificationsRef = useRef(null);
+
+  useEffect(() => {
+    if (!showNotifications) return;
+    const handleClickOutside = (event) => {
+      if (notificationsRef.current && !notificationsRef.current.contains(event.target)) {
+        setShowNotifications(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showNotifications]);
 
   const unreadCount = notifications.filter(n => !n.is_read).length;
 
@@ -109,7 +122,7 @@ export default function Header({ user, onLogout, onChangePassword, onViewTask })
           </div>
 
           {user.role === 'admin' && (
-            <div className="relative">
+            <div className="relative" ref={notificationsRef}>
               <button
                 onClick={() => setShowNotifications(!showNotifications)}
                 className="p-2 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors relative"
@@ -124,9 +137,7 @@ export default function Header({ user, onLogout, onChangePassword, onViewTask })
               </button>
 
               {showNotifications && (
-                <>
-                  <div className="fixed inset-0 z-40" onClick={() => setShowNotifications(false)} />
-                  <div className="absolute right-0 top-10 w-80 bg-white border border-gray-200 rounded-xl shadow-lg py-1 z-50 max-h-[80vh] flex flex-col">
+                <div className="absolute right-0 top-10 w-80 bg-white border border-gray-200 rounded-xl shadow-lg py-1 z-[1000] max-h-[80vh] flex flex-col">
                     <div className="flex items-center justify-between px-4 py-2 border-b border-gray-100 shrink-0">
                       <span className="text-xs font-semibold text-gray-700">Notifications</span>
                       <div className="flex items-center gap-1.5">
@@ -185,7 +196,6 @@ export default function Header({ user, onLogout, onChangePassword, onViewTask })
                       )}
                     </div>
                   </div>
-                </>
               )}
             </div>
           )}

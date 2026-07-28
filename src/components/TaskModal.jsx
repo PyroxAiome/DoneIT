@@ -2,15 +2,6 @@ import { useState, useEffect } from 'react';
 import { api } from '../lib/api';
 import { X, AlertCircle, Check } from 'lucide-react';
 
-const colors = [
-  { value: 'slate', label: 'Slate', class: 'bg-gray-400' },
-  { value: 'yellow', label: 'Yellow', class: 'bg-yellow-500' },
-  { value: 'blue', label: 'Blue', class: 'bg-blue-500' },
-  { value: 'green', label: 'Green', class: 'bg-emerald-500' },
-  { value: 'purple', label: 'Purple', class: 'bg-purple-500' },
-  { value: 'red', label: 'Red', class: 'bg-red-500' },
-];
-
 export default function TaskModal({ isOpen, onClose, onSaved, task, employees }) {
   const isEdit = !!task;
   const [form, setForm] = useState({
@@ -70,8 +61,8 @@ export default function TaskModal({ isOpen, onClose, onSaved, task, employees })
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/30 backdrop-blur-sm">
-      <div className="card max-w-lg w-full max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/30 backdrop-blur-sm" onClick={onClose}>
+      <div className="card max-w-lg w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-semibold text-gray-900">{isEdit ? 'Edit Task' : 'Create Task'}</h3>
           <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded transition-colors">
@@ -157,20 +148,7 @@ export default function TaskModal({ isOpen, onClose, onSaved, task, employees })
             </div>
           </div>
 
-          <div>
-            <label className="text-xs text-gray-500 uppercase tracking-wider block mb-1.5">Color Theme</label>
-            <div className="flex gap-2">
-              {colors.map((c) => (
-                <button
-                  key={c.value}
-                  type="button"
-                  onClick={() => setForm({ ...form, color: c.value })}
-                  className={`w-7 h-7 rounded-full ${c.class} ${form.color === c.value ? 'ring-2 ring-gray-400 ring-offset-2 ring-offset-white' : 'ring-1 ring-transparent'} transition-all`}
-                  title={c.label}
-                />
-              ))}
-            </div>
-          </div>
+
 
           <div className="flex justify-end gap-2 pt-2">
             <button type="button" onClick={onClose} className="btn-primary text-sm">Cancel</button>

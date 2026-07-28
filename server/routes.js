@@ -252,7 +252,15 @@ router.post('/tasks', auth, (req, res) => {
     WHERE t.id = ?
   `).get(result.lastInsertRowid);
 
-  notifyAdmins(req.user.id, `${req.user.name} created task: ${title}`, task.id);
+  let msg = '';
+  if (task.creator_id === task.assignee_id) {
+    msg = `${req.user.name} self-assigned task: "${title}"`;
+  } else if (task.assignee_name) {
+    msg = `${req.user.name} assigned task: "${title}" to ${task.assignee_name}`;
+  } else {
+    msg = `${req.user.name} created task: "${title}"`;
+  }
+  notifyAdmins(req.user.id, msg, task.id);
 
   res.status(201).json(task);
 });
@@ -318,7 +326,15 @@ router.put('/tasks/:id', auth, (req, res) => {
     WHERE t.id = ?
   `).get(id);
 
-  notifyAdmins(req.user.id, `${req.user.name} updated task: ${updated.title}`, updated.id);
+  let msg = '';
+  if (updated.creator_id === updated.assignee_id) {
+    msg = `${req.user.name} updated self-assigned task: "${updated.title}"`;
+  } else if (updated.assignee_name) {
+    msg = `${req.user.name} updated task: "${updated.title}" (assigned to ${updated.assignee_name})`;
+  } else {
+    msg = `${req.user.name} updated task: "${updated.title}"`;
+  }
+  notifyAdmins(req.user.id, msg, updated.id);
 
   res.json(updated);
 });

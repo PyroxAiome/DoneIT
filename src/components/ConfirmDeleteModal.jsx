@@ -4,8 +4,8 @@ export default function ConfirmDeleteModal({ isOpen, onClose, onConfirm, title, 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/30 backdrop-blur-sm">
-      <div className="card max-w-sm w-full">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/30 backdrop-blur-sm" onClick={onClose}>
+      <div className="card max-w-sm w-full" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-start gap-3">
           <div className="w-10 h-10 rounded-full bg-red-50 border border-red-200 flex items-center justify-center shrink-0">
             <AlertTriangle className="w-5 h-5 text-red-500" />
