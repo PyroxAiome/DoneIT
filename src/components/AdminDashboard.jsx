@@ -14,6 +14,7 @@ import {
 const tabs = [
   { id: 'overview', label: 'Overview', icon: LayoutDashboard },
   { id: 'work', label: 'Work', icon: Briefcase },
+  { id: 'completed', label: 'Completed', icon: CheckCircle },
   { id: 'team', label: 'Team', icon: Users },
 ];
 
@@ -28,6 +29,15 @@ export default function AdminDashboard({ user }) {
   const [categoryFilter, setCategoryFilter] = useState('');
   const [employeeFilter, setEmployeeFilter] = useState(null);
   const [compact, setCompact] = useState(false);
+
+  const handleTabChange = (tabId) => {
+    setActiveTab(tabId);
+    setStatusFilter('');
+    if (tabId === 'work' || tabId === 'completed') {
+      setEmployeeFilter(null);
+      setSelectedEmp(null);
+    }
+  };
 
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [editTask, setEditTask] = useState(null);
@@ -92,13 +102,27 @@ export default function AdminDashboard({ user }) {
     setSelectedEmp(null);
   };
 
+  const displayedTasks = tasks.filter(t => {
+    if (activeTab === 'completed') {
+      return t.status === 'completed';
+    } else {
+      return t.status !== 'completed';
+    }
+  }).sort((a, b) => {
+    if (activeTab === 'work') {
+      if (a.status === 'in_progress' && b.status !== 'in_progress') return -1;
+      if (a.status !== 'in_progress' && b.status === 'in_progress') return 1;
+    }
+    return 0;
+  });
+
   const metricCards = stats ? [
     { label: 'Total Tasks', value: stats.totalTasks, icon: ListTodo, color: 'text-gray-500' },
     { label: 'Team Members', value: stats.totalEmployees + stats.totalManagers, icon: Users, color: 'text-blue-500' },
     { label: 'Avg Completion', value: `${stats.avgCompletion}%`, icon: CheckCircle, color: 'text-emerald-500' },
   ] : [];
 
-  const statusOptions = ['', 'todo', 'in_progress', 'under_review', 'completed'];
+  const statusOptions = ['', 'todo', 'in_progress', 'under_review', 'blocked'];
 
   return (
     <div className="space-y-6">
@@ -115,7 +139,7 @@ export default function AdminDashboard({ user }) {
           return (
             <button
               key={tab.id}
-              onClick={() => { setActiveTab(tab.id); if (tab.id === 'work') { setEmployeeFilter(null); setSelectedEmp(null); } }}
+              onClick={() => handleTabChange(tab.id)}
               className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                 activeTab === tab.id
                   ? 'bg-white text-gray-900 shadow-sm'
@@ -168,7 +192,7 @@ export default function AdminDashboard({ user }) {
         </div>
       )}
 
-      {activeTab === 'work' && (
+      {(activeTab === 'work' || activeTab === 'completed') && (
         <div className="space-y-4">
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <div className="flex items-center gap-3 flex-wrap flex-1">
@@ -176,19 +200,23 @@ export default function AdminDashboard({ user }) {
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <input value={search} onChange={(e) => setSearch(e.target.value)} className="input-field pl-9" placeholder="Search tasks..." />
               </div>
-              <div className="flex items-center gap-1.5">
-                <Filter className="w-4 h-4 text-gray-400" />
-                {statusOptions.map((s) => (
-                  <button key={s} onClick={() => setStatusFilter(s)}
-                    className={`text-xs px-2.5 py-1 rounded-lg border transition-colors ${
-                      statusFilter === s
-                        ? 'bg-gray-800 text-white border-gray-700'
-                        : 'bg-white border-gray-200 text-gray-500 hover:text-gray-700 hover:bg-gray-50'
-                    }`}>
-                    {s ? s.replace('_', ' ') : 'All'}
-                  </button>
-                ))}
-              </div>
+              
+              {activeTab === 'work' && (
+                <div className="flex items-center gap-1.5">
+                  <Filter className="w-4 h-4 text-gray-400" />
+                  {statusOptions.map((s) => (
+                    <button key={s} onClick={() => setStatusFilter(s)}
+                      className={`text-xs px-2.5 py-1 rounded-lg border transition-colors ${
+                        statusFilter === s
+                          ? 'bg-gray-800 text-white border-gray-700'
+                          : 'bg-white border-gray-200 text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                      }`}>
+                      {s ? s.replace('_', ' ') : 'All'}
+                    </button>
+                  ))}
+                </div>
+              )}
+
               <div className="flex items-center gap-1.5">
                 <select
                   value={categoryFilter}
@@ -217,9 +245,11 @@ export default function AdminDashboard({ user }) {
               <button onClick={() => setCompact(true)} className={`p-2 rounded-lg border transition-colors ${compact ? 'bg-gray-800 text-white border-gray-700' : 'bg-white border-gray-200 text-gray-500 hover:text-gray-700'}`}>
                 <List className="w-4 h-4" />
               </button>
-              <button onClick={() => { setEditTask(null); setShowTaskModal(true); }} className="bg-amber-500 hover:bg-amber-400 text-white p-2 rounded-lg border border-amber-400/40 shadow-lg shadow-amber-200/40 transition-all" title="Create Task">
-                <Plus className="w-4 h-4" />
-              </button>
+              {activeTab === 'work' && (
+                <button onClick={() => { setEditTask(null); setShowTaskModal(true); }} className="bg-amber-500 hover:bg-amber-400 text-white p-2 rounded-lg border border-amber-400/40 shadow-lg shadow-amber-200/40 transition-all" title="Create Task">
+                  <Plus className="w-4 h-4" />
+                </button>
+              )}
             </div>
           </div>
 
@@ -227,20 +257,20 @@ export default function AdminDashboard({ user }) {
             <div className="flex justify-center py-12">
               <div className="animate-spin w-6 h-6 border-2 border-gray-300 border-t-gray-600 rounded-full" />
             </div>
-          ) : tasks.length === 0 ? (
+          ) : displayedTasks.length === 0 ? (
             <div className="card text-center py-12">
               <Briefcase className="w-10 h-10 text-gray-300 mx-auto mb-3" />
               <p className="text-gray-500 text-sm">{employeeFilter ? 'No tasks for this team member' : 'No tasks found'}</p>
             </div>
           ) : compact ? (
             <div className="space-y-1.5">
-              {tasks.map((task) => (
+              {displayedTasks.map((task) => (
                 <TaskCard key={task.id} task={task} compact onEdit={fetchAll} onDelete={setDeleteTask} onSelect={handleEditTask} onViewDetail={setDetailTask} />
               ))}
             </div>
           ) : (
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-              {tasks.map((task) => (
+              {displayedTasks.map((task) => (
                 <TaskCard key={task.id} task={task} onEdit={fetchAll} onDelete={setDeleteTask} onSelect={handleEditTask} onViewDetail={setDetailTask} />
               ))}
             </div>

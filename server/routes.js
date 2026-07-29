@@ -33,32 +33,77 @@ const adminOnly = (req, res, next) => {
 
 let sseClients = [];
 
-const notifyAdmins = (updaterId, message, taskId) => {
+const createNotification = (recipientId, updaterId, message, taskId) => {
+  if (!recipientId || recipientId === updaterId) return;
+  try {
+    const result = db.prepare("INSERT INTO notifications (user_id, message, task_id) VALUES (?, ?, ?)")
+      .run(recipientId, message, taskId);
+    const notificationId = result.lastInsertRowid;
+
+    const notification = db.prepare(`
+      SELECT n.*, t.title as task_title
+      FROM notifications n
+      LEFT JOIN tasks t ON n.task_id = t.id
+      WHERE n.id = ?
+    `).get(notificationId);
+
+    console.log(`[Notification SSE Broadcast] sending to recipient user id: ${recipientId}`);
+    const clients = sseClients.filter(c => Number(c.userId) === Number(recipientId));
+    clients.forEach(client => {
+      try {
+        client.res.write(`data: ${JSON.stringify(notification)}\n\n`);
+      } catch (err) {
+        console.error("SSE client write error:", err);
+      }
+    });
+  } catch (err) {
+    console.error(`Error sending notification to user ${recipientId}:`, err);
+  }
+};
+
+const notifyRelevantUsers = (updaterId, message, taskId, extraRecipientIds = []) => {
   try {
     console.log(`[Notification Triggered] message: "${message}", taskId: ${taskId}`);
+    const recipientIds = new Set();
+
+    // 1. All Admins
     const admins = db.prepare("SELECT id FROM users WHERE role = 'admin'").all();
-    const insertStmt = db.prepare("INSERT INTO notifications (user_id, message, task_id) VALUES (?, ?, ?)");
-    for (const admin of admins) {
-      if (admin.id !== updaterId) {
-        const result = insertStmt.run(admin.id, message, taskId);
-        const notificationId = result.lastInsertRowid;
+    admins.forEach(a => recipientIds.add(a.id));
 
-        const notification = db.prepare(`
-          SELECT n.*, t.title as task_title
-          FROM notifications n
-          LEFT JOIN tasks t ON n.task_id = t.id
-          WHERE n.id = ?
-        `).get(notificationId);
+    // 2. Fetch task assignee, creator, and assignee's department details
+    const taskDetails = db.prepare(`
+      SELECT t.assignee_id, t.creator_id, u.department as assignee_dept
+      FROM tasks t
+      LEFT JOIN users u ON t.assignee_id = u.id
+      WHERE t.id = ?
+    `).get(taskId);
 
-        console.log(`[Notification SSE Broadcast] sending to admin user id: ${admin.id}`);
-        const client = sseClients.find(c => c.userId === admin.id);
-        if (client) {
-          client.res.write(`data: ${JSON.stringify(notification)}\n\n`);
-        }
+    if (taskDetails) {
+      // Add assignee
+      if (taskDetails.assignee_id) {
+        recipientIds.add(taskDetails.assignee_id);
+      }
+      // Add creator
+      if (taskDetails.creator_id) {
+        recipientIds.add(taskDetails.creator_id);
+      }
+      // Add department manager
+      if (taskDetails.assignee_dept) {
+        const managers = db.prepare("SELECT id FROM users WHERE role = 'manager' AND department = ?")
+          .all(taskDetails.assignee_dept);
+        managers.forEach(m => recipientIds.add(m.id));
       }
     }
+
+    // 3. Add extra recipients (e.g. parsed mentions)
+    extraRecipientIds.forEach(id => recipientIds.add(id));
+
+    // Send notification to all collected unique IDs
+    for (const recipientId of recipientIds) {
+      createNotification(recipientId, updaterId, message, taskId);
+    }
   } catch (err) {
-    console.error("Error creating notifications:", err);
+    console.error("Error sending notifications to relevant users:", err);
   }
 };
 
@@ -260,7 +305,7 @@ router.post('/tasks', auth, (req, res) => {
   } else {
     msg = `${req.user.name} created task: "${title}"`;
   }
-  notifyAdmins(req.user.id, msg, task.id);
+  notifyRelevantUsers(req.user.id, msg, task.id);
 
   res.status(201).json(task);
 });
@@ -334,7 +379,7 @@ router.put('/tasks/:id', auth, (req, res) => {
   } else {
     msg = `${req.user.name} updated task: "${updated.title}"`;
   }
-  notifyAdmins(req.user.id, msg, updated.id);
+  notifyRelevantUsers(req.user.id, msg, updated.id);
 
   res.json(updated);
 });
@@ -343,6 +388,10 @@ router.delete('/tasks/:id', auth, (req, res) => {
   const { id } = req.params;
   const task = db.prepare('SELECT * FROM tasks WHERE id = ?').get(id);
   if (!task) return res.status(404).json({ error: 'Task not found' });
+
+  if (task.status === 'completed' && req.user.role !== 'admin') {
+    return res.status(403).json({ error: 'Only admins can delete completed tasks' });
+  }
 
   if (req.user.role === 'employee' && task.creator_id !== req.user.id) {
     return res.status(403).json({ error: 'Not authorized to delete this task' });
@@ -388,6 +437,23 @@ router.post('/tasks/:id/comments', auth, (req, res) => {
     LEFT JOIN users u ON ac.admin_id = u.id
     WHERE ac.id = ?
   `).get(result.lastInsertRowid);
+
+  const taskDetails = db.prepare('SELECT title FROM tasks WHERE id = ?').get(id);
+  const commentMsg = `${req.user.name} reviewed/commented on task "${taskDetails.title}": "${comment_text.substring(0, 30)}${comment_text.length > 30 ? '...' : ''}"`;
+
+  // Parse mentions (e.g. @Teja, @hemant)
+  const mentionRegex = /@([a-zA-Z0-9_]+)/g;
+  const extraRecipientIds = [];
+  let match;
+  while ((match = mentionRegex.exec(comment_text)) !== null) {
+    const nameToFind = match[1].toLowerCase();
+    const mentionedUser = db.prepare("SELECT id FROM users WHERE LOWER(name) = ?").get(nameToFind);
+    if (mentionedUser) {
+      extraRecipientIds.push(mentionedUser.id);
+    }
+  }
+
+  notifyRelevantUsers(req.user.id, commentMsg, id, extraRecipientIds);
 
   res.status(201).json(comment);
 });
@@ -470,6 +536,69 @@ router.get('/dashboard/stats', auth, adminOrManager, (req, res) => {
     statusBreakdown,
     recentTasks,
   });
+});
+
+// ─── DAILY LOGS ──────────────────────────────────────────────────
+router.get('/tasks/:id/daily-logs', auth, (req, res) => {
+  const { id } = req.params;
+  const logs = db.prepare(`
+    SELECT dl.*, u.name as user_name, u.role as user_role
+    FROM task_daily_logs dl
+    LEFT JOIN users u ON dl.user_id = u.id
+    WHERE dl.task_id = ?
+    ORDER BY dl.log_date DESC, dl.created_at DESC
+  `).all(id);
+  res.json(logs);
+});
+
+router.post('/tasks/:id/daily-logs', auth, (req, res) => {
+  const { id } = req.params;
+  const { log_date, content } = req.body;
+  if (!content) return res.status(400).json({ error: 'Content required' });
+  if (!log_date) return res.status(400).json({ error: 'Log date required' });
+
+  const task = db.prepare('SELECT id, title FROM tasks WHERE id = ?').get(id);
+  if (!task) return res.status(404).json({ error: 'Task not found' });
+
+  const existing = db.prepare('SELECT id FROM task_daily_logs WHERE task_id = ? AND user_id = ? AND log_date = ?')
+    .get(id, req.user.id, log_date);
+
+  let logId;
+  if (existing) {
+    db.prepare('UPDATE task_daily_logs SET content = ?, updated_at = datetime(\'now\') WHERE id = ?')
+      .run(content, existing.id);
+    logId = existing.id;
+  } else {
+    const result = db.prepare('INSERT INTO task_daily_logs (task_id, user_id, log_date, content) VALUES (?, ?, ?, ?)')
+      .run(id, req.user.id, log_date, content);
+    logId = result.lastInsertRowid;
+  }
+
+  const log = db.prepare(`
+    SELECT dl.*, u.name as user_name, u.role as user_role
+    FROM task_daily_logs dl
+    LEFT JOIN users u ON dl.user_id = u.id
+    WHERE dl.id = ?
+  `).get(logId);
+
+  const isUpdate = !!existing;
+  const msg = `${req.user.name} ${isUpdate ? 'updated daily log' : 'added daily log'} for task "${task.title}" on ${log_date}`;
+  notifyRelevantUsers(req.user.id, msg, id);
+
+  res.json(log);
+});
+
+router.delete('/tasks/:id/daily-logs/:logId', auth, (req, res) => {
+  const { logId } = req.params;
+  const log = db.prepare('SELECT * FROM task_daily_logs WHERE id = ?').get(logId);
+  if (!log) return res.status(404).json({ error: 'Log not found' });
+
+  if (req.user.role !== 'admin' && log.user_id !== req.user.id) {
+    return res.status(403).json({ error: 'Not authorized to delete this log' });
+  }
+
+  db.prepare('DELETE FROM task_daily_logs WHERE id = ?').run(logId);
+  res.json({ success: true });
 });
 
 // ─── NOTIFICATIONS ──────────────────────────────────────────────

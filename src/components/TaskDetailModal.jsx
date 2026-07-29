@@ -1,30 +1,37 @@
 import { useState, useEffect } from 'react';
 import { api } from '../lib/api';
 import { useAuth } from '../App';
-import { X, Send, Edit3, Trash2, Check, X as XIcon, MessageSquare, FileText, Reply } from 'lucide-react';
+import { X, Send, Edit3, Trash2, Check, X as XIcon, MessageSquare, FileText, Reply, Calendar } from 'lucide-react';
 
 export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated }) {
   const user = useAuth();
-  const [tab, setTab] = useState('reviews');
-  const [comments, setComments] = useState([]);
-  const [fbText, setFbText] = useState('');
-  const [explanation, setExplanation] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [editCommentId, setEditCommentId] = useState(null);
-  const [editText, setEditText] = useState('');
-  const [taskData, setTaskData] = useState(null);
-  const [replyToId, setReplyToId] = useState(null);
-  const [replyText, setReplyText] = useState('');
-
-  useEffect(() => {
-    if (isOpen && task) {
-      api.getTask(task.id).then(t => {
-        setTaskData(t);
-        setExplanation(t.logical_explanation || '');
-      }).catch(() => {});
-      api.getComments(task.id).then(setComments).catch(() => {});
-    }
-  }, [isOpen, task]);
+   const [tab, setTab] = useState('reviews');
+   const [comments, setComments] = useState([]);
+   const [fbText, setFbText] = useState('');
+   const [explanation, setExplanation] = useState('');
+   const [saving, setSaving] = useState(false);
+   const [editCommentId, setEditCommentId] = useState(null);
+   const [editText, setEditText] = useState('');
+   const [taskData, setTaskData] = useState(null);
+   const [replyToId, setReplyToId] = useState(null);
+   const [replyText, setReplyText] = useState('');
+ 
+   const [dailyLogs, setDailyLogs] = useState([]);
+   const [newLogContent, setNewLogContent] = useState('');
+   const [newLogDate, setNewLogDate] = useState(new Date().toISOString().split('T')[0]);
+   const [editingLogId, setEditingLogId] = useState(null);
+   const [editingLogContent, setEditingLogContent] = useState('');
+ 
+   useEffect(() => {
+     if (isOpen && task) {
+       api.getTask(task.id).then(t => {
+         setTaskData(t);
+         setExplanation(t.logical_explanation || '');
+       }).catch(() => {});
+       api.getComments(task.id).then(setComments).catch(() => {});
+       api.getDailyLogs(task.id).then(setDailyLogs).catch(() => {});
+     }
+   }, [isOpen, task]);
 
   if (!isOpen || !task) return null;
 
@@ -40,6 +47,56 @@ export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated }
       onTaskUpdated?.();
     } catch {}
     setSaving(false);
+  };
+
+  const handleSaveDailyLog = async (e) => {
+    e?.preventDefault();
+    if (!newLogContent.trim() || !newLogDate) return;
+    setSaving(true);
+    try {
+      const saved = await api.saveDailyLog(task.id, newLogDate, newLogContent);
+      setDailyLogs(prev => {
+        const index = prev.findIndex(l => l.log_date === newLogDate && l.user_id === user.id);
+        if (index > -1) {
+          return prev.map((item, i) => i === index ? saved : item);
+        } else {
+          return [saved, ...prev].sort((a, b) => b.log_date.localeCompare(a.log_date));
+        }
+      });
+      setNewLogContent('');
+      onTaskUpdated?.();
+    } catch (err) {
+      console.error(err);
+      alert(err.message || 'Failed to save daily log. Did you restart the server?');
+    }
+    setSaving(false);
+  };
+
+  const handleUpdateLog = async (logId, logDate) => {
+    if (!editingLogContent.trim()) return;
+    setSaving(true);
+    try {
+      const saved = await api.saveDailyLog(task.id, logDate, editingLogContent);
+      setDailyLogs(prev => prev.map(l => l.id === logId ? saved : l));
+      setEditingLogId(null);
+      setEditingLogContent('');
+      onTaskUpdated?.();
+    } catch (err) {
+      console.error(err);
+      alert(err.message || 'Failed to update daily log.');
+    }
+    setSaving(false);
+  };
+
+  const handleDeleteLog = async (logId) => {
+    try {
+      await api.deleteDailyLog(task.id, logId);
+      setDailyLogs(prev => prev.filter(l => l.id !== logId));
+      onTaskUpdated?.();
+    } catch (err) {
+      console.error(err);
+      alert(err.message || 'Failed to delete daily log.');
+    }
   };
 
   const handleSendReview = async () => {
@@ -121,6 +178,10 @@ export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated }
           <button onClick={() => setTab('explanation')}
             className={`flex items-center gap-1.5 px-5 py-3 text-sm font-medium transition-colors ${tab === 'explanation' ? 'text-amber-600 border-b-2 border-amber-500' : 'text-gray-500 hover:text-gray-700'}`}>
             <FileText className="w-4 h-4" /> Logical Explanation
+          </button>
+          <button onClick={() => setTab('daily-logs')}
+            className={`flex items-center gap-1.5 px-5 py-3 text-sm font-medium transition-colors ${tab === 'daily-logs' ? 'text-amber-600 border-b-2 border-amber-500' : 'text-gray-500 hover:text-gray-700'}`}>
+            <Calendar className="w-4 h-4" /> Daily Achievements
           </button>
         </div>
 
@@ -249,6 +310,125 @@ export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated }
                   {saving ? <div className="w-3 h-3 border-2 border-white/40 border-t-white rounded-full animate-spin" /> : <Check className="w-3.5 h-3.5" />}
                   {saving ? 'Saving...' : 'Save Explanation'}
                 </button>
+              </div>
+            </div>
+          )}
+
+          {tab === 'daily-logs' && (
+            <div className="space-y-5">
+              <form onSubmit={handleSaveDailyLog} className="bg-amber-50/40 border border-amber-100 rounded-xl p-4 space-y-3">
+                <div className="flex items-center justify-between gap-4">
+                  <span className="text-xs font-semibold text-amber-900">Add Daily Achievement / Log</span>
+                  <div className="flex items-center gap-1.5 text-xs text-gray-500">
+                    <span className="font-medium">Date:</span>
+                    <input
+                      type="date"
+                      value={newLogDate}
+                      onChange={(e) => setNewLogDate(e.target.value)}
+                      className="border border-gray-200 rounded px-2 py-1 text-gray-700 bg-white focus:outline-none focus:ring-1 focus:ring-amber-500 focus:border-amber-500"
+                    />
+                  </div>
+                </div>
+                <textarea
+                  value={newLogContent}
+                  onChange={(e) => setNewLogContent(e.target.value)}
+                  className="w-full border border-gray-200 rounded-lg p-2.5 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-amber-500 focus:border-amber-500 min-h-[90px] resize-y placeholder:text-gray-400"
+                  placeholder="What did you achieve or fail on today? What problem was solved/faced?..."
+                  required
+                />
+                <div className="flex justify-end">
+                  <button type="submit" disabled={saving || !newLogContent.trim()} className="btn-amber text-xs flex items-center gap-1 px-3 py-1.5 disabled:opacity-50">
+                    {saving ? <div className="w-3 h-3 border-2 border-white/40 border-t-white rounded-full animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                    Log Work
+                  </button>
+                </div>
+              </form>
+
+              <div className="space-y-4">
+                <h5 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Product Development History</h5>
+                {dailyLogs.length === 0 ? (
+                  <p className="text-sm text-gray-400 text-center py-6">No daily logs written yet. Document progress daily to build the project history.</p>
+                ) : (
+                  <div className="relative border-l border-gray-100 pl-4 ml-2 space-y-4">
+                    {dailyLogs.map((log) => {
+                      const isOwner = log.user_id === user.id || user.role === 'admin';
+                      const formattedDate = new Date(log.log_date).toLocaleDateString(undefined, {
+                        weekday: 'short',
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric'
+                      });
+
+                      return (
+                        <div key={log.id} className="relative group/log">
+                          <div className="absolute -left-[21px] top-1.5 w-2.5 h-2.5 rounded-full border border-white bg-amber-500 ring-4 ring-amber-50" />
+                          
+                          <div className="bg-gray-50 border border-gray-100 rounded-xl p-3.5 space-y-1.5 transition-shadow hover:shadow-sm">
+                            <div className="flex items-center justify-between gap-3 text-xs">
+                              <div className="flex items-center gap-2">
+                                <span className="font-semibold text-gray-800">{log.user_name}</span>
+                                <span className="text-[10px] uppercase px-1.5 py-0.5 rounded bg-gray-200/60 text-gray-500 scale-90 origin-left">
+                                  {log.user_role}
+                                </span>
+                              </div>
+                              <span className="text-[10px] font-medium text-gray-400">{formattedDate}</span>
+                            </div>
+
+                            {editingLogId === log.id ? (
+                              <div className="space-y-2 pt-1">
+                                <textarea
+                                  value={editingLogContent}
+                                  onChange={(e) => setEditingLogContent(e.target.value)}
+                                  className="w-full border border-gray-200 rounded-lg p-2 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-amber-500 focus:border-amber-500 min-h-[80px]"
+                                />
+                                <div className="flex justify-end gap-1.5">
+                                  <button
+                                    onClick={() => setEditingLogId(null)}
+                                    className="text-[10px] text-gray-500 hover:bg-gray-100 font-medium px-2 py-1 rounded transition-colors"
+                                  >
+                                    Cancel
+                                  </button>
+                                  <button
+                                    onClick={() => handleUpdateLog(log.id, log.log_date)}
+                                    className="text-[10px] text-white bg-amber-600 hover:bg-amber-700 font-semibold px-2 py-1 rounded transition-colors"
+                                  >
+                                    Save
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <>
+                                <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
+                                  {log.content}
+                                </p>
+                                
+                                {isOwner && (
+                                  <div className="flex justify-end gap-3 text-[10px] text-gray-400 pt-1 border-t border-gray-100 opacity-0 group-hover/log:opacity-100 transition-opacity">
+                                    <button
+                                      onClick={() => {
+                                        setEditingLogId(log.id);
+                                        setEditingLogContent(log.content);
+                                      }}
+                                      className="flex items-center gap-0.5 hover:text-amber-600"
+                                    >
+                                      <Edit3 className="w-3 h-3" /> Edit
+                                    </button>
+                                    <button
+                                      onClick={() => handleDeleteLog(log.id)}
+                                      className="flex items-center gap-0.5 hover:text-red-600"
+                                    >
+                                      <Trash2 className="w-3 h-3" /> Delete
+                                    </button>
+                                  </div>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             </div>
           )}

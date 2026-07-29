@@ -9,7 +9,13 @@ import {
   ListTodo, User, LayoutGrid, X
 } from 'lucide-react';
 
+const tabs = [
+  { id: 'work', label: 'Work', icon: ListTodo },
+  { id: 'completed', label: 'Completed', icon: CheckCircle },
+];
+
 export default function ManagerDashboard({ user }) {
+  const [activeTab, setActiveTab] = useState('work');
   const [stats, setStats] = useState(null);
   const [tasks, setTasks] = useState([]);
   const [employees, setEmployees] = useState([]);
@@ -72,26 +78,56 @@ export default function ManagerDashboard({ user }) {
     }
   };
 
+  const displayedTasks = tasks.filter(t => {
+    if (myTasksOnly && t.creator_id !== user.id && t.assignee_id !== user.id) {
+      return false;
+    }
+    if (activeTab === 'completed') {
+      return t.status === 'completed';
+    } else {
+      return t.status !== 'completed';
+    }
+  }).sort((a, b) => {
+    if (activeTab === 'work') {
+      if (a.status === 'in_progress' && b.status !== 'in_progress') return -1;
+      if (a.status !== 'in_progress' && b.status === 'in_progress') return 1;
+    }
+    return 0;
+  });
+
   const metricCards = stats ? [
     { label: 'Total Tasks', value: stats.totalTasks, icon: ListTodo, color: 'text-gray-500' },
     { label: 'Team Members', value: stats.totalEmployees, icon: Users, color: 'text-blue-500' },
     { label: 'Avg Completion', value: `${stats.avgCompletion}%`, icon: CheckCircle, color: 'text-emerald-500' },
   ] : [];
 
-  const statusOptions = ['', 'todo', 'in_progress', 'under_review', 'completed'];
-
-  const filteredTasks = tasks.filter(t => {
-    if (myTasksOnly) {
-      return t.creator_id === user.id || t.assignee_id === user.id;
-    }
-    return true;
-  });
+  const statusOptions = ['', 'todo', 'in_progress', 'under_review', 'blocked'];
 
   return (
     <div className="space-y-6">
       <div>
         <h2 className="text-lg font-semibold text-gray-900">Manager Dashboard</h2>
         <p className="text-sm text-gray-500">Team overview & task management</p>
+      </div>
+
+      <div className="flex gap-1 bg-gray-200 p-1 rounded-xl w-fit">
+        {tabs.map((tab) => {
+          const Icon = tab.icon;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => { setActiveTab(tab.id); setStatusFilter(''); }}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                activeTab === tab.id
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              <Icon className="w-4 h-4" />
+              {tab.label}
+            </button>
+          );
+        })}
       </div>
 
       {stats && (
@@ -138,19 +174,23 @@ export default function ManagerDashboard({ user }) {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input value={search} onChange={(e) => setSearch(e.target.value)} className="input-field pl-9" placeholder="Search tasks..." />
         </div>
-        <div className="flex items-center gap-1.5">
-          <Filter className="w-4 h-4 text-gray-400" />
-          {statusOptions.map((s) => (
-            <button key={s} onClick={() => setStatusFilter(s)}
-              className={`text-xs px-2.5 py-1 rounded-lg border transition-colors ${
-                statusFilter === s
-                  ? 'bg-gray-800 text-white border-gray-700'
-                  : 'bg-white border-gray-200 text-gray-500 hover:text-gray-700 hover:bg-gray-50'
-              }`}>
-              {s ? s.replace('_', ' ') : 'All'}
-            </button>
-          ))}
-        </div>
+        
+        {activeTab === 'work' && (
+          <div className="flex items-center gap-1.5">
+            <Filter className="w-4 h-4 text-gray-400" />
+            {statusOptions.map((s) => (
+              <button key={s} onClick={() => setStatusFilter(s)}
+                className={`text-xs px-2.5 py-1 rounded-lg border transition-colors ${
+                  statusFilter === s
+                    ? 'bg-gray-800 text-white border-gray-700'
+                    : 'bg-white border-gray-200 text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                }`}>
+                {s ? s.replace('_', ' ') : 'All'}
+              </button>
+            ))}
+          </div>
+        )}
+
         <div className="flex items-center gap-1.5">
           <select
             value={categoryFilter}
@@ -177,23 +217,25 @@ export default function ManagerDashboard({ user }) {
             <button onClick={() => setMyTasksOnly(false)} className="hover:bg-amber-100 rounded p-0.5"><X className="w-3.5 h-3.5" /></button>
           </span>
         )}
-        <button onClick={() => { setEditTask(null); setShowTaskModal(true); }} className="btn-amber text-sm flex items-center gap-2">
-          <Plus className="w-4 h-4" /> New Task
-        </button>
+        {activeTab === 'work' && (
+          <button onClick={() => { setEditTask(null); setShowTaskModal(true); }} className="btn-amber text-sm flex items-center gap-2">
+            <Plus className="w-4 h-4" /> New Task
+          </button>
+        )}
       </div>
 
       {loading ? (
         <div className="flex justify-center py-12">
           <div className="animate-spin w-6 h-6 border-2 border-gray-300 border-t-gray-600 rounded-full" />
         </div>
-      ) : filteredTasks.length === 0 ? (
+      ) : displayedTasks.length === 0 ? (
         <div className="card text-center py-12">
           <LayoutGrid className="w-10 h-10 text-gray-300 mx-auto mb-3" />
           <p className="text-gray-500 text-sm">No tasks found</p>
         </div>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {filteredTasks.map((task) => (
+          {displayedTasks.map((task) => (
             <TaskCard key={task.id} task={task} onEdit={fetchAll} onDelete={setDeleteTask} onSelect={(t) => { setEditTask(t); setShowTaskModal(true); }} onViewDetail={setDetailTask} />
           ))}
         </div>

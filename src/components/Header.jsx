@@ -12,8 +12,6 @@ export default function Header({ user, onLogout, onChangePassword, onViewTask })
   const [notifications, setNotifications] = useState([]);
 
   useEffect(() => {
-    if (user.role !== 'admin') return;
-
     const loadNotifications = () => {
       api.getNotifications()
         .then(setNotifications)
@@ -37,7 +35,7 @@ export default function Header({ user, onLogout, onChangePassword, onViewTask })
     return () => {
       eventSource.close();
     };
-  }, [user.role]);
+  }, [user.id]);
 
   const notificationsRef = useRef(null);
 
@@ -121,7 +119,7 @@ export default function Header({ user, onLogout, onChangePassword, onViewTask })
             </span>
           </div>
 
-          {user.role === 'admin' && (
+          {user && (
             <div className="relative" ref={notificationsRef}>
               <button
                 onClick={() => setShowNotifications(!showNotifications)}
@@ -137,7 +135,7 @@ export default function Header({ user, onLogout, onChangePassword, onViewTask })
               </button>
 
               {showNotifications && (
-                <div className="absolute right-0 top-10 w-80 bg-white border border-gray-200 rounded-xl shadow-lg py-1 z-[1000] max-h-[80vh] flex flex-col">
+                <div className="fixed right-4 left-4 top-14 sm:absolute sm:right-0 sm:left-auto sm:top-10 sm:w-80 w-auto bg-white border border-gray-200 rounded-xl shadow-lg py-1 z-[1000] max-h-[80vh] flex flex-col">
                     <div className="flex items-center justify-between px-4 py-2 border-b border-gray-100 shrink-0">
                       <span className="text-xs font-semibold text-gray-700">Notifications</span>
                       <div className="flex items-center gap-1.5">

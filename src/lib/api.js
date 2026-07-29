@@ -87,4 +87,16 @@ export const api = {
 
   clearNotifications: () =>
     request('/notifications', { method: 'DELETE' }),
+
+  getDailyLogs: (taskId) =>
+    request(`/tasks/${taskId}/daily-logs`),
+
+  saveDailyLog: (taskId, log_date, content) =>
+    request(`/tasks/${taskId}/daily-logs`, {
+      method: 'POST',
+      body: JSON.stringify({ log_date, content }),
+    }),
+
+  deleteDailyLog: (taskId, logId) =>
+    request(`/tasks/${taskId}/daily-logs/${logId}`, { method: 'DELETE' }),
 };
