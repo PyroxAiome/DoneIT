@@ -269,45 +269,59 @@ router.get('/tasks/:id', auth, (req, res) => {
 });
 
 router.post('/tasks', auth, (req, res) => {
-  const { title, description, color, status, priority, category, assignee_id,
+  const { title, description, color, status, priority, category, assignee_id, assignee_ids,
     start_date, due_date, estimated_hours } = req.body;
 
   if (!title) return res.status(400).json({ error: 'Title required' });
 
-  // Employee can only create tasks assigned to themselves
-  const targetAssignee = req.user.role === 'employee' ? req.user.id : (assignee_id || null);
+  let assignees = [];
+  if (req.user.role === 'employee') {
+    assignees = [req.user.id];
+  } else if (assignee_ids && Array.isArray(assignee_ids) && assignee_ids.length > 0) {
+    assignees = assignee_ids;
+  } else {
+    assignees = [assignee_id || null];
+  }
 
-  const result = db.prepare(`
+  const createdTasks = [];
+  const insertStmt = db.prepare(`
     INSERT INTO tasks (title, description, color, status, priority, category,
       assignee_id, creator_id, start_date, due_date, estimated_hours)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(
-    title, description || '', color || 'slate', status || 'todo',
-    priority || 'medium', category || 'General',
-    targetAssignee, req.user.id,
-    start_date || null, due_date || null, estimated_hours || 0
-  );
+  `);
 
-  const task = db.prepare(`
+  const selectStmt = db.prepare(`
     SELECT t.*, u.name as assignee_name, c.name as creator_name, c.role as creator_role, c.department as creator_department, e.name as last_edited_by_name
     FROM tasks t
     LEFT JOIN users u ON t.assignee_id = u.id
     LEFT JOIN users c ON t.creator_id = c.id
     LEFT JOIN users e ON t.last_edited_by = e.id
     WHERE t.id = ?
-  `).get(result.lastInsertRowid);
+  `);
 
-  let msg = '';
-  if (task.creator_id === task.assignee_id) {
-    msg = `${req.user.name} self-assigned task: "${title}"`;
-  } else if (task.assignee_name) {
-    msg = `${req.user.name} assigned task: "${title}" to ${task.assignee_name}`;
-  } else {
-    msg = `${req.user.name} created task: "${title}"`;
+  for (const targetId of assignees) {
+    const result = insertStmt.run(
+      title, description || '', color || 'slate', status || 'todo',
+      priority || 'medium', category || 'General',
+      targetId, req.user.id,
+      start_date || null, due_date || null, estimated_hours || 0
+    );
+
+    const task = selectStmt.get(result.lastInsertRowid);
+    createdTasks.push(task);
+
+    let msg = '';
+    if (task.creator_id === task.assignee_id) {
+      msg = `${req.user.name} self-assigned task: "${title}"`;
+    } else if (task.assignee_name) {
+      msg = `${req.user.name} assigned task: "${title}" to ${task.assignee_name}`;
+    } else {
+      msg = `${req.user.name} created task: "${title}"`;
+    }
+    notifyRelevantUsers(req.user.id, msg, task.id);
   }
-  notifyRelevantUsers(req.user.id, msg, task.id);
 
-  res.status(201).json(task);
+  res.status(201).json(createdTasks.length === 1 ? createdTasks[0] : { tasks: createdTasks });
 });
 
 router.put('/tasks/:id', auth, (req, res) => {
@@ -541,14 +555,37 @@ router.get('/dashboard/stats', auth, adminOrManager, (req, res) => {
 // ─── DAILY LOGS ──────────────────────────────────────────────────
 router.get('/tasks/:id/daily-logs', auth, (req, res) => {
   const { id } = req.params;
+  
   const logs = db.prepare(`
-    SELECT dl.*, u.name as user_name, u.role as user_role
+    SELECT dl.*, u.name as user_name, u.role as user_role,
+      (SELECT COUNT(*) FROM task_daily_log_reactions WHERE log_id = dl.id AND reaction_type = 'like') as likes_count,
+      (SELECT reaction_type FROM task_daily_log_reactions WHERE log_id = dl.id AND user_id = ?) as user_reaction
     FROM task_daily_logs dl
     LEFT JOIN users u ON dl.user_id = u.id
     WHERE dl.task_id = ?
     ORDER BY dl.log_date DESC, dl.created_at DESC
-  `).all(id);
-  res.json(logs);
+  `).all(req.user.id, id);
+
+  const logsWithLikesAndComments = logs.map(log => {
+    const likes = db.prepare(`
+      SELECT u.name
+      FROM task_daily_log_reactions r
+      JOIN users u ON r.user_id = u.id
+      WHERE r.log_id = ? AND r.reaction_type = 'like'
+    `).all(log.id);
+    log.liked_by_names = likes.map(l => l.name);
+
+    const comments = db.prepare(`
+      SELECT c.*, u.name as user_name, u.role as user_role
+      FROM task_daily_log_comments c
+      LEFT JOIN users u ON c.user_id = u.id
+      WHERE c.log_id = ?
+      ORDER BY c.created_at ASC
+    `).all(log.id);
+    return { ...log, comments };
+  });
+
+  res.json(logsWithLikesAndComments);
 });
 
 router.post('/tasks/:id/daily-logs', auth, (req, res) => {
@@ -575,11 +612,14 @@ router.post('/tasks/:id/daily-logs', auth, (req, res) => {
   }
 
   const log = db.prepare(`
-    SELECT dl.*, u.name as user_name, u.role as user_role
+    SELECT dl.*, u.name as user_name, u.role as user_role,
+      0 as likes_count, NULL as user_reaction
     FROM task_daily_logs dl
     LEFT JOIN users u ON dl.user_id = u.id
     WHERE dl.id = ?
   `).get(logId);
+  log.comments = [];
+  log.liked_by_names = [];
 
   const isUpdate = !!existing;
   const msg = `${req.user.name} ${isUpdate ? 'updated daily log' : 'added daily log'} for task "${task.title}" on ${log_date}`;
@@ -593,11 +633,82 @@ router.delete('/tasks/:id/daily-logs/:logId', auth, (req, res) => {
   const log = db.prepare('SELECT * FROM task_daily_logs WHERE id = ?').get(logId);
   if (!log) return res.status(404).json({ error: 'Log not found' });
 
-  if (req.user.role !== 'admin' && log.user_id !== req.user.id) {
-    return res.status(403).json({ error: 'Not authorized to delete this log' });
+  if (log.user_id !== req.user.id) {
+    return res.status(403).json({ error: 'Only the author can delete this log' });
   }
 
   db.prepare('DELETE FROM task_daily_logs WHERE id = ?').run(logId);
+  res.json({ success: true });
+});
+
+router.post('/tasks/:id/daily-logs/:logId/react', auth, (req, res) => {
+  const { logId } = req.params;
+
+  const log = db.prepare('SELECT * FROM task_daily_logs WHERE id = ?').get(logId);
+  if (!log) return res.status(404).json({ error: 'Daily log not found' });
+
+  const existing = db.prepare('SELECT id FROM task_daily_log_reactions WHERE log_id = ? AND user_id = ? AND reaction_type = \'like\'')
+    .get(logId, req.user.id);
+
+  if (existing) {
+    db.prepare('DELETE FROM task_daily_log_reactions WHERE id = ?').run(existing.id);
+  } else {
+    db.prepare('INSERT INTO task_daily_log_reactions (log_id, user_id, reaction_type) VALUES (?, ?, \'like\')')
+      .run(logId, req.user.id);
+  }
+
+  const counts = db.prepare(`
+    SELECT 
+      (SELECT COUNT(*) FROM task_daily_log_reactions WHERE log_id = ? AND reaction_type = 'like') as likes_count,
+      (SELECT reaction_type FROM task_daily_log_reactions WHERE log_id = ? AND user_id = ?) as user_reaction
+  `).get(logId, logId, req.user.id);
+
+  const likes = db.prepare(`
+    SELECT u.name
+    FROM task_daily_log_reactions r
+    JOIN users u ON r.user_id = u.id
+    WHERE r.log_id = ? AND r.reaction_type = 'like'
+  `).all(logId);
+  counts.liked_by_names = likes.map(l => l.name);
+
+  res.json(counts);
+});
+
+router.post('/tasks/:id/daily-logs/:logId/comments', auth, (req, res) => {
+  const { id: taskId, logId } = req.params;
+  const { comment_text } = req.body;
+  if (!comment_text) return res.status(400).json({ error: 'Comment text required' });
+
+  const log = db.prepare('SELECT * FROM task_daily_logs WHERE id = ?').get(logId);
+  if (!log) return res.status(404).json({ error: 'Daily log not found' });
+
+  const result = db.prepare('INSERT INTO task_daily_log_comments (log_id, user_id, comment_text) VALUES (?, ?, ?)')
+    .run(logId, req.user.id, comment_text);
+
+  const comment = db.prepare(`
+    SELECT c.*, u.name as user_name, u.role as user_role
+    FROM task_daily_log_comments c
+    LEFT JOIN users u ON c.user_id = u.id
+    WHERE c.id = ?
+  `).get(result.lastInsertRowid);
+
+  const task = db.prepare('SELECT title FROM tasks WHERE id = ?').get(taskId);
+  const msg = `${req.user.name} commented on daily log of task "${task.title}": "${comment_text.substring(0, 30)}${comment_text.length > 30 ? '...' : ''}"`;
+  notifyRelevantUsers(req.user.id, msg, taskId);
+
+  res.status(201).json(comment);
+});
+
+router.delete('/tasks/:id/daily-logs/:logId/comments/:commentId', auth, (req, res) => {
+  const { commentId } = req.params;
+  const comment = db.prepare('SELECT * FROM task_daily_log_comments WHERE id = ?').get(commentId);
+  if (!comment) return res.status(404).json({ error: 'Comment not found' });
+
+  if (req.user.role !== 'admin' && comment.user_id !== req.user.id) {
+    return res.status(403).json({ error: 'Not authorized to delete this comment' });
+  }
+
+  db.prepare('DELETE FROM task_daily_log_comments WHERE id = ?').run(commentId);
   res.json({ success: true });
 });
 

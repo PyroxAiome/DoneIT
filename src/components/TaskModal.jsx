@@ -8,6 +8,7 @@ export default function TaskModal({ isOpen, onClose, onSaved, task, employees })
     title: '', description: '', color: 'slate', status: 'todo', priority: 'medium',
     category: 'General', assignee_id: '', start_date: '', due_date: '', estimated_hours: '',
   });
+  const [selectedAssigneeIds, setSelectedAssigneeIds] = useState([]);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -25,8 +26,10 @@ export default function TaskModal({ isOpen, onClose, onSaved, task, employees })
         due_date: task.due_date || '',
         estimated_hours: task.estimated_hours ? String(task.estimated_hours) : '',
       });
+      setSelectedAssigneeIds([]);
     } else {
       setForm({ title: '', description: '', color: 'slate', status: 'todo', priority: 'medium', category: 'General', assignee_id: '', start_date: '', due_date: '', estimated_hours: '' });
+      setSelectedAssigneeIds([]);
     }
     setError('');
   }, [task, isOpen]);
@@ -41,14 +44,20 @@ export default function TaskModal({ isOpen, onClose, onSaved, task, employees })
     if (!form.title) { setError('Title is required'); return; }
     setBusy(true);
     try {
-      const payload = {
-        ...form,
-        assignee_id: form.assignee_id ? Number(form.assignee_id) : null,
-        estimated_hours: form.estimated_hours ? Number(form.estimated_hours) : 0,
-      };
       if (isEdit) {
+        const payload = {
+          ...form,
+          assignee_id: form.assignee_id ? Number(form.assignee_id) : null,
+          estimated_hours: form.estimated_hours ? Number(form.estimated_hours) : 0,
+        };
         await api.updateTask(task.id, payload);
       } else {
+        const payload = {
+          ...form,
+          assignee_id: form.assignee_id ? Number(form.assignee_id) : null,
+          assignee_ids: selectedAssigneeIds,
+          estimated_hours: form.estimated_hours ? Number(form.estimated_hours) : 0,
+        };
         await api.createTask(payload);
       }
       onSaved();
@@ -110,13 +119,44 @@ export default function TaskModal({ isOpen, onClose, onSaved, task, employees })
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs text-gray-500 uppercase tracking-wider block mb-1">Assign To</label>
-              <select value={form.assignee_id} onChange={handleChange('assignee_id')} className="input-field">
-                <option value="">Unassigned</option>
-                {(employees || []).filter(e => e.role !== 'admin').map((emp) => (
-                  <option key={emp.id} value={emp.id}>{emp.name}</option>
-                ))}
-              </select>
+              <label className="text-xs text-gray-500 uppercase tracking-wider block mb-1">
+                {isEdit ? 'Assign To' : 'Assign To (Select Multiple to Group)'}
+              </label>
+              {isEdit ? (
+                <select value={form.assignee_id} onChange={handleChange('assignee_id')} className="input-field">
+                  <option value="">Unassigned</option>
+                  {(employees || []).filter(e => e.role !== 'admin').map((emp) => (
+                    <option key={emp.id} value={emp.id}>{emp.name}</option>
+                  ))}
+                </select>
+              ) : (
+                <div className="border border-gray-200 rounded-lg p-2 max-h-32 overflow-y-auto space-y-1 bg-white">
+                  {(employees || []).filter(e => e.role !== 'admin').length === 0 ? (
+                    <p className="text-xs text-gray-400 p-1">No assignees available</p>
+                  ) : (
+                    (employees || []).filter(e => e.role !== 'admin').map((emp) => {
+                      const isChecked = selectedAssigneeIds.includes(emp.id);
+                      return (
+                        <label key={emp.id} className="flex items-center gap-2 px-2 py-0.5 hover:bg-gray-50 rounded cursor-pointer text-xs text-gray-700">
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => {
+                              if (isChecked) {
+                                setSelectedAssigneeIds(prev => prev.filter(id => id !== emp.id));
+                              } else {
+                                setSelectedAssigneeIds(prev => [...prev, emp.id]);
+                              }
+                            }}
+                            className="rounded text-amber-500 focus:ring-amber-500 border-gray-300"
+                          />
+                          <span className="truncate">{emp.name} <span className="text-[10px] text-gray-400">({emp.department})</span></span>
+                        </label>
+                      );
+                    })
+                  )}
+                </div>
+              )}
             </div>
             <div>
               <label className="text-xs text-gray-500 uppercase tracking-wider block mb-1">Category</label>

@@ -99,4 +99,19 @@ export const api = {
 
   deleteDailyLog: (taskId, logId) =>
     request(`/tasks/${taskId}/daily-logs/${logId}`, { method: 'DELETE' }),
+
+  reactToDailyLog: (taskId, logId, reaction_type) =>
+    request(`/tasks/${taskId}/daily-logs/${logId}/react`, {
+      method: 'POST',
+      body: JSON.stringify({ reaction_type }),
+    }),
+
+  addDailyLogComment: (taskId, logId, comment_text) =>
+    request(`/tasks/${taskId}/daily-logs/${logId}/comments`, {
+      method: 'POST',
+      body: JSON.stringify({ comment_text }),
+    }),
+
+  deleteDailyLogComment: (taskId, logId, commentId) =>
+    request(`/tasks/${taskId}/daily-logs/${logId}/comments/${commentId}`, { method: 'DELETE' }),
 };

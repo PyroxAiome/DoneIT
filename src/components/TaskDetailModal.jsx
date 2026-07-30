@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { api } from '../lib/api';
 import { useAuth } from '../App';
-import { X, Send, Edit3, Trash2, Check, X as XIcon, MessageSquare, FileText, Reply, Calendar } from 'lucide-react';
+import { X, Send, Edit3, Trash2, Check, X as XIcon, MessageSquare, FileText, Reply, Calendar, ThumbsUp, ThumbsDown } from 'lucide-react';
 
 export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated }) {
   const user = useAuth();
@@ -21,6 +21,7 @@ export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated }
    const [newLogDate, setNewLogDate] = useState(new Date().toISOString().split('T')[0]);
    const [editingLogId, setEditingLogId] = useState(null);
    const [editingLogContent, setEditingLogContent] = useState('');
+   const [dailyLogCommentsText, setDailyLogCommentsText] = useState({});
  
    useEffect(() => {
      if (isOpen && task) {
@@ -96,6 +97,64 @@ export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated }
     } catch (err) {
       console.error(err);
       alert(err.message || 'Failed to delete daily log.');
+    }
+  };
+
+  const handleReactToLog = async (logId, reactionType) => {
+    try {
+      const counts = await api.reactToDailyLog(task.id, logId, reactionType);
+      setDailyLogs(prev => prev.map(l => {
+        if (l.id === logId) {
+          return {
+            ...l,
+            likes_count: counts.likes_count,
+            dislikes_count: counts.dislikes_count,
+            user_reaction: counts.user_reaction,
+          };
+        }
+        return l;
+      }));
+    } catch (err) {
+      console.error('Failed to react to log:', err);
+    }
+  };
+
+  const handleAddLogComment = async (e, logId) => {
+    e.preventDefault();
+    const commentText = dailyLogCommentsText[logId] || '';
+    if (!commentText.trim()) return;
+    try {
+      const newComment = await api.addDailyLogComment(task.id, logId, commentText);
+      setDailyLogs(prev => prev.map(l => {
+        if (l.id === logId) {
+          return {
+            ...l,
+            comments: [...(l.comments || []), newComment],
+          };
+        }
+        return l;
+      }));
+      setDailyLogCommentsText(prev => ({ ...prev, [logId]: '' }));
+    } catch (err) {
+      console.error('Failed to add comment to daily log:', err);
+    }
+  };
+
+  const handleDeleteLogComment = async (logId, commentId) => {
+    if (!confirm('Are you sure you want to delete this comment?')) return;
+    try {
+      await api.deleteDailyLogComment(task.id, logId, commentId);
+      setDailyLogs(prev => prev.map(l => {
+        if (l.id === logId) {
+          return {
+            ...l,
+            comments: (l.comments || []).filter(c => c.id !== commentId),
+          };
+        }
+        return l;
+      }));
+    } catch (err) {
+      console.error('Failed to delete comment from daily log:', err);
     }
   };
 
@@ -351,7 +410,7 @@ export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated }
                 ) : (
                   <div className="relative border-l border-gray-100 pl-4 ml-2 space-y-4">
                     {dailyLogs.map((log) => {
-                      const isOwner = log.user_id === user.id || user.role === 'admin';
+                      const isOwner = log.user_id === user.id;
                       const formattedDate = new Date(log.log_date).toLocaleDateString(undefined, {
                         weekday: 'short',
                         year: 'numeric',
@@ -363,7 +422,7 @@ export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated }
                         <div key={log.id} className="relative group/log">
                           <div className="absolute -left-[21px] top-1.5 w-2.5 h-2.5 rounded-full border border-white bg-amber-500 ring-4 ring-amber-50" />
                           
-                          <div className="bg-gray-50 border border-gray-100 rounded-xl p-3.5 space-y-1.5 transition-shadow hover:shadow-sm">
+                          <div className="bg-gray-50 border border-gray-100 rounded-xl p-3.5 space-y-2.5 transition-shadow hover:shadow-sm">
                             <div className="flex items-center justify-between gap-3 text-xs">
                               <div className="flex items-center gap-2">
                                 <span className="font-semibold text-gray-800">{log.user_name}</span>
@@ -402,25 +461,100 @@ export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated }
                                   {log.content}
                                 </p>
                                 
-                                {isOwner && (
-                                  <div className="flex justify-end gap-3 text-[10px] text-gray-400 pt-1 border-t border-gray-100 opacity-0 group-hover/log:opacity-100 transition-opacity">
+                                <div className="flex items-center justify-between gap-3 text-[11px] text-gray-500 pt-2 border-t border-gray-100">
+                                  <div className="flex items-center gap-3">
                                     <button
-                                      onClick={() => {
-                                        setEditingLogId(log.id);
-                                        setEditingLogContent(log.content);
-                                      }}
-                                      className="flex items-center gap-0.5 hover:text-amber-600"
+                                      onClick={() => handleReactToLog(log.id, 'like')}
+                                      className={`flex items-center gap-1 hover:text-emerald-600 transition-colors ${
+                                        log.user_reaction === 'like' ? 'text-emerald-600 font-semibold' : ''
+                                      }`}
+                                      title={log.liked_by_names && log.liked_by_names.length > 0 ? `Liked by: ${log.liked_by_names.join(', ')}` : 'Like achievement'}
                                     >
-                                      <Edit3 className="w-3 h-3" /> Edit
-                                    </button>
-                                    <button
-                                      onClick={() => handleDeleteLog(log.id)}
-                                      className="flex items-center gap-0.5 hover:text-red-600"
-                                    >
-                                      <Trash2 className="w-3 h-3" /> Delete
+                                      <ThumbsUp className="w-3.5 h-3.5" />
+                                      <span>{log.likes_count || 0}</span>
+                                      {log.liked_by_names && log.liked_by_names.length > 0 && (
+                                        <span className="text-[10px] text-gray-400 font-normal ml-1">
+                                          ({log.liked_by_names.join(', ')})
+                                        </span>
+                                      )}
                                     </button>
                                   </div>
-                                )}
+                                  
+                                  <div className="flex items-center gap-3">
+                                    {isOwner && (
+                                      <>
+                                        <button
+                                          onClick={() => {
+                                            setEditingLogId(log.id);
+                                            setEditingLogContent(log.content);
+                                          }}
+                                          className="flex items-center gap-0.5 hover:text-amber-600 transition-colors"
+                                        >
+                                          <Edit3 className="w-3 h-3" /> Edit
+                                        </button>
+                                        <button
+                                          onClick={() => {
+                                            if (confirm('Delete this daily log?')) {
+                                              handleDeleteLog(log.id);
+                                            }
+                                          }}
+                                          className="flex items-center gap-0.5 hover:text-red-600 transition-colors"
+                                        >
+                                          <Trash2 className="w-3 h-3" /> Delete
+                                        </button>
+                                      </>
+                                    )}
+                                  </div>
+                                </div>
+
+                                {/* Daily Log Comments */}
+                                <div className="mt-3 pl-3 border-l-2 border-gray-200 space-y-2 pt-1.5">
+                                  {log.comments && log.comments.length > 0 && (
+                                    <div className="space-y-2">
+                                      {log.comments.map(c => (
+                                        <div key={c.id} className="text-xs bg-white/70 rounded-lg p-2 border border-gray-100 flex items-start justify-between gap-3">
+                                          <div className="flex-1 min-w-0">
+                                            <div className="flex items-center gap-1.5 text-[9px] text-gray-500 mb-0.5">
+                                              <span className="font-semibold text-gray-700">{c.user_name}</span>
+                                              <span className="scale-75 origin-left uppercase px-1 py-0.2 rounded bg-gray-100 text-gray-400">
+                                                {c.user_role}
+                                              </span>
+                                              <span>&middot;</span>
+                                              <span>{new Date(c.created_at).toLocaleDateString()}</span>
+                                            </div>
+                                            <p className="text-gray-600 whitespace-pre-wrap leading-relaxed">{c.comment_text}</p>
+                                          </div>
+                                          {(c.user_id === user.id || user.role === 'admin') && (
+                                            <button
+                                              onClick={() => handleDeleteLogComment(log.id, c.id)}
+                                              className="text-gray-400 hover:text-red-500 transition-colors p-0.5"
+                                              title="Delete comment"
+                                            >
+                                              <Trash2 className="w-3 h-3" />
+                                            </button>
+                                          )}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+
+                                  <form onSubmit={(e) => handleAddLogComment(e, log.id)} className="flex items-center gap-1.5 mt-2">
+                                    <input
+                                      type="text"
+                                      value={dailyLogCommentsText[log.id] || ''}
+                                      onChange={(e) => setDailyLogCommentsText(prev => ({ ...prev, [log.id]: e.target.value }))}
+                                      placeholder="Add a comment on this achievement..."
+                                      className="flex-1 bg-white border border-gray-200 rounded-lg px-2.5 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-amber-500 focus:border-amber-500"
+                                    />
+                                    <button
+                                      type="submit"
+                                      disabled={!(dailyLogCommentsText[log.id] || '').trim()}
+                                      className="p-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white transition-colors"
+                                    >
+                                      <Send className="w-3 h-3" />
+                                    </button>
+                                  </form>
+                                </div>
                               </>
                             )}
                           </div>

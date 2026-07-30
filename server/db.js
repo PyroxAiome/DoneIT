@@ -69,6 +69,23 @@ db.exec(`
     created_at TEXT DEFAULT (datetime('now')),
     updated_at TEXT DEFAULT (datetime('now'))
   );
+
+  CREATE TABLE IF NOT EXISTS task_daily_log_reactions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    log_id INTEGER NOT NULL REFERENCES task_daily_logs(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    reaction_type TEXT CHECK(reaction_type IN ('like', 'dislike')) NOT NULL,
+    created_at TEXT DEFAULT (datetime('now')),
+    UNIQUE(log_id, user_id)
+  );
+
+  CREATE TABLE IF NOT EXISTS task_daily_log_comments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    log_id INTEGER NOT NULL REFERENCES task_daily_logs(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    comment_text TEXT NOT NULL,
+    created_at TEXT DEFAULT (datetime('now'))
+  );
 `);
 
 const seedAdmin = () => {
