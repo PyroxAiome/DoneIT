@@ -14,6 +14,28 @@ const tabs = [
   { id: 'completed', label: 'Completed', icon: CheckCircle },
 ];
 
+const getPrioritySelectClass = (val) => {
+  const base = "text-xs border rounded-lg px-2.5 py-1 focus:outline-none focus:ring-1 focus:ring-amber-500 font-semibold transition-all ";
+  switch(val) {
+    case 'low': return base + 'text-slate-700 border-slate-300 bg-slate-100';
+    case 'medium': return base + 'text-blue-700 border-blue-300 bg-blue-50';
+    case 'high': return base + 'text-orange-700 border-orange-300 bg-orange-50';
+    case 'urgent': return base + 'text-red-700 border-red-300 bg-red-50';
+    default: return base + 'text-gray-500 border-gray-200 bg-white';
+  }
+};
+
+const getStatusSelectClass = (val) => {
+  const base = "text-xs border rounded-lg px-2.5 py-1 focus:outline-none focus:ring-1 focus:ring-amber-500 font-semibold transition-all ";
+  switch(val) {
+    case 'todo': return base + 'text-gray-600 border-gray-300 bg-gray-50';
+    case 'in_progress': return base + 'text-blue-600 border-blue-300 bg-blue-50';
+    case 'under_review': return base + 'text-purple-600 border-purple-300 bg-purple-50';
+    case 'completed': return base + 'text-emerald-600 border-emerald-300 bg-emerald-50';
+    default: return base + 'text-gray-500 border-gray-200 bg-white';
+  }
+};
+
 export default function ManagerDashboard({ user }) {
   const [activeTab, setActiveTab] = useState('work');
   const [stats, setStats] = useState(null);
@@ -23,6 +45,7 @@ export default function ManagerDashboard({ user }) {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
+  const [priorityFilter, setPriorityFilter] = useState('');
   const [employeeFilter, setEmployeeFilter] = useState(null);
   const [selectedEmp, setSelectedEmp] = useState(null);
   const [showTaskModal, setShowTaskModal] = useState(false);
@@ -36,6 +59,7 @@ export default function ManagerDashboard({ user }) {
     const params = {};
     if (statusFilter) params.status = statusFilter;
     if (categoryFilter) params.category = categoryFilter;
+    if (priorityFilter) params.priority = priorityFilter;
     if (search) params.search = search;
     if (employeeFilter) params.assignee_id = employeeFilter;
     Promise.all([
@@ -54,7 +78,7 @@ export default function ManagerDashboard({ user }) {
     fetchAll();
     window.addEventListener('task-updated', fetchAll);
     return () => window.removeEventListener('task-updated', fetchAll);
-  }, [statusFilter, categoryFilter, search, employeeFilter]);
+  }, [statusFilter, categoryFilter, search, employeeFilter, priorityFilter]);
 
   useEffect(() => {
     const handleToggle = () => setMyTasksOnly(prev => !prev);
@@ -65,6 +89,8 @@ export default function ManagerDashboard({ user }) {
   const clearEmployeeFilter = () => {
     setEmployeeFilter(null);
     setSelectedEmp(null);
+    setStatusFilter('');
+    setPriorityFilter('');
   };
 
   const handleViewEmployeeTasks = (emp) => {
@@ -101,7 +127,7 @@ export default function ManagerDashboard({ user }) {
     { label: 'Avg Completion', value: `${stats.avgCompletion}%`, icon: CheckCircle, color: 'text-emerald-500' },
   ] : [];
 
-  const statusOptions = ['', 'todo', 'in_progress', 'under_review', 'blocked'];
+  const statusOptions = ['', 'todo', 'in_progress', 'under_review'];
 
   return (
     <div className="space-y-6">
@@ -116,7 +142,7 @@ export default function ManagerDashboard({ user }) {
           return (
             <button
               key={tab.id}
-              onClick={() => { setActiveTab(tab.id); setStatusFilter(''); }}
+              onClick={() => { setActiveTab(tab.id); setStatusFilter(''); setPriorityFilter(''); }}
               className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                 activeTab === tab.id
                   ? 'bg-white text-gray-900 shadow-sm'
@@ -177,17 +203,35 @@ export default function ManagerDashboard({ user }) {
         
         {activeTab === 'work' && (
           <div className="flex items-center gap-1.5">
-            <Filter className="w-4 h-4 text-gray-400" />
-            {statusOptions.map((s) => (
-              <button key={s} onClick={() => setStatusFilter(s)}
-                className={`text-xs px-2.5 py-1 rounded-lg border transition-colors ${
-                  statusFilter === s
-                    ? 'bg-gray-800 text-white border-gray-700'
-                    : 'bg-white border-gray-200 text-gray-500 hover:text-gray-700 hover:bg-gray-50'
-                }`}>
-                {s ? s.replace('_', ' ') : 'All'}
-              </button>
-            ))}
+            <span className="text-[10px] uppercase font-semibold text-gray-400">Status:</span>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className={getStatusSelectClass(statusFilter)}
+            >
+              <option value="" className="text-gray-500 font-normal">All Statuses</option>
+              <option value="todo" className="text-gray-600 font-semibold bg-gray-50">To Do</option>
+              <option value="in_progress" className="text-blue-600 font-semibold bg-blue-50">In Progress</option>
+              <option value="under_review" className="text-purple-600 font-semibold bg-purple-50">Under Review</option>
+              <option value="completed" className="text-emerald-600 font-semibold bg-emerald-50">Completed</option>
+            </select>
+          </div>
+        )}
+
+        {activeTab === 'work' && (
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] uppercase font-semibold text-gray-400">Priority:</span>
+            <select
+              value={priorityFilter}
+              onChange={(e) => setPriorityFilter(e.target.value)}
+              className={getPrioritySelectClass(priorityFilter)}
+            >
+              <option value="" className="text-gray-500 font-normal">All Priorities</option>
+              <option value="low" className="text-slate-700 font-semibold bg-slate-100">Low</option>
+              <option value="medium" className="text-blue-700 font-semibold bg-blue-50">Medium</option>
+              <option value="high" className="text-orange-700 font-semibold bg-orange-50">High</option>
+              <option value="urgent" className="text-red-700 font-semibold bg-red-50">Urgent</option>
+            </select>
           </div>
         )}
 

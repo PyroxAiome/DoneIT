@@ -8,11 +8,18 @@ const roleColorMap = {
   employee: { border: 'border-gray-950', bg: 'bg-gray-50/50', dot: 'bg-gray-950' },
 };
 
+const priorityColorMap = {
+  low: { border: 'border-slate-300', bg: 'bg-slate-100/50', dot: 'bg-slate-500' },
+  medium: { border: 'border-blue-400', bg: 'bg-blue-100/40', dot: 'bg-blue-600' },
+  high: { border: 'border-orange-400', bg: 'bg-orange-100/40', dot: 'bg-orange-600' },
+  urgent: { border: 'border-red-400', bg: 'bg-red-100/45', dot: 'bg-red-600' },
+};
+
 const priorityStyles = {
-  low: 'text-gray-500 border-gray-200 bg-gray-50',
-  medium: 'text-blue-600 border-blue-200 bg-blue-50',
-  high: 'text-orange-600 border-orange-200 bg-orange-50',
-  urgent: 'text-red-600 border-red-200 bg-red-50',
+  low: 'text-slate-700 border-slate-300 bg-slate-100',
+  medium: 'text-blue-700 border-blue-300 bg-blue-100',
+  high: 'text-orange-700 border-orange-300 bg-orange-100',
+  urgent: 'text-red-700 border-red-300 bg-red-100',
 };
 
 const statusLabels = {
@@ -47,7 +54,7 @@ const canDeleteTask = (user, task) => {
 
 export default function TaskCard({ task, compact, onEdit, onDelete, onSelect, onViewDetail }) {
   const user = useAuth();
-  const colors = roleColorMap[task.creator_role] || roleColorMap.employee;
+  const colors = priorityColorMap[task.priority] || priorityColorMap.medium;
   const [showMenu, setShowMenu] = useState(false);
   const [fbCount, setFbCount] = useState(0);
   const isOverdue = task.due_date && new Date(task.due_date) < new Date() && task.status !== 'completed';
@@ -74,7 +81,7 @@ export default function TaskCard({ task, compact, onEdit, onDelete, onSelect, on
             <span className="text-sm text-gray-800 truncate font-medium">{task.title}</span>
           </div>
           <div className="flex items-center gap-3 text-xs text-gray-500 mt-0.5">
-            {task.assignee_name && <span className="flex items-center gap-1"><User className="w-3 h-3" />{task.assignee_name}</span>}
+            {task.assignee_name && <span className="flex items-center gap-1 font-bold text-gray-800"><User className="w-3 h-3" />{task.assignee_name}</span>}
             {task.due_date && <span className={`flex items-center gap-1 ${isOverdue ? 'text-red-500' : ''}`}><Clock className="w-3 h-3" />{task.due_date}</span>}
           </div>
         </div>
@@ -90,7 +97,7 @@ export default function TaskCard({ task, compact, onEdit, onDelete, onSelect, on
   }
 
   return (
-    <div className={`card border-l-4 ${colors.border.replace('border', 'border-l')} group relative cursor-pointer`} onClick={() => onViewDetail?.(task)}>
+    <div className={`card border-l-4 ${colors.border.replace('border', 'border-l')} ${colors.bg} group relative cursor-pointer`} onClick={() => onViewDetail?.(task)}>
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
@@ -99,7 +106,7 @@ export default function TaskCard({ task, compact, onEdit, onDelete, onSelect, on
           </div>
           <div className="flex items-center gap-3 mt-2 text-xs text-gray-500 flex-wrap">
             {task.assignee_name && (
-              <span className="flex items-center gap-1"><User className="w-3 h-3" />{task.assignee_name}</span>
+              <span className="flex items-center gap-1 font-bold text-gray-800"><User className="w-3 h-3" />{task.assignee_name}</span>
             )}
             {task.due_date && (
               <span className={`flex items-center gap-1 ${isOverdue ? 'text-red-500' : ''}`}>
@@ -174,7 +181,7 @@ export default function TaskCard({ task, compact, onEdit, onDelete, onSelect, on
           <span className="bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded font-medium">Self Assigned</span>
         ) : (
           <span>
-            Assigned by <span className="font-semibold text-gray-600">{task.creator_name || 'System'}</span>
+            Assigned by <span className="font-bold text-gray-900">{task.creator_name || 'System'}</span>
             {task.creator_role && (
               <span className={`text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded font-semibold ml-1.5 ${
                 task.creator_role === 'admin' 

@@ -238,6 +238,10 @@ router.get('/tasks', auth, (req, res) => {
     sql += ' AND LOWER(t.category) = LOWER(?)';
     params.push(req.query.category);
   }
+  if (req.query.priority) {
+    sql += ' AND t.priority = ?';
+    params.push(req.query.priority);
+  }
   if (req.query.search) {
     sql += ' AND (t.title LIKE ? OR t.description LIKE ?)';
     params.push(`%${req.query.search}%`, `%${req.query.search}%`);

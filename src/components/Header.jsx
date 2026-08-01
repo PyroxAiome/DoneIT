@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
-import { LogOut, User, Shield, Users, Key, Bell, X } from 'lucide-react';
+import { LogOut, User, Shield, Users, Key, Bell, X, Video } from 'lucide-react';
 import { api } from '../lib/api';
+import StandupModal from './StandupModal';
 
 const roleIcons = { admin: Shield, manager: Users, employee: User };
 
@@ -10,6 +11,38 @@ export default function Header({ user, onLogout, onChangePassword, onViewTask })
 
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState([]);
+  const [dateFilter, setDateFilter] = useState('all');
+  const [customDate, setCustomDate] = useState('');
+  const [showStandup, setShowStandup] = useState(false);
+
+  const getFilteredNotifications = () => {
+    if (user.role !== 'admin' || dateFilter === 'all') return notifications;
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const yesterdayStart = todayStart - 24 * 60 * 60 * 1000;
+    const sevenDaysAgo = todayStart - 7 * 24 * 60 * 60 * 1000;
+
+    return notifications.filter(n => {
+      if (!n.created_at) return true;
+      // Convert SQLite datetime string or standard ISO string to timestamp
+      // e.g. "2026-08-01 12:00:00" -> replace space with 'T' for iOS/Safari compatibility if needed
+      const nTime = new Date(n.created_at.replace(' ', 'T')).getTime();
+      if (dateFilter === 'today') {
+        return nTime >= todayStart;
+      } else if (dateFilter === 'yesterday') {
+        return nTime >= yesterdayStart && nTime < todayStart;
+      } else if (dateFilter === 'week') {
+        return nTime >= sevenDaysAgo;
+      } else if (dateFilter === 'custom') {
+        if (!customDate) return true;
+        const nDateStr = new Date(nTime).toISOString().slice(0, 10);
+        return nDateStr === customDate;
+      }
+      return true;
+    });
+  };
+
+  const displayedNotifications = getFilteredNotifications();
 
   useEffect(() => {
     const loadNotifications = () => {
@@ -160,11 +193,37 @@ export default function Header({ user, onLogout, onChangePassword, onViewTask })
                         )}
                       </div>
                     </div>
+                    {user.role === 'admin' && (
+                      <div className="px-4 py-2 bg-gray-50 border-b border-gray-100 flex flex-col gap-1.5 shrink-0">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[9px] font-semibold text-gray-400 uppercase tracking-wider">Filter Date:</span>
+                          <select
+                            value={dateFilter}
+                            onChange={(e) => setDateFilter(e.target.value)}
+                            className="text-[11px] bg-white border border-gray-200 rounded px-1.5 py-0.5 text-gray-600 focus:outline-none focus:border-amber-500 cursor-pointer"
+                          >
+                            <option value="all">All Dates</option>
+                            <option value="today">Today</option>
+                            <option value="yesterday">Yesterday</option>
+                            <option value="week">Last 7 Days</option>
+                            <option value="custom">Custom Date...</option>
+                          </select>
+                        </div>
+                        {dateFilter === 'custom' && (
+                          <input
+                            type="date"
+                            value={customDate}
+                            onChange={(e) => setCustomDate(e.target.value)}
+                            className="text-[11px] bg-white border border-gray-200 rounded px-2 py-1 text-gray-600 focus:outline-none focus:border-amber-500 w-full"
+                          />
+                        )}
+                      </div>
+                    )}
                     <div className="overflow-y-auto divide-y divide-gray-50 flex-1">
-                      {notifications.length === 0 ? (
+                      {displayedNotifications.length === 0 ? (
                         <div className="text-xs text-gray-400 py-6 text-center">No notifications</div>
                       ) : (
-                        notifications.map((n) => (
+                        displayedNotifications.map((n) => (
                           <div
                             key={n.id}
                             onClick={() => handleNotificationClick(n)}
@@ -176,7 +235,7 @@ export default function Header({ user, onLogout, onChangePassword, onViewTask })
                             <div className="flex-1 min-w-0 pr-6">
                               <p className="text-xs text-gray-700 leading-normal">{n.message}</p>
                               <span className="text-[9px] text-gray-400 mt-1 block">
-                                {new Date(n.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                {new Date(n.created_at.replace(' ', 'T')).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                               </span>
                             </div>
                             <button
@@ -199,6 +258,15 @@ export default function Header({ user, onLogout, onChangePassword, onViewTask })
           )}
 
           <button
+            onClick={() => setShowStandup(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-white text-xs font-semibold shadow-sm transition-all"
+            title="Daily Standup Meeting"
+          >
+            <Video className="w-3.5 h-3.5" />
+            <span>StandUp</span>
+          </button>
+
+          <button
             onClick={onChangePassword}
             className="p-2 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
             title="Change Password"
@@ -214,6 +282,7 @@ export default function Header({ user, onLogout, onChangePassword, onViewTask })
           </button>
         </div>
       </div>
+      <StandupModal isOpen={showStandup} onClose={() => setShowStandup(false)} />
     </header>
   );
 }

@@ -38,7 +38,7 @@ export default function EmployeeDashboard({ user }) {
     return () => window.removeEventListener('task-updated', fetchTasks);
   }, [statusFilter, categoryFilter, search]);
 
-  const statusOptions = ['', 'todo', 'in_progress', 'under_review', 'blocked'];
+  const statusOptions = ['', 'todo', 'in_progress', 'under_review'];
 
   const handleDeleteConfirm = async () => {
     if (deleteTarget) {

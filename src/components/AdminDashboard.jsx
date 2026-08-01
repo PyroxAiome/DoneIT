@@ -16,8 +16,27 @@ const tabs = [
   { id: 'work', label: 'Work', icon: Briefcase },
   { id: 'completed', label: 'Completed', icon: CheckCircle },
   { id: 'team', label: 'Team', icon: Users },
-];
+];const getPrioritySelectClass = (val) => {
+  const base = "text-xs border rounded-lg px-2.5 py-1 focus:outline-none focus:ring-1 focus:ring-amber-500 font-semibold transition-all ";
+  switch(val) {
+    case 'low': return base + 'text-slate-700 border-slate-300 bg-slate-100';
+    case 'medium': return base + 'text-blue-700 border-blue-300 bg-blue-50';
+    case 'high': return base + 'text-orange-700 border-orange-300 bg-orange-50';
+    case 'urgent': return base + 'text-red-700 border-red-300 bg-red-50';
+    default: return base + 'text-gray-500 border-gray-200 bg-white';
+  }
+};
 
+const getStatusSelectClass = (val) => {
+  const base = "text-xs border rounded-lg px-2.5 py-1 focus:outline-none focus:ring-1 focus:ring-amber-500 font-semibold transition-all ";
+  switch(val) {
+    case 'todo': return base + 'text-gray-600 border-gray-300 bg-gray-50';
+    case 'in_progress': return base + 'text-blue-600 border-blue-300 bg-blue-50';
+    case 'under_review': return base + 'text-purple-600 border-purple-300 bg-purple-50';
+    case 'completed': return base + 'text-emerald-600 border-emerald-300 bg-emerald-50';
+    default: return base + 'text-gray-500 border-gray-200 bg-white';
+  }
+};
 export default function AdminDashboard({ user }) {
   const [activeTab, setActiveTab] = useState('overview');
   const [stats, setStats] = useState(null);
@@ -27,12 +46,14 @@ export default function AdminDashboard({ user }) {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
+  const [priorityFilter, setPriorityFilter] = useState('');
   const [employeeFilter, setEmployeeFilter] = useState(null);
   const [compact, setCompact] = useState(false);
 
   const handleTabChange = (tabId) => {
     setActiveTab(tabId);
     setStatusFilter('');
+    setPriorityFilter('');
     if (tabId === 'work' || tabId === 'completed') {
       setEmployeeFilter(null);
       setSelectedEmp(null);
@@ -52,6 +73,7 @@ export default function AdminDashboard({ user }) {
     const params = {};
     if (statusFilter) params.status = statusFilter;
     if (categoryFilter) params.category = categoryFilter;
+    if (priorityFilter) params.priority = priorityFilter;
     if (search) params.search = search;
     if (employeeFilter) params.assignee_id = employeeFilter;
 
@@ -71,7 +93,7 @@ export default function AdminDashboard({ user }) {
     fetchAll();
     window.addEventListener('task-updated', fetchAll);
     return () => window.removeEventListener('task-updated', fetchAll);
-  }, [statusFilter, categoryFilter, search, employeeFilter]);
+  }, [statusFilter, categoryFilter, search, employeeFilter, priorityFilter]);
 
   const handleDeleteTask = async () => {
     if (deleteTask) {
@@ -94,12 +116,30 @@ export default function AdminDashboard({ user }) {
 
   const handleViewEmployeeTasks = (emp) => {
     setEmployeeFilter(emp.id);
+    setSelectedEmp(emp);
     setActiveTab('work');
+    setStatusFilter('');
+    setPriorityFilter('');
+  };
+
+  const handleViewEmployeeTasksByStatus = (emp, status) => {
+    setEmployeeFilter(emp.id);
+    setSelectedEmp(emp);
+    setPriorityFilter('');
+    if (status === 'completed') {
+      setActiveTab('completed');
+      setStatusFilter('completed');
+    } else {
+      setActiveTab('work');
+      setStatusFilter('in_progress');
+    }
   };
 
   const clearEmployeeFilter = () => {
     setEmployeeFilter(null);
     setSelectedEmp(null);
+    setStatusFilter('');
+    setPriorityFilter('');
   };
 
   const displayedTasks = tasks.filter(t => {
@@ -119,10 +159,10 @@ export default function AdminDashboard({ user }) {
   const metricCards = stats ? [
     { label: 'Total Tasks', value: stats.totalTasks, icon: ListTodo, color: 'text-gray-500' },
     { label: 'Team Members', value: stats.totalEmployees + stats.totalManagers, icon: Users, color: 'text-blue-500' },
-    { label: 'Avg Completion', value: `${stats.avgCompletion}%`, icon: CheckCircle, color: 'text-emerald-500' },
   ] : [];
 
-  const statusOptions = ['', 'todo', 'in_progress', 'under_review', 'blocked'];
+  const statusOptions = ['', 'todo', 'in_progress', 'under_review'];
+  const priorityOptions = ['', 'low', 'medium', 'high', 'urgent'];
 
   return (
     <div className="space-y-6">
@@ -203,17 +243,35 @@ export default function AdminDashboard({ user }) {
               
               {activeTab === 'work' && (
                 <div className="flex items-center gap-1.5">
-                  <Filter className="w-4 h-4 text-gray-400" />
-                  {statusOptions.map((s) => (
-                    <button key={s} onClick={() => setStatusFilter(s)}
-                      className={`text-xs px-2.5 py-1 rounded-lg border transition-colors ${
-                        statusFilter === s
-                          ? 'bg-gray-800 text-white border-gray-700'
-                          : 'bg-white border-gray-200 text-gray-500 hover:text-gray-700 hover:bg-gray-50'
-                      }`}>
-                      {s ? s.replace('_', ' ') : 'All'}
-                    </button>
-                  ))}
+                  <span className="text-[10px] uppercase font-semibold text-gray-400">Status:</span>
+                  <select
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value)}
+                    className={getStatusSelectClass(statusFilter)}
+                  >
+                    <option value="" className="text-gray-500 font-normal">All Statuses</option>
+                    <option value="todo" className="text-gray-600 font-semibold bg-gray-50">To Do</option>
+                    <option value="in_progress" className="text-blue-600 font-semibold bg-blue-50">In Progress</option>
+                    <option value="under_review" className="text-purple-600 font-semibold bg-purple-50">Under Review</option>
+                    <option value="completed" className="text-emerald-600 font-semibold bg-emerald-50">Completed</option>
+                  </select>
+                </div>
+              )}
+
+              {activeTab === 'work' && (
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] uppercase font-semibold text-gray-400">Priority:</span>
+                  <select
+                    value={priorityFilter}
+                    onChange={(e) => setPriorityFilter(e.target.value)}
+                    className={getPrioritySelectClass(priorityFilter)}
+                  >
+                    <option value="" className="text-gray-500 font-normal">All Priorities</option>
+                    <option value="low" className="text-slate-700 font-semibold bg-slate-100">Low</option>
+                    <option value="medium" className="text-blue-700 font-semibold bg-blue-50">Medium</option>
+                    <option value="high" className="text-orange-700 font-semibold bg-orange-50">High</option>
+                    <option value="urgent" className="text-red-700 font-semibold bg-red-50">Urgent</option>
+                  </select>
                 </div>
               )}
 
@@ -315,6 +373,26 @@ export default function AdminDashboard({ user }) {
                   <span className="text-[11px] text-gray-500">{emp.avg_progress}%</span>
                 </div>
                 <p className="text-xs text-gray-400 mt-1.5">{emp.task_count} task{emp.task_count !== 1 ? 's' : ''}</p>
+                <div className="flex gap-2 mt-4 pt-3 border-t border-gray-100">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleViewEmployeeTasksByStatus(emp, 'in_progress');
+                    }}
+                    className="flex-1 text-center py-1.5 px-2 bg-amber-50 hover:bg-amber-100 text-amber-700 text-[10px] font-semibold rounded-lg transition-colors border border-amber-200/50"
+                  >
+                    In Progress
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleViewEmployeeTasksByStatus(emp, 'completed');
+                    }}
+                    className="flex-1 text-center py-1.5 px-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-[10px] font-semibold rounded-lg transition-colors border border-emerald-200/50"
+                  >
+                    Completed
+                  </button>
+                </div>
               </div>
             ))}
           </div>

@@ -10,7 +10,23 @@ async function request(endpoint, options = {}) {
   if (token) headers['Authorization'] = `Bearer ${token}`;
 
   const res = await fetch(`${API_BASE}${endpoint}`, { ...options, headers });
-  const data = await res.json();
+  
+  let data = {};
+  const contentType = res.headers.get('content-type');
+  if (contentType && contentType.includes('application/json')) {
+    try {
+      data = await res.json();
+    } catch (e) {
+      data = { error: 'Failed to parse JSON response from server' };
+    }
+  } else {
+    try {
+      const text = await res.text();
+      data = { error: text || `HTTP ${res.status}: ${res.statusText}` };
+    } catch (e) {
+      data = { error: `HTTP ${res.status}: ${res.statusText}` };
+    }
+  }
 
   if (!res.ok) {
     throw new Error(data.error || `Request failed with status ${res.status}`);
@@ -41,6 +57,7 @@ export const api = {
     if (params.assignee_id) qs.set('assignee_id', params.assignee_id);
     if (params.status) qs.set('status', params.status);
     if (params.category) qs.set('category', params.category);
+    if (params.priority) qs.set('priority', params.priority);
     if (params.search) qs.set('search', params.search);
     const q = qs.toString();
     return request(`/tasks${q ? '?' + q : ''}`);

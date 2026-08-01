@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import { api } from '../lib/api';
 import { X, AlertCircle, Check } from 'lucide-react';
+import { useAuth } from '../App';
 
 export default function TaskModal({ isOpen, onClose, onSaved, task, employees }) {
+  const currentUser = useAuth();
   const isEdit = !!task;
   const [form, setForm] = useState({
     title: '', description: '', color: 'slate', status: 'todo', priority: 'medium',
@@ -11,6 +13,32 @@ export default function TaskModal({ isOpen, onClose, onSaved, task, employees })
   const [selectedAssigneeIds, setSelectedAssigneeIds] = useState([]);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+
+  const assigneeList = [];
+  const seenIds = new Set();
+  
+  if (employees) {
+    employees.forEach(emp => {
+      if (emp.role !== 'admin' || (currentUser && emp.id === currentUser.id)) {
+        if (!seenIds.has(emp.id)) {
+          assigneeList.push(emp);
+          seenIds.add(emp.id);
+        }
+      }
+    });
+  }
+
+  if (currentUser && !seenIds.has(currentUser.id)) {
+    assigneeList.push({
+      id: currentUser.id,
+      name: `${currentUser.name} (You)`,
+      role: currentUser.role,
+      department: currentUser.department
+    });
+    seenIds.add(currentUser.id);
+  }
+
+  assigneeList.sort((a, b) => a.name.localeCompare(b.name));
 
   useEffect(() => {
     if (task) {
@@ -125,16 +153,16 @@ export default function TaskModal({ isOpen, onClose, onSaved, task, employees })
               {isEdit ? (
                 <select value={form.assignee_id} onChange={handleChange('assignee_id')} className="input-field">
                   <option value="">Unassigned</option>
-                  {(employees || []).filter(e => e.role !== 'admin').map((emp) => (
+                  {assigneeList.map((emp) => (
                     <option key={emp.id} value={emp.id}>{emp.name}</option>
                   ))}
                 </select>
               ) : (
                 <div className="border border-gray-200 rounded-lg p-2 max-h-32 overflow-y-auto space-y-1 bg-white">
-                  {(employees || []).filter(e => e.role !== 'admin').length === 0 ? (
+                  {assigneeList.length === 0 ? (
                     <p className="text-xs text-gray-400 p-1">No assignees available</p>
                   ) : (
-                    (employees || []).filter(e => e.role !== 'admin').map((emp) => {
+                    assigneeList.map((emp) => {
                       const isChecked = selectedAssigneeIds.includes(emp.id);
                       return (
                         <label key={emp.id} className="flex items-center gap-2 px-2 py-0.5 hover:bg-gray-50 rounded cursor-pointer text-xs text-gray-700">
