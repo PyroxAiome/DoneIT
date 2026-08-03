@@ -149,4 +149,10 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify({ explanation_text }),
     }),
+
+  importBulkTasks: (tasks) =>
+    request('/tasks/bulk', {
+      method: 'POST',
+      body: JSON.stringify({ tasks }),
+    }),
 };

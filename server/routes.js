@@ -376,6 +376,66 @@ router.post('/tasks', auth, (req, res) => {
   res.status(201).json(createdTasks.length === 1 ? createdTasks[0] : { tasks: createdTasks });
 });
 
+router.post('/tasks/bulk', auth, (req, res) => {
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({ error: 'Only admins can perform bulk imports.' });
+  }
+
+  const { tasks } = req.body;
+  if (!tasks || !Array.isArray(tasks) || tasks.length === 0) {
+    return res.status(400).json({ error: 'Tasks array is required' });
+  }
+
+  const insertStmt = db.prepare(`
+    INSERT INTO tasks (title, description, color, status, priority, category,
+      assignee_id, creator_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+
+  const selectStmt = db.prepare(`
+    SELECT t.*, u.name as assignee_name, c.name as creator_name, c.role as creator_role, c.department as creator_department, e.name as last_edited_by_name
+    FROM tasks t
+    LEFT JOIN users u ON t.assignee_id = u.id
+    LEFT JOIN users c ON t.creator_id = c.id
+    LEFT JOIN users e ON t.last_edited_by = e.id
+    WHERE t.id = ?
+  `);
+
+  const createdTasks = [];
+
+  const runTransaction = db.transaction(() => {
+    for (const t of tasks) {
+      const { title, description, priority, category, assignee_id } = t;
+      const result = insertStmt.run(
+        title,
+        description || '',
+        'slate', // default color
+        'todo',  // default status
+        priority || 'medium',
+        category || 'General',
+        assignee_id || null,
+        req.user.id
+      );
+
+      const task = selectStmt.get(result.lastInsertRowid);
+      enrichTask(task);
+      createdTasks.push(task);
+
+      if (task.assignee_id) {
+        const msg = `${req.user.name} assigned task: "${title}" to ${task.assignee_name}`;
+        notifyRelevantUsers(req.user.id, msg, task.id);
+      }
+    }
+  });
+
+  try {
+    runTransaction();
+    res.status(201).json(createdTasks);
+  } catch (err) {
+    res.status(500).json({ error: err.message || 'Failed to complete bulk import.' });
+  }
+});
+
 router.put('/tasks/:id', auth, (req, res) => {
   const { id } = req.params;
   const task = db.prepare('SELECT * FROM tasks WHERE id = ?').get(id);

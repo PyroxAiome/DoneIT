@@ -5,10 +5,11 @@ import TaskModal from './TaskModal';
 import AddUserModal from './AddUserModal';
 import ConfirmDeleteModal from './ConfirmDeleteModal';
 import TaskDetailModal from './TaskDetailModal';
+import BulkImportModal from './BulkImportModal';
 import {
   LayoutDashboard, Briefcase, Users, Plus, Search, Grid3X3, List,
   UserPlus, Trash2, Filter, ListTodo, CheckCircle,
-  MessageSquare, X
+  MessageSquare, X, FileSpreadsheet
 } from 'lucide-react';
 
 const tabs = [
@@ -61,6 +62,7 @@ export default function AdminDashboard({ user }) {
   };
 
   const [showTaskModal, setShowTaskModal] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
   const [editTask, setEditTask] = useState(null);
   const [showUserModal, setShowUserModal] = useState(false);
   const [deleteTask, setDeleteTask] = useState(null);
@@ -305,9 +307,15 @@ export default function AdminDashboard({ user }) {
                 <List className="w-4 h-4" />
               </button>
               {activeTab === 'work' && (
-                <button onClick={() => { setEditTask(null); setShowTaskModal(true); }} className="bg-amber-500 hover:bg-amber-400 text-white p-2 rounded-lg border border-amber-400/40 shadow-lg shadow-amber-200/40 transition-all" title="Create Task">
-                  <Plus className="w-4 h-4" />
-                </button>
+                <div className="flex gap-2">
+                  <button onClick={() => setShowImportModal(true)} className="flex items-center gap-1.5 bg-white hover:bg-gray-50 text-gray-700 px-3 py-2 rounded-lg border border-gray-200 text-xs font-semibold shadow-sm transition-all" title="Import Tasks from Excel">
+                    <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+                    Import Excel
+                  </button>
+                  <button onClick={() => { setEditTask(null); setShowTaskModal(true); }} className="bg-amber-500 hover:bg-amber-400 text-white p-2 rounded-lg border border-amber-400/40 shadow-lg shadow-amber-200/40 transition-all" title="Create Task">
+                    <Plus className="w-4 h-4" />
+                  </button>
+                </div>
               )}
             </div>
           </div>
@@ -401,6 +409,7 @@ export default function AdminDashboard({ user }) {
       )}
 
       <TaskModal isOpen={showTaskModal} onClose={() => { setShowTaskModal(false); setEditTask(null); }} onSaved={fetchAll} task={editTask} employees={employees} />
+      <BulkImportModal isOpen={showImportModal} onClose={() => setShowImportModal(false)} employees={employees} onImportSuccess={fetchAll} />
       <AddUserModal isOpen={showUserModal} onClose={() => setShowUserModal(false)} onCreated={fetchAll} />
       <TaskDetailModal isOpen={!!detailTask} onClose={() => setDetailTask(null)} task={detailTask} onTaskUpdated={fetchAll} />
       <ConfirmDeleteModal isOpen={!!deleteTask} onClose={() => setDeleteTask(null)} onConfirm={handleDeleteTask}
