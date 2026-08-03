@@ -622,13 +622,15 @@ router.post('/tasks/:id/comments', auth, (req, res) => {
 
 router.get('/tasks/:id/comments', auth, (req, res) => {
   const { id } = req.params;
+  const task = db.prepare('SELECT parent_id FROM tasks WHERE id = ?').get(id);
+  const rootId = task && task.parent_id ? task.parent_id : id;
   const comments = db.prepare(`
     SELECT ac.*, u.name as admin_name
     FROM admin_comments ac
     LEFT JOIN users u ON ac.admin_id = u.id
-    WHERE ac.task_id = ?
+    WHERE ac.task_id IN (SELECT id FROM tasks WHERE id = ? OR parent_id = ?)
     ORDER BY ac.parent_id IS NULL DESC, ac.created_at ASC
-  `).all(id);
+  `).all(rootId, rootId);
   res.json(comments);
 });
 
@@ -703,6 +705,8 @@ router.get('/dashboard/stats', auth, adminOrManager, (req, res) => {
 // ─── DAILY LOGS ──────────────────────────────────────────────────
 router.get('/tasks/:id/daily-logs', auth, (req, res) => {
   const { id } = req.params;
+  const task = db.prepare('SELECT parent_id FROM tasks WHERE id = ?').get(id);
+  const rootId = task && task.parent_id ? task.parent_id : id;
   
   const logs = db.prepare(`
     SELECT dl.*, u.name as user_name, u.role as user_role,
@@ -710,9 +714,9 @@ router.get('/tasks/:id/daily-logs', auth, (req, res) => {
       (SELECT reaction_type FROM task_daily_log_reactions WHERE log_id = dl.id AND user_id = ?) as user_reaction
     FROM task_daily_logs dl
     LEFT JOIN users u ON dl.user_id = u.id
-    WHERE dl.task_id = ?
+    WHERE dl.task_id IN (SELECT id FROM tasks WHERE id = ? OR parent_id = ?)
     ORDER BY dl.log_date DESC, dl.created_at DESC
-  `).all(req.user.id, id);
+  `).all(req.user.id, rootId, rootId);
 
   const logsWithLikesAndComments = logs.map(log => {
     const likes = db.prepare(`
@@ -923,13 +927,15 @@ router.delete('/notifications/:id', auth, (req, res) => {
 // ─── TASK LOGICAL EXPLANATIONS ────────────────────────────────────
 router.get('/tasks/:id/explanations', auth, (req, res) => {
   const { id } = req.params;
+  const task = db.prepare('SELECT parent_id FROM tasks WHERE id = ?').get(id);
+  const rootId = task && task.parent_id ? task.parent_id : id;
   const explanations = db.prepare(`
     SELECT te.*, u.name as user_name, u.role as user_role
     FROM task_explanations te
     LEFT JOIN users u ON te.user_id = u.id
-    WHERE te.task_id = ?
+    WHERE te.task_id IN (SELECT id FROM tasks WHERE id = ? OR parent_id = ?)
     ORDER BY te.created_at DESC
-  `).all(id);
+  `).all(rootId, rootId);
   res.json(explanations);
 });
 
