@@ -115,6 +115,32 @@ try {
       created_at TEXT DEFAULT (datetime('now'))
     );
   `);
+
+  // Migrate old logical explanations from tasks table to task_explanations timeline table
+  const unmigrated = db.prepare(`
+    SELECT id, creator_id, logical_explanation, created_at 
+    FROM tasks 
+    WHERE logical_explanation IS NOT NULL 
+      AND logical_explanation != ''
+  `).all();
+
+  const insertExp = db.prepare(`
+    INSERT INTO task_explanations (task_id, user_id, explanation_text, created_at)
+    VALUES (?, ?, ?, ?)
+  `);
+
+  const checkExists = db.prepare(`
+    SELECT id FROM task_explanations 
+    WHERE task_id = ? AND explanation_text = ?
+  `);
+
+  for (const t of unmigrated) {
+    const exists = checkExists.get(t.id, t.logical_explanation);
+    if (!exists) {
+      const userId = t.creator_id || 1;
+      insertExp.run(t.id, userId, t.logical_explanation, t.created_at);
+    }
+  }
 } catch (e) {}
 
 export default db;
