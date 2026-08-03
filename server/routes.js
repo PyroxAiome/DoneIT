@@ -277,6 +277,19 @@ router.get('/tasks', auth, (req, res) => {
     params.push(`%${req.query.search}%`, `%${req.query.search}%`);
   }
 
+  // Admin-exclusive date range filtering
+  if (req.user.role === 'admin' && req.query.date_range) {
+    if (req.query.date_range === 'today') {
+      sql += " AND t.created_at >= datetime('now', 'start of day')";
+    } else if (req.query.date_range === 'week') {
+      sql += " AND t.created_at >= datetime('now', '-7 days')";
+    } else if (req.query.date_range === 'month') {
+      sql += " AND t.created_at >= datetime('now', 'start of month')";
+    } else if (req.query.date_range === 'year') {
+      sql += " AND t.created_at >= datetime('now', 'start of year')";
+    }
+  }
+
   if (req.user.role === 'employee') {
     sql += ' AND t.assignee_id = ?';
     params.push(req.user.id);

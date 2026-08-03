@@ -35,9 +35,26 @@ const getStatusSelectClass = (val) => {
     case 'in_progress': return base + 'text-blue-600 border-blue-300 bg-blue-50';
     case 'under_review': return base + 'text-purple-600 border-purple-300 bg-purple-50';
     case 'completed': return base + 'text-emerald-600 border-emerald-300 bg-emerald-50';
-    default: return base + 'text-gray-500 border-gray-200 bg-white';
+    default: return base + 'text-gray-500 border-gray-200 bg-white hover:text-gray-700';
   }
 };
+
+const getCategorySelectClass = (val) => {
+  const base = "text-xs border rounded-lg px-2.5 py-1 focus:outline-none focus:ring-1 focus:ring-amber-500 font-semibold transition-all ";
+  if (val) {
+    return base + 'text-indigo-700 border-indigo-300 bg-indigo-50';
+  }
+  return base + 'text-gray-500 border-gray-200 bg-white hover:text-gray-700';
+};
+
+const getDateSelectClass = (val) => {
+  const base = "text-xs border rounded-lg px-2.5 py-1 focus:outline-none focus:ring-1 focus:ring-amber-500 font-semibold transition-all ";
+  if (val) {
+    return base + 'text-amber-700 border-amber-300 bg-amber-50';
+  }
+  return base + 'text-gray-500 border-gray-200 bg-white hover:text-gray-700';
+};
+
 export default function AdminDashboard({ user }) {
   const [activeTab, setActiveTab] = useState('overview');
   const [stats, setStats] = useState(null);
@@ -48,6 +65,7 @@ export default function AdminDashboard({ user }) {
   const [statusFilter, setStatusFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [priorityFilter, setPriorityFilter] = useState('');
+  const [dateRangeFilter, setDateRangeFilter] = useState('');
   const [employeeFilter, setEmployeeFilter] = useState(null);
   const [compact, setCompact] = useState(false);
 
@@ -55,6 +73,7 @@ export default function AdminDashboard({ user }) {
     setActiveTab(tabId);
     setStatusFilter('');
     setPriorityFilter('');
+    setDateRangeFilter('');
     if (tabId === 'work' || tabId === 'completed') {
       setEmployeeFilter(null);
       setSelectedEmp(null);
@@ -78,6 +97,7 @@ export default function AdminDashboard({ user }) {
     if (priorityFilter) params.priority = priorityFilter;
     if (search) params.search = search;
     if (employeeFilter) params.assignee_id = employeeFilter;
+    if (dateRangeFilter) params.date_range = dateRangeFilter;
 
     Promise.all([
       api.getDashboardStats(),
@@ -95,7 +115,7 @@ export default function AdminDashboard({ user }) {
     fetchAll();
     window.addEventListener('task-updated', fetchAll);
     return () => window.removeEventListener('task-updated', fetchAll);
-  }, [statusFilter, categoryFilter, search, employeeFilter, priorityFilter]);
+  }, [statusFilter, categoryFilter, search, employeeFilter, priorityFilter, dateRangeFilter]);
 
   const handleDeleteTask = async () => {
     if (deleteTask) {
@@ -279,10 +299,11 @@ export default function AdminDashboard({ user }) {
               )}
 
               <div className="flex items-center gap-1.5">
+                <span className="text-[10px] uppercase font-semibold text-gray-400">Category:</span>
                 <select
                   value={categoryFilter}
                   onChange={(e) => setCategoryFilter(e.target.value)}
-                  className="text-xs bg-white border border-gray-200 rounded-lg px-2.5 py-1 text-gray-500 hover:text-gray-700 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                  className={getCategorySelectClass(categoryFilter)}
                 >
                   <option value="">All Categories</option>
                   <option value="General">General</option>
@@ -290,6 +311,21 @@ export default function AdminDashboard({ user }) {
                   <option value="Electronics">Electronics</option>
                   <option value="Mechanical">Mechanical</option>
                   <option value="Production">Production</option>
+                </select>
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] uppercase font-semibold text-gray-400">Date:</span>
+                <select
+                  value={dateRangeFilter}
+                  onChange={(e) => setDateRangeFilter(e.target.value)}
+                  className={getDateSelectClass(dateRangeFilter)}
+                >
+                  <option value="">All Time</option>
+                  <option value="today">Today</option>
+                  <option value="week">This Week</option>
+                  <option value="month">This Month</option>
+                  <option value="year">This Year</option>
                 </select>
               </div>
             </div>

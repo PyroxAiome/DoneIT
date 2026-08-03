@@ -59,6 +59,7 @@ export const api = {
     if (params.category) qs.set('category', params.category);
     if (params.priority) qs.set('priority', params.priority);
     if (params.search) qs.set('search', params.search);
+    if (params.date_range) qs.set('date_range', params.date_range);
     const q = qs.toString();
     return request(`/tasks${q ? '?' + q : ''}`);
   },
