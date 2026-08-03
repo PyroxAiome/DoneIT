@@ -59,6 +59,9 @@ export default function TaskCard({ task, compact, onEdit, onDelete, onSelect, on
   const [fbCount, setFbCount] = useState(0);
   const isOverdue = task.due_date && new Date(task.due_date) < new Date() && task.status !== 'completed';
   const statusActions = ['todo', 'in_progress', 'under_review', 'completed'].filter(s => s !== task.status);
+  const isGroupTask = task.parent_id !== null || (task.group_assignee_ids && task.group_assignee_ids.length > 1);
+  const isAdminCreatedGroupTask = isGroupTask && task.creator_role === 'admin';
+  const disableStatusChange = isAdminCreatedGroupTask && user?.role !== 'admin';
 
   useEffect(() => {
     api.getComments(task.id).then(c => setFbCount(c.length)).catch(() => {});
@@ -81,7 +84,17 @@ export default function TaskCard({ task, compact, onEdit, onDelete, onSelect, on
             <span className="text-sm text-gray-800 truncate font-medium">{task.title}</span>
           </div>
           <div className="flex items-center gap-3 text-xs text-gray-500 mt-0.5">
-            {task.assignee_name && <span className="flex items-center gap-1 font-bold text-gray-800"><User className="w-3 h-3" />{task.assignee_name}</span>}
+            {task.group_assignees && task.group_assignees.length > 1 ? (
+              <span className="flex items-center gap-1 font-bold text-gray-800" title={task.group_assignees.join(', ')}>
+                <User className="w-3 h-3" />
+                {task.group_assignees.join(', ')}
+              </span>
+            ) : task.assignee_name ? (
+              <span className="flex items-center gap-1 font-bold text-gray-800">
+                <User className="w-3 h-3" />
+                {task.assignee_name}
+              </span>
+            ) : null}
             {task.due_date && <span className={`flex items-center gap-1 ${isOverdue ? 'text-red-500' : ''}`}><Clock className="w-3 h-3" />{task.due_date}</span>}
           </div>
         </div>
@@ -105,9 +118,17 @@ export default function TaskCard({ task, compact, onEdit, onDelete, onSelect, on
             <h3 className="font-medium text-gray-900 text-sm whitespace-normal">{task.title}</h3>
           </div>
           <div className="flex items-center gap-3 mt-2 text-xs text-gray-500 flex-wrap">
-            {task.assignee_name && (
-              <span className="flex items-center gap-1 font-bold text-gray-800"><User className="w-3 h-3" />{task.assignee_name}</span>
-            )}
+            {task.group_assignees && task.group_assignees.length > 1 ? (
+              <span className="flex items-center gap-1 font-bold text-gray-800" title={task.group_assignees.join(', ')}>
+                <User className="w-3 h-3" />
+                {task.group_assignees.join(', ')}
+              </span>
+            ) : task.assignee_name ? (
+              <span className="flex items-center gap-1 font-bold text-gray-800">
+                <User className="w-3 h-3" />
+                {task.assignee_name}
+              </span>
+            ) : null}
             {task.due_date && (
               <span className={`flex items-center gap-1 ${isOverdue ? 'text-red-500' : ''}`}>
                 <Clock className="w-3 h-3" />{task.due_date}
@@ -142,11 +163,15 @@ export default function TaskCard({ task, compact, onEdit, onDelete, onSelect, on
                   {['urgent', 'high', 'medium', 'low'].filter(p => p !== task.priority).map(p => (
                     <button key={p} onClick={() => { api.updateTask(task.id, { priority: p }).then(() => onEdit?.()); setShowMenu(false); }} className="w-full text-left px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 capitalize">{p}</button>
                   ))}
-                  <div className="border-t border-gray-100 my-1" />
-                  <div className="px-3 py-1.5 text-[10px] text-gray-400 uppercase tracking-wider">Set Status</div>
-                  {statusActions.map(s => (
-                    <button key={s} onClick={() => handleStatusChange(s)} className="w-full text-left px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50">{statusLabels[s]}</button>
-                  ))}
+                  {!disableStatusChange && (
+                    <>
+                      <div className="border-t border-gray-100 my-1" />
+                      <div className="px-3 py-1.5 text-[10px] text-gray-400 uppercase tracking-wider">Set Status</div>
+                      {statusActions.map(s => (
+                        <button key={s} onClick={() => handleStatusChange(s)} className="w-full text-left px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50">{statusLabels[s]}</button>
+                      ))}
+                    </>
+                  )}
                   <div className="border-t border-gray-100 my-1" />
                   {canModifyTask(user, task) && (
                     <button onClick={() => { onSelect?.(task); setShowMenu(false); }} className="w-full text-left px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2">

@@ -6,6 +6,36 @@ import db from './db.js';
 const router = Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'doneit-super-secret-key-2026';
 
+const getGroupAssignees = (parentId, currentTaskId) => {
+  const pid = parentId || currentTaskId;
+  if (!pid) return { names: [], ids: [] };
+  const rows = db.prepare(`
+    SELECT t.assignee_id, u.name
+    FROM tasks t
+    JOIN users u ON t.assignee_id = u.id
+    WHERE t.parent_id = ? OR t.id = ?
+  `).all(pid, pid);
+
+  const names = [];
+  const ids = [];
+  const seenIds = new Set();
+  for (const r of rows) {
+    if (r.assignee_id && !seenIds.has(r.assignee_id)) {
+      seenIds.add(r.assignee_id);
+      names.push(r.name);
+      ids.push(r.assignee_id);
+    }
+  }
+  return { names, ids };
+};
+
+const enrichTask = (task) => {
+  if (!task) return;
+  const group = getGroupAssignees(task.parent_id, task.id);
+  task.group_assignees = group.names;
+  task.group_assignee_ids = group.ids;
+};
+
 router.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
@@ -255,6 +285,7 @@ router.get('/tasks', auth, (req, res) => {
   sql += ' ORDER BY t.created_at DESC';
 
   const tasks = db.prepare(sql).all(...params);
+  tasks.forEach(enrichTask);
   res.json(tasks);
 });
 
@@ -269,6 +300,7 @@ router.get('/tasks/:id', auth, (req, res) => {
     WHERE t.id = ?
   `).get(req.params.id);
   if (!task) return res.status(404).json({ error: 'Task not found' });
+  enrichTask(task);
   res.json(task);
 });
 
@@ -290,8 +322,8 @@ router.post('/tasks', auth, (req, res) => {
   const createdTasks = [];
   const insertStmt = db.prepare(`
     INSERT INTO tasks (title, description, color, status, priority, category,
-      assignee_id, creator_id, start_date, due_date, estimated_hours)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      assignee_id, creator_id, start_date, due_date, estimated_hours, parent_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const selectStmt = db.prepare(`
@@ -303,15 +335,31 @@ router.post('/tasks', auth, (req, res) => {
     WHERE t.id = ?
   `);
 
-  for (const targetId of assignees) {
+  let parentId = null;
+  const insertedIds = [];
+  for (let i = 0; i < assignees.length; i++) {
+    const targetId = assignees[i];
     const result = insertStmt.run(
       title, description || '', color || 'slate', status || 'todo',
       priority || 'medium', category || 'General',
       targetId, req.user.id,
-      start_date || null, due_date || null, estimated_hours || 0
+      start_date || null, due_date || null, estimated_hours || 0,
+      i === 0 ? null : parentId
     );
 
-    const task = selectStmt.get(result.lastInsertRowid);
+    const insertedId = result.lastInsertRowid;
+    insertedIds.push(insertedId);
+    if (i === 0) {
+      parentId = insertedId;
+      if (assignees.length > 1) {
+        db.prepare('UPDATE tasks SET parent_id = ? WHERE id = ?').run(parentId, parentId);
+      }
+    }
+  }
+
+  for (const insertedId of insertedIds) {
+    const task = selectStmt.get(insertedId);
+    enrichTask(task);
     createdTasks.push(task);
 
     let msg = '';
@@ -356,8 +404,16 @@ router.put('/tasks/:id', auth, (req, res) => {
     }
   }
 
+  // Prevent status changes on Admin-assigned group tasks by non-admins
+  const isGroupTask = task.parent_id !== null;
+  if (req.user.role !== 'admin' && isGroupTask && creatorRole === 'admin') {
+    if (req.body.status !== undefined && req.body.status !== task.status) {
+      return res.status(403).json({ error: 'Status changes on Admin-assigned group tasks can only be made by an Admin.' });
+    }
+  }
+
   const fields = ['title', 'description', 'color', 'status', 'priority', 'category',
-    'assignee_id', 'progress_percent', 'start_date', 'due_date', 'estimated_hours',
+    'progress_percent', 'start_date', 'due_date', 'estimated_hours',
     'logical_explanation'];
 
   const updates = [];
@@ -370,14 +426,99 @@ router.put('/tasks/:id', auth, (req, res) => {
     }
   }
 
+  const currentTask = db.prepare('SELECT * FROM tasks WHERE id = ?').get(id);
+  if (!currentTask) return res.status(404).json({ error: 'Task not found' });
+
+  // Handle assignee_id / assignee_ids updates
+  const assignee_id = req.body.assignee_id;
+  const assignee_ids = req.body.assignee_ids;
+  
+  let primaryAssignee = null;
+  let extraAssignees = [];
+
+  if (assignee_ids && Array.isArray(assignee_ids)) {
+    if (assignee_ids.length > 0) {
+      primaryAssignee = assignee_ids[0];
+      extraAssignees = assignee_ids.slice(1);
+    }
+  } else if (assignee_id !== undefined) {
+    primaryAssignee = assignee_id;
+  }
+
+  if (req.body.assignee_ids !== undefined || req.body.assignee_id !== undefined) {
+    updates.push('assignee_id = ?');
+    values.push(primaryAssignee);
+  }
+
+  // Set the parent_id if there are multiple assignees or if parent_id exists
+  let currentParentId = currentTask.parent_id;
+  if ((assignee_ids && assignee_ids.length > 1) || currentParentId) {
+    currentParentId = currentParentId || currentTask.id;
+    updates.push('parent_id = ?');
+    values.push(currentParentId);
+  }
+
   if (updates.length === 0) return res.status(400).json({ error: 'No fields to update' });
 
   updates.push("updated_at = datetime('now')");
   updates.push('last_edited_by = ?');
-  values.push(req.user.id);
-  values.push(id);
+  
+  // Save field values before pushing specific task ID
+  const fieldValues = [...values];
+  
+  // 1. Always update the primary task row first
+  const primaryUpdateParams = [...fieldValues, req.user.id, id];
+  db.prepare(`UPDATE tasks SET ${updates.join(', ')} WHERE id = ?`).run(...primaryUpdateParams);
 
-  db.prepare(`UPDATE tasks SET ${updates.join(', ')} WHERE id = ?`).run(...values);
+  // 2. Fetch the updated task to use as the template for cloning
+  const updatedTask = db.prepare('SELECT * FROM tasks WHERE id = ?').get(id);
+
+  // 3. Synchronize other tasks in the group if assignee_ids array is provided
+  if (assignee_ids && Array.isArray(assignee_ids)) {
+    const selectedSet = new Set(assignee_ids.map(Number));
+    // Remove primary task's assignee from selectedSet since it was updated above
+    selectedSet.delete(updatedTask.assignee_id);
+
+    // Fetch other tasks in the same group (excluding current task id)
+    const otherGroupTasks = db.prepare('SELECT id, assignee_id FROM tasks WHERE (parent_id = ? OR id = ?) AND id != ?').all(currentParentId, currentParentId, id);
+
+    for (const gt of otherGroupTasks) {
+      if (selectedSet.has(gt.assignee_id)) {
+        // Keep and update this task copy
+        const otherUpdateParams = [...fieldValues, req.user.id, gt.id];
+        db.prepare(`UPDATE tasks SET ${updates.join(', ')} WHERE id = ?`).run(...otherUpdateParams);
+        selectedSet.delete(gt.assignee_id);
+      } else {
+        // Deselected assignee - delete this task copy
+        db.prepare('DELETE FROM tasks WHERE id = ?').run(gt.id);
+      }
+    }
+
+    // Insert new task copies for any remaining newly checked assignees
+    if (selectedSet.size > 0) {
+      const insertStmt = db.prepare(`
+        INSERT INTO tasks (title, description, color, status, priority, category,
+          assignee_id, creator_id, start_date, due_date, estimated_hours, parent_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+      for (const newAssigneeId of selectedSet) {
+        insertStmt.run(
+          updatedTask.title,
+          updatedTask.description,
+          updatedTask.color,
+          updatedTask.status,
+          updatedTask.priority,
+          updatedTask.category,
+          newAssigneeId,
+          updatedTask.creator_id,
+          updatedTask.start_date,
+          updatedTask.due_date,
+          updatedTask.estimated_hours,
+          currentParentId
+        );
+      }
+    }
+  }
 
   const updated = db.prepare(`
     SELECT t.*, u.name as assignee_name, u.email as assignee_email,
@@ -396,6 +537,9 @@ router.put('/tasks/:id', auth, (req, res) => {
     msg = `${req.user.name} updated task: "${updated.title}" (assigned to ${updated.assignee_name})`;
   } else {
     msg = `${req.user.name} updated task: "${updated.title}"`;
+  }
+  if (updated) {
+    updated.group_assignees = getGroupAssignees(updated.parent_id);
   }
   notifyRelevantUsers(req.user.id, msg, updated.id);
 
@@ -776,8 +920,75 @@ router.delete('/notifications/:id', auth, (req, res) => {
   res.json({ success: true });
 });
 
-router.delete('/notifications', auth, (req, res) => {
-  db.prepare('DELETE FROM notifications WHERE user_id = ?').run(req.user.id);
+// ─── TASK LOGICAL EXPLANATIONS ────────────────────────────────────
+router.get('/tasks/:id/explanations', auth, (req, res) => {
+  const { id } = req.params;
+  const explanations = db.prepare(`
+    SELECT te.*, u.name as user_name, u.role as user_role
+    FROM task_explanations te
+    LEFT JOIN users u ON te.user_id = u.id
+    WHERE te.task_id = ?
+    ORDER BY te.created_at DESC
+  `).all(id);
+  res.json(explanations);
+});
+
+router.post('/tasks/:id/explanations', auth, (req, res) => {
+  const { id } = req.params;
+  const { explanation_text } = req.body;
+  if (!explanation_text) return res.status(400).json({ error: 'Explanation text is required' });
+
+  // Restrict to maximum 3 logical explanations per user per task
+  const { count } = db.prepare('SELECT COUNT(*) as count FROM task_explanations WHERE task_id = ? AND user_id = ?')
+    .get(id, req.user.id);
+  if (count >= 3) {
+    return res.status(400).json({ error: 'You have reached the limit of 3 logical explanations for this task.' });
+  }
+
+  const result = db.prepare('INSERT INTO task_explanations (task_id, user_id, explanation_text) VALUES (?, ?, ?)')
+    .run(id, req.user.id, explanation_text);
+
+  const newExp = db.prepare(`
+    SELECT te.*, u.name as user_name, u.role as user_role
+    FROM task_explanations te
+    LEFT JOIN users u ON te.user_id = u.id
+    WHERE te.id = ?
+  `).get(result.lastInsertRowid);
+
+  res.status(201).json(newExp);
+});
+
+router.put('/tasks/:id/explanations/:expId', auth, (req, res) => {
+  const { expId } = req.params;
+  const { explanation_text } = req.body;
+  if (!explanation_text) return res.status(400).json({ error: 'Explanation text is required' });
+
+  const exp = db.prepare('SELECT * FROM task_explanations WHERE id = ?').get(expId);
+  if (!exp) return res.status(404).json({ error: 'Explanation not found' });
+  if (exp.user_id !== req.user.id && req.user.role !== 'admin') {
+    return res.status(403).json({ error: 'Not authorized to update this explanation' });
+  }
+
+  db.prepare('UPDATE task_explanations SET explanation_text = ? WHERE id = ?').run(explanation_text, expId);
+
+  const updated = db.prepare(`
+    SELECT te.*, u.name as user_name, u.role as user_role
+    FROM task_explanations te
+    LEFT JOIN users u ON te.user_id = u.id
+    WHERE te.id = ?
+  `).get(expId);
+
+  res.json(updated);
+});
+
+router.delete('/tasks/:id/explanations/:expId', auth, (req, res) => {
+  const { expId } = req.params;
+  const exp = db.prepare('SELECT * FROM task_explanations WHERE id = ?').get(expId);
+  if (!exp) return res.status(404).json({ error: 'Explanation not found' });
+  if (req.user.role !== 'admin' && exp.user_id !== req.user.id) {
+    return res.status(403).json({ error: 'Not authorized to delete this explanation' });
+  }
+  db.prepare('DELETE FROM task_explanations WHERE id = ?').run(expId);
   res.json({ success: true });
 });
 

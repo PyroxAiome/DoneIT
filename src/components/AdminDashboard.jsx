@@ -143,6 +143,7 @@ export default function AdminDashboard({ user }) {
   };
 
   const displayedTasks = tasks.filter(t => {
+    if (statusFilter) return true;
     if (activeTab === 'completed') {
       return t.status === 'completed';
     } else {

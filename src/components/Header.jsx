@@ -25,8 +25,8 @@ export default function Header({ user, onLogout, onChangePassword, onViewTask })
     return notifications.filter(n => {
       if (!n.created_at) return true;
       // Convert SQLite datetime string or standard ISO string to timestamp
-      // e.g. "2026-08-01 12:00:00" -> replace space with 'T' for iOS/Safari compatibility if needed
-      const nTime = new Date(n.created_at.replace(' ', 'T')).getTime();
+      // e.g. "2026-08-01 12:00:00" -> replace space with 'T' for iOS/Safari compatibility and append 'Z' to treat as UTC
+      const nTime = new Date(n.created_at.replace(' ', 'T') + 'Z').getTime();
       if (dateFilter === 'today') {
         return nTime >= todayStart;
       } else if (dateFilter === 'yesterday') {
@@ -235,7 +235,7 @@ export default function Header({ user, onLogout, onChangePassword, onViewTask })
                             <div className="flex-1 min-w-0 pr-6">
                               <p className="text-xs text-gray-700 leading-normal">{n.message}</p>
                               <span className="text-[9px] text-gray-400 mt-1 block">
-                                {new Date(n.created_at.replace(' ', 'T')).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                {new Date(n.created_at.replace(' ', 'T') + 'Z').toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                               </span>
                             </div>
                             <button

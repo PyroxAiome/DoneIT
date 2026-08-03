@@ -54,7 +54,11 @@ export default function TaskModal({ isOpen, onClose, onSaved, task, employees })
         due_date: task.due_date || '',
         estimated_hours: task.estimated_hours ? String(task.estimated_hours) : '',
       });
-      setSelectedAssigneeIds([]);
+      if (task.group_assignee_ids && task.group_assignee_ids.length > 0) {
+        setSelectedAssigneeIds(task.group_assignee_ids.map(Number));
+      } else {
+        setSelectedAssigneeIds(task.assignee_id ? [Number(task.assignee_id)] : []);
+      }
     } else {
       setForm({ title: '', description: '', color: 'slate', status: 'todo', priority: 'medium', category: 'General', assignee_id: '', start_date: '', due_date: '', estimated_hours: '' });
       setSelectedAssigneeIds([]);
@@ -70,12 +74,18 @@ export default function TaskModal({ isOpen, onClose, onSaved, task, employees })
     e.preventDefault();
     setError('');
     if (!form.title) { setError('Title is required'); return; }
+    if (isEdit && currentUser?.role !== 'admin') {
+      if (!form.assignee_id) { setError('Assignee is required'); return; }
+    } else {
+      if (selectedAssigneeIds.length === 0) { setError('At least one assignee must be selected'); return; }
+    }
     setBusy(true);
     try {
       if (isEdit) {
         const payload = {
           ...form,
           assignee_id: form.assignee_id ? Number(form.assignee_id) : null,
+          assignee_ids: selectedAssigneeIds,
           estimated_hours: form.estimated_hours ? Number(form.estimated_hours) : 0,
         };
         await api.updateTask(task.id, payload);
@@ -127,12 +137,21 @@ export default function TaskModal({ isOpen, onClose, onSaved, task, employees })
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-xs text-gray-500 uppercase tracking-wider block mb-1">Status</label>
-              <select value={form.status} onChange={handleChange('status')} className="input-field">
-                <option value="todo">To Do</option>
-                <option value="in_progress">In Progress</option>
-                <option value="under_review">Under Review</option>
-                <option value="completed">Completed</option>
-              </select>
+               {(() => {
+                 const isGroupTask = task?.parent_id !== null || (task?.group_assignee_ids && task?.group_assignee_ids.length > 1);
+                 const isAdminCreatedGroupTask = isGroupTask && task?.creator_role === 'admin';
+                 const disableStatusField = isEdit && isAdminCreatedGroupTask && currentUser?.role !== 'admin';
+                 return (
+                   <select value={form.status} onChange={handleChange('status')} className="input-field" disabled={disableStatusField}>
+                     <option value="todo">To Do</option>
+                     <option value="in_progress">In Progress</option>
+                     <option value="under_review">Under Review</option>
+                     {(!(!isEdit && (currentUser?.role === 'employee' || currentUser?.role === 'manager'))) && (
+                       <option value="completed">Completed</option>
+                     )}
+                   </select>
+                 );
+               })()}
             </div>
             <div>
               <label className="text-xs text-gray-500 uppercase tracking-wider block mb-1">Priority</label>
@@ -148,11 +167,11 @@ export default function TaskModal({ isOpen, onClose, onSaved, task, employees })
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-xs text-gray-500 uppercase tracking-wider block mb-1">
-                {isEdit ? 'Assign To' : 'Assign To (Select Multiple to Group)'}
+                {isEdit && currentUser?.role !== 'admin' ? 'Assign To' : 'Assign To (Select Multiple to Group)'}
               </label>
-              {isEdit ? (
+              {isEdit && currentUser?.role !== 'admin' ? (
                 <select value={form.assignee_id} onChange={handleChange('assignee_id')} className="input-field">
-                  <option value="">Unassigned</option>
+                  <option value="" disabled>Select Assignee</option>
                   {assigneeList.map((emp) => (
                     <option key={emp.id} value={emp.id}>{emp.name}</option>
                   ))}

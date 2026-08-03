@@ -33,6 +33,7 @@ db.exec(`
     category TEXT DEFAULT 'General',
     assignee_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
     creator_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    parent_id INTEGER REFERENCES tasks(id) ON DELETE SET NULL,
     progress_percent INTEGER DEFAULT 0 CHECK(progress_percent >= 0 AND progress_percent <= 100),
     start_date TEXT,
     due_date TEXT,
@@ -41,7 +42,7 @@ db.exec(`
     created_at TEXT DEFAULT (datetime('now')),
     updated_at TEXT DEFAULT (datetime('now'))
   );
-
+  
   CREATE TABLE IF NOT EXISTS admin_comments (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     task_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
@@ -102,6 +103,18 @@ seedAdmin();
 
 try { db.exec("ALTER TABLE tasks ADD COLUMN logical_explanation TEXT DEFAULT ''"); } catch {}
 try { db.exec("ALTER TABLE tasks ADD COLUMN last_edited_by INTEGER REFERENCES users(id) ON DELETE SET NULL"); } catch {}
+try { db.exec("ALTER TABLE tasks ADD COLUMN parent_id INTEGER REFERENCES tasks(id) ON DELETE SET NULL"); } catch {}
 try { db.exec("ALTER TABLE admin_comments ADD COLUMN parent_id INTEGER REFERENCES admin_comments(id) ON DELETE CASCADE"); } catch {}
+try {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS task_explanations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      task_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      explanation_text TEXT NOT NULL,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+  `);
+} catch (e) {}
 
 export default db;

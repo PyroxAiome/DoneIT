@@ -108,6 +108,7 @@ export default function ManagerDashboard({ user }) {
     if (myTasksOnly && t.creator_id !== user.id && t.assignee_id !== user.id) {
       return false;
     }
+    if (statusFilter) return true;
     if (activeTab === 'completed') {
       return t.status === 'completed';
     } else {

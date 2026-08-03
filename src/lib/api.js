@@ -131,4 +131,22 @@ export const api = {
 
   deleteDailyLogComment: (taskId, logId, commentId) =>
     request(`/tasks/${taskId}/daily-logs/${logId}/comments/${commentId}`, { method: 'DELETE' }),
+
+  getExplanations: (taskId) =>
+    request(`/tasks/${taskId}/explanations`),
+
+  addExplanation: (taskId, explanation_text) =>
+    request(`/tasks/${taskId}/explanations`, {
+      method: 'POST',
+      body: JSON.stringify({ explanation_text }),
+    }),
+
+  deleteExplanation: (taskId, expId) =>
+    request(`/tasks/${taskId}/explanations/${expId}`, { method: 'DELETE' }),
+
+  updateExplanation: (taskId, expId, explanation_text) =>
+    request(`/tasks/${taskId}/explanations/${expId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ explanation_text }),
+    }),
 };

@@ -23,14 +23,19 @@ export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated }
    const [editingLogContent, setEditingLogContent] = useState('');
    const [dailyLogCommentsText, setDailyLogCommentsText] = useState({});
  
+   const [explanationsList, setExplanationsList] = useState([]);
+   const [newExpText, setNewExpText] = useState('');
+   const [editingExpId, setEditingExpId] = useState(null);
+   const [editingExpText, setEditingExpText] = useState('');
+
    useEffect(() => {
      if (isOpen && task) {
        api.getTask(task.id).then(t => {
          setTaskData(t);
-         setExplanation(t.logical_explanation || '');
        }).catch(() => {});
        api.getComments(task.id).then(setComments).catch(() => {});
        api.getDailyLogs(task.id).then(setDailyLogs).catch(() => {});
+       api.getExplanations(task.id).then(setExplanationsList).catch(() => {});
      }
    }, [isOpen, task]);
 
@@ -39,12 +44,34 @@ export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated }
   const topComments = comments.filter(c => !c.parent_id);
   const replies = (parentId) => comments.filter(c => c.parent_id === parentId);
 
-  const handleSaveExplanation = async () => {
+  const handleSaveExplanation = async (e) => {
+    e?.preventDefault();
+    if (!newExpText.trim()) return;
     setSaving(true);
     try {
-      await api.updateTask(task.id, { logical_explanation: explanation });
-      const t = await api.getTask(task.id);
-      setTaskData(t);
+      const saved = await api.addExplanation(task.id, newExpText);
+      setExplanationsList(prev => [saved, ...prev]);
+      setNewExpText('');
+      onTaskUpdated?.();
+    } catch {}
+    setSaving(false);
+  };
+
+  const handleDeleteExplanation = async (expId) => {
+    try {
+      await api.deleteExplanation(task.id, expId);
+      setExplanationsList(prev => prev.filter(e => e.id !== expId));
+    } catch {}
+  };
+
+  const handleUpdateExplanation = async (expId) => {
+    if (!editingExpText.trim()) return;
+    setSaving(true);
+    try {
+      const saved = await api.updateExplanation(task.id, expId, editingExpText);
+      setExplanationsList(prev => prev.map(e => e.id === expId ? saved : e));
+      setEditingExpId(null);
+      setEditingExpText('');
       onTaskUpdated?.();
     } catch {}
     setSaving(false);
@@ -354,21 +381,117 @@ export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated }
               )}
             </div>
           )}
-
           {tab === 'explanation' && (
-            <div>
-              <p className="text-xs text-gray-400 mb-2">Explain what's happening with this work — any context the team should know.</p>
-              <textarea
-                value={explanation}
-                onChange={(e) => setExplanation(e.target.value)}
-                className="input-field min-h-[200px] resize-y"
-                placeholder="Write your explanation here..."
-              />
-              <div className="flex justify-end mt-2">
-                <button onClick={handleSaveExplanation} disabled={saving} className="btn-amber text-xs flex items-center gap-1 px-3 py-1.5 disabled:opacity-50">
-                  {saving ? <div className="w-3 h-3 border-2 border-white/40 border-t-white rounded-full animate-spin" /> : <Check className="w-3.5 h-3.5" />}
-                  {saving ? 'Saving...' : 'Save Explanation'}
-                </button>
+            <div className="space-y-5">
+              {/* Add new logic log */}
+              {(() => {
+                const userExplanationsCount = explanationsList.filter(e => e.user_id === user.id).length;
+                const reachedLimit = userExplanationsCount >= 3;
+                return reachedLimit ? (
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-3.5 text-xs text-amber-800 flex items-center justify-between">
+                    <span>You have reached the limit of 3 logical explanations for this task.</span>
+                    <span className="font-semibold px-2 py-0.5 bg-amber-100 rounded">Limit 3/3</span>
+                  </div>
+                ) : (
+                  <form onSubmit={handleSaveExplanation} className="bg-amber-50/40 border border-amber-100 rounded-xl p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold text-amber-900">Add Logical Explanation / Context</span>
+                      <span className="text-[10px] text-gray-400 font-medium">{userExplanationsCount}/3 logged</span>
+                    </div>
+                    <textarea
+                      value={newExpText}
+                      onChange={(e) => setNewExpText(e.target.value)}
+                      className="w-full border border-gray-200 rounded-lg p-2.5 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-amber-500 focus:border-amber-500 min-h-[90px] resize-y placeholder:text-gray-400"
+                      placeholder="Explain what is the logic behind doing this work? Why should it happen? How should it happen?..."
+                      required
+                    />
+                    <div className="flex justify-end">
+                      <button type="submit" disabled={saving || !newExpText.trim()} className="btn-amber text-xs flex items-center gap-1 px-3 py-1.5 disabled:opacity-50">
+                        {saving ? <div className="w-3 h-3 border-2 border-white/40 border-t-white rounded-full animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                        Log Logic Context
+                      </button>
+                    </div>
+                  </form>
+                );
+              })()}
+
+              {/* Explanations History */}
+              <div className="space-y-4">
+                <h5 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Logic & Strategy Timeline</h5>
+                {explanationsList.length === 0 ? (
+                  <p className="text-sm text-gray-400 text-center py-6">No logical explanations written yet. Explain the "why" and "how" of the task.</p>
+                ) : (
+                  <div className="relative border-l border-gray-100 pl-4 ml-2 space-y-4">
+                    {explanationsList.map((exp) => {
+                      const isOwner = exp.user_id === user.id || user.role === 'admin';
+                      const formattedDate = exp.created_at ? new Date(exp.created_at.replace(' ', 'T') + 'Z').toLocaleDateString(undefined, {
+                        weekday: 'short',
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      }) : '';
+                      return (
+                        <div key={exp.id} className="relative group/exp">
+                          <div className="absolute -left-[21px] top-1.5 w-2.5 h-2.5 rounded-full border border-white bg-blue-500 ring-4 ring-blue-50" />
+                          <div className="bg-gray-50 border border-gray-100 rounded-xl p-3.5 space-y-2.5 transition-shadow hover:shadow-sm">
+                            <div className="flex items-center justify-between text-xs">
+                              <div className="flex items-center gap-2">
+                                <span className="font-semibold text-gray-800">{exp.user_name}</span>
+                                <span className="text-[10px] uppercase px-1.5 py-0.5 rounded bg-gray-200/60 text-gray-500 scale-90 origin-left">
+                                  {exp.user_role}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-[10px] font-medium text-gray-400">{formattedDate}</span>
+                                {editingExpId !== exp.id && isOwner && (
+                                  <div className="flex items-center gap-1.5 opacity-0 group-hover/exp:opacity-100 transition-opacity">
+                                    {exp.user_id === user.id && (
+                                      <button onClick={() => { setEditingExpId(exp.id); setEditingExpText(exp.explanation_text); }} className="text-gray-500 hover:text-gray-700">
+                                        <Edit3 className="w-3.5 h-3.5" />
+                                      </button>
+                                    )}
+                                    <button onClick={() => handleDeleteExplanation(exp.id)} className="text-red-500 hover:text-red-700">
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                            {editingExpId === exp.id ? (
+                              <div className="space-y-2 pt-1">
+                                <textarea
+                                  value={editingExpText}
+                                  onChange={(e) => setEditingExpText(e.target.value)}
+                                  className="w-full border border-gray-200 rounded-lg p-2 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-amber-500 focus:border-amber-500 min-h-[80px]"
+                                />
+                                <div className="flex justify-end gap-1.5">
+                                  <button
+                                    onClick={() => setEditingExpId(null)}
+                                    className="text-[10px] text-gray-500 hover:bg-gray-100 font-medium px-2 py-1 rounded transition-colors"
+                                  >
+                                    Cancel
+                                  </button>
+                                  <button
+                                    onClick={() => handleUpdateExplanation(exp.id)}
+                                    disabled={saving}
+                                    className="btn-amber text-[10px] font-medium px-2.5 py-1 rounded flex items-center gap-1"
+                                  >
+                                    {saving && <div className="w-2.5 h-2.5 border border-white/40 border-t-white rounded-full animate-spin" />}
+                                    Save
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{exp.explanation_text}</p>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             </div>
           )}
