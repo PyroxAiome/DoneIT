@@ -543,13 +543,13 @@ router.put('/tasks/:id', auth, (req, res) => {
 
   updates.push("updated_at = datetime('now')");
   updates.push('last_edited_by = ?');
+  values.push(req.user.id);
   
   // Save field values before pushing specific task ID
   const fieldValues = [...values];
   
   // 1. Always update the primary task row first
-  const primaryUpdateParams = [...fieldValues, req.user.id, id];
-  db.prepare(`UPDATE tasks SET ${updates.join(', ')} WHERE id = ?`).run(...primaryUpdateParams);
+  db.prepare(`UPDATE tasks SET ${updates.join(', ')} WHERE id = ?`).run(...fieldValues, id);
 
   // 2. Fetch the updated task to use as the template for cloning
   const updatedTask = db.prepare('SELECT * FROM tasks WHERE id = ?').get(id);
@@ -579,8 +579,8 @@ router.put('/tasks/:id', auth, (req, res) => {
       if (assigneeIndex !== -1) {
         parentValues[assigneeIndex] = parentRowTargetAssignee;
       }
-      db.prepare(`UPDATE tasks SET ${parentUpdates.join(', ')}, last_edited_by = ? WHERE id = ?`)
-        .run(...parentValues, req.user.id, currentParentId);
+      db.prepare(`UPDATE tasks SET ${parentUpdates.join(', ')} WHERE id = ?`)
+        .run(...parentValues, currentParentId);
       
       selectedSet.delete(parentRowTargetAssignee);
     }
@@ -595,8 +595,8 @@ router.put('/tasks/:id', auth, (req, res) => {
 
       if (selectedSet.has(cloneRow.assignee_id)) {
         // Update this clone copy
-        db.prepare(`UPDATE tasks SET ${updates.join(', ')}, last_edited_by = ? WHERE id = ?`)
-          .run(...fieldValues, req.user.id, cloneRow.id);
+        db.prepare(`UPDATE tasks SET ${updates.join(', ')} WHERE id = ?`)
+          .run(...fieldValues, cloneRow.id);
         selectedSet.delete(cloneRow.assignee_id);
       } else {
         // Safe to delete this clone copy
