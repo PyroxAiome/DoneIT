@@ -510,9 +510,11 @@ router.put('/tasks/:id', auth, (req, res) => {
   let extraAssignees = [];
 
   if (assignee_ids && Array.isArray(assignee_ids)) {
-    if (assignee_ids.length > 0) {
+    const selectedSet = new Set(assignee_ids.map(Number));
+    if (selectedSet.has(Number(currentTask.assignee_id))) {
+      primaryAssignee = currentTask.assignee_id;
+    } else if (assignee_ids.length > 0) {
       primaryAssignee = assignee_ids[0];
-      extraAssignees = assignee_ids.slice(1);
     }
   } else if (assignee_id !== undefined) {
     primaryAssignee = assignee_id;
@@ -590,6 +592,14 @@ router.put('/tasks/:id', auth, (req, res) => {
           currentParentId
         );
       }
+    }
+  } else if (currentParentId) {
+    // If it is a group task and assignee list was not modified (e.g. status changed from card dropdown or details modal),
+    // synchronize this update to all other task copies in the same group.
+    const otherGroupTasks = db.prepare('SELECT id FROM tasks WHERE (parent_id = ? OR id = ?) AND id != ?').all(currentParentId, currentParentId, id);
+    for (const gt of otherGroupTasks) {
+      const otherUpdateParams = [...fieldValues, req.user.id, gt.id];
+      db.prepare(`UPDATE tasks SET ${updates.join(', ')} WHERE id = ?`).run(...otherUpdateParams);
     }
   }
 
