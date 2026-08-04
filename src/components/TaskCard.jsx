@@ -52,6 +52,26 @@ const canDeleteTask = (user, task) => {
   return canModifyTask(user, task);
 };
 
+const formatDescription = (desc) => {
+  if (!desc) return '';
+  if (desc.trim().startsWith('{"type":"excalidraw/clipboard"')) {
+    try {
+      const data = JSON.parse(desc);
+      const texts = data.elements
+        ?.filter(el => el.type === 'text' && el.text)
+        .map(el => el.text.trim())
+        .filter(Boolean);
+      if (texts && texts.length > 0) {
+        return `🎨 [Excalidraw] : ${texts.join(' | ')}`;
+      }
+      return '🎨 [Excalidraw Drawing/Diagram]';
+    } catch (e) {
+      return '🎨 [Excalidraw Drawing/Diagram]';
+    }
+  }
+  return desc;
+};
+
 export default function TaskCard({ task, compact, onEdit, onDelete, onSelect, onViewDetail }) {
   const user = useAuth();
   const colors = priorityColorMap[task.priority] || priorityColorMap.medium;
@@ -191,7 +211,7 @@ export default function TaskCard({ task, compact, onEdit, onDelete, onSelect, on
 
       <div className="mt-1.5 sm:mt-2 text-[11px] sm:text-xs text-gray-500 space-y-0.5">
         {task.description && (
-          <p className="line-clamp-2">{task.description}</p>
+          <p className="line-clamp-2">{formatDescription(task.description)}</p>
         )}
         {task.logical_explanation && (
           <p className="text-gray-400 italic line-clamp-1">

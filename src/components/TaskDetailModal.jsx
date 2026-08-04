@@ -3,6 +3,26 @@ import { api } from '../lib/api';
 import { useAuth } from '../App';
 import { X, Send, Edit3, Trash2, Check, X as XIcon, MessageSquare, FileText, Reply, Calendar, ThumbsUp, ThumbsDown } from 'lucide-react';
 
+const formatDescription = (desc) => {
+  if (!desc) return '';
+  if (desc.trim().startsWith('{"type":"excalidraw/clipboard"')) {
+    try {
+      const data = JSON.parse(desc);
+      const texts = data.elements
+        ?.filter(el => el.type === 'text' && el.text)
+        .map(el => el.text.trim())
+        .filter(Boolean);
+      if (texts && texts.length > 0) {
+        return `🎨 [Excalidraw] : ${texts.join(' | ')}`;
+      }
+      return '🎨 [Excalidraw Drawing/Diagram]';
+    } catch (e) {
+      return '🎨 [Excalidraw Drawing/Diagram]';
+    }
+  }
+  return desc;
+};
+
 export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated }) {
   const user = useAuth();
    const [tab, setTab] = useState('reviews');
@@ -251,7 +271,7 @@ export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated }
         {(taskData?.description || task.description) && (
           <div className="px-5 py-3.5 bg-gray-50 border-b border-gray-100">
             <h4 className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Description</h4>
-            <p className="text-sm text-gray-700 whitespace-pre-wrap">{taskData?.description || task.description}</p>
+            <p className="text-sm text-gray-700 whitespace-pre-wrap">{formatDescription(taskData?.description || task.description)}</p>
           </div>
         )}
 
