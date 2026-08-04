@@ -62,7 +62,7 @@ export default function AddUserModal({ isOpen, onClose, onCreated }) {
             <label className="text-xs text-gray-500 uppercase tracking-wider block mb-1">Password</label>
             <input type="password" value={form.password} onChange={handleChange('password')} className="input-field" placeholder="Set password" />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="text-xs text-gray-500 uppercase tracking-wider block mb-1">Role</label>
               <select value={form.role} onChange={handleChange('role')} className="input-field">
