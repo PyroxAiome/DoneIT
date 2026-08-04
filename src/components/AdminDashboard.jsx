@@ -185,7 +185,7 @@ export default function AdminDashboard({ user }) {
     if (activeTab === 'completed') {
       return t.status === 'completed';
     } else {
-      return t.status !== 'completed';
+      return true;
     }
   }).sort((a, b) => {
     if (activeTab === 'work') {
