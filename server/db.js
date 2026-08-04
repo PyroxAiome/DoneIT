@@ -80,6 +80,13 @@ db.exec(`
     UNIQUE(log_id, user_id)
   );
 
+  CREATE INDEX IF NOT EXISTS idx_tasks_assignee_id ON tasks(assignee_id);
+  CREATE INDEX IF NOT EXISTS idx_tasks_parent_id ON tasks(parent_id);
+  CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
+  CREATE INDEX IF NOT EXISTS idx_tasks_priority ON tasks(priority);
+  CREATE INDEX IF NOT EXISTS idx_tasks_category ON tasks(category);
+  CREATE INDEX IF NOT EXISTS idx_tasks_created_at ON tasks(created_at);
+
   CREATE TABLE IF NOT EXISTS task_daily_log_comments (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     log_id INTEGER NOT NULL REFERENCES task_daily_logs(id) ON DELETE CASCADE,

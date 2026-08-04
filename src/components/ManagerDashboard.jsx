@@ -43,6 +43,7 @@ export default function ManagerDashboard({ user }) {
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [searchText, setSearchText] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [priorityFilter, setPriorityFilter] = useState('');
@@ -73,6 +74,13 @@ export default function ManagerDashboard({ user }) {
       if (employeeFilter) setSelectedEmp(e.find(emp => emp.id === Number(employeeFilter)));
     }).catch(() => {}).finally(() => setLoading(false));
   };
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setSearch(searchText);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchText]);
 
   useEffect(() => {
     fetchAll();
@@ -199,7 +207,7 @@ export default function ManagerDashboard({ user }) {
       <div className="flex items-center gap-3 flex-wrap">
         <div className="relative flex-1 min-w-[200px] max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <input value={search} onChange={(e) => setSearch(e.target.value)} className="input-field pl-9" placeholder="Search tasks..." />
+          <input value={searchText} onChange={(e) => setSearchText(e.target.value)} className="input-field pl-9" placeholder="Search tasks..." />
         </div>
         
         {activeTab === 'work' && (

@@ -63,12 +63,20 @@ export default function AdminDashboard({ user }) {
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [searchText, setSearchText] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [priorityFilter, setPriorityFilter] = useState('');
   const [dateRangeFilter, setDateRangeFilter] = useState('');
   const [employeeFilter, setEmployeeFilter] = useState(null);
   const [compact, setCompact] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setSearch(searchText);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchText]);
 
   const handleTabChange = (tabId) => {
     window.location.hash = tabId;
@@ -313,7 +321,7 @@ export default function AdminDashboard({ user }) {
             <div className="flex items-center gap-3 flex-wrap flex-1">
               <div className="relative flex-1 min-w-[200px] max-w-sm">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <input value={search} onChange={(e) => setSearch(e.target.value)} className="input-field pl-9" placeholder="Search tasks..." />
+                <input value={searchText} onChange={(e) => setSearchText(e.target.value)} className="input-field pl-9" placeholder="Search tasks..." />
               </div>
               
               {activeTab === 'work' && (

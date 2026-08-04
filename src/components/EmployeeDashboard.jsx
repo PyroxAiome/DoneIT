@@ -16,6 +16,7 @@ export default function EmployeeDashboard({ user }) {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [searchText, setSearchText] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [detailTask, setDetailTask] = useState(null);
@@ -31,6 +32,13 @@ export default function EmployeeDashboard({ user }) {
     if (search) params.search = search;
     api.getTasks(params).then(setTasks).catch(() => {}).finally(() => setLoading(false));
   };
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setSearch(searchText);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchText]);
 
   useEffect(() => {
     fetchTasks();
@@ -99,8 +107,8 @@ export default function EmployeeDashboard({ user }) {
         <div className="relative flex-1 min-w-[200px] max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            value={searchText}
+            onChange={(e) => setSearchText(e.target.value)}
             className="input-field pl-9"
             placeholder="Search tasks..."
           />
