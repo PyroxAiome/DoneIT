@@ -70,14 +70,7 @@ export default function AdminDashboard({ user }) {
   const [compact, setCompact] = useState(false);
 
   const handleTabChange = (tabId) => {
-    setActiveTab(tabId);
-    setStatusFilter('');
-    setPriorityFilter('');
-    setDateRangeFilter('');
-    if (tabId === 'work' || tabId === 'completed') {
-      setEmployeeFilter(null);
-      setSelectedEmp(null);
-    }
+    window.location.hash = tabId;
   };
 
   const [showTaskModal, setShowTaskModal] = useState(false);
@@ -112,6 +105,39 @@ export default function AdminDashboard({ user }) {
   };
 
   useEffect(() => {
+    const handleHashChange = () => {
+      const hash = window.location.hash;
+      if (!hash) {
+        setActiveTab('overview');
+        setEmployeeFilter(null);
+        setSelectedEmp(null);
+        return;
+      }
+      const parts = hash.substring(1).split('/');
+      const tabId = parts[0];
+      if (['overview', 'work', 'completed', 'team'].includes(tabId)) {
+        setActiveTab(tabId);
+      }
+      if (parts[1] === 'employee' && parts[2]) {
+        const empId = Number(parts[2]);
+        setEmployeeFilter(empId);
+        if (employees && employees.length > 0) {
+          const emp = employees.find(e => e.id === empId);
+          if (emp) setSelectedEmp(emp);
+        }
+      } else {
+        setEmployeeFilter(null);
+        setSelectedEmp(null);
+      }
+    };
+
+    window.addEventListener('hashchange', handleHashChange);
+    handleHashChange();
+
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, [employees]);
+
+  useEffect(() => {
     fetchAll();
     window.addEventListener('task-updated', fetchAll);
     return () => window.removeEventListener('task-updated', fetchAll);
@@ -137,29 +163,19 @@ export default function AdminDashboard({ user }) {
   };
 
   const handleViewEmployeeTasks = (emp) => {
-    setEmployeeFilter(emp.id);
-    setSelectedEmp(emp);
-    setActiveTab('work');
-    setStatusFilter('');
-    setPriorityFilter('');
+    window.location.hash = `work/employee/${emp.id}`;
   };
 
   const handleViewEmployeeTasksByStatus = (emp, status) => {
-    setEmployeeFilter(emp.id);
-    setSelectedEmp(emp);
-    setPriorityFilter('');
-    if (status === 'completed') {
-      setActiveTab('completed');
-      setStatusFilter('completed');
-    } else {
-      setActiveTab('work');
+    const targetTab = status === 'completed' ? 'completed' : 'work';
+    window.location.hash = `${targetTab}/employee/${emp.id}`;
+    if (status !== 'completed') {
       setStatusFilter(status);
     }
   };
 
   const clearEmployeeFilter = () => {
-    setEmployeeFilter(null);
-    setSelectedEmp(null);
+    window.location.hash = activeTab;
     setStatusFilter('');
     setPriorityFilter('');
   };
