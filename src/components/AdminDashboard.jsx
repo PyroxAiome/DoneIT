@@ -9,7 +9,7 @@ import BulkImportModal from './BulkImportModal';
 import {
   LayoutDashboard, Briefcase, Users, Plus, Search, Grid3X3, List,
   UserPlus, Trash2, Filter, ListTodo, CheckCircle,
-  MessageSquare, X, FileSpreadsheet
+  MessageSquare, X, FileSpreadsheet, Shield
 } from 'lucide-react';
 
 const tabs = [
@@ -17,6 +17,7 @@ const tabs = [
   { id: 'work', label: 'Work', icon: Briefcase },
   { id: 'completed', label: 'Completed', icon: CheckCircle },
   { id: 'team', label: 'Team', icon: Users },
+  { id: 'admins', label: 'Admins', icon: Shield },
 ];const getPrioritySelectClass = (val) => {
   const base = "text-xs border rounded-lg px-2.5 py-1 focus:outline-none focus:ring-1 focus:ring-amber-500 font-semibold transition-all ";
   switch(val) {
@@ -115,7 +116,7 @@ export default function AdminDashboard({ user }) {
       }
       const parts = hash.substring(1).split('/');
       const tabId = parts[0];
-      if (['overview', 'work', 'completed', 'team'].includes(tabId)) {
+      if (['overview', 'work', 'completed', 'team', 'admins'].includes(tabId)) {
         setActiveTab(tabId);
       }
       if (parts[1] === 'employee' && parts[2]) {
@@ -441,7 +442,7 @@ export default function AdminDashboard({ user }) {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-            {employees.map((emp) => (
+            {employees.filter(e => e.role !== 'admin').map((emp) => (
               <div key={emp.id} className="bg-white border border-gray-200 rounded-xl p-4 group hover:shadow-md hover:border-gray-300 transition-all cursor-pointer"
                 onClick={() => handleViewEmployeeTasks(emp)}>
                 <div className="flex items-start justify-between">
@@ -455,6 +456,71 @@ export default function AdminDashboard({ user }) {
                     </div>
                   </div>
                   {emp.role !== 'admin' && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setDeleteUser(emp); }}
+                      className="p-1.5 hover:bg-red-50 rounded-lg text-gray-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
+                      title="Delete user"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+                <div className="mt-3 flex items-center gap-2">
+                  <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                    <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${emp.avg_progress}%` }} />
+                  </div>
+                  <span className="text-[11px] text-gray-500">{emp.avg_progress}%</span>
+                </div>
+                <p className="text-xs text-gray-400 mt-1.5">{emp.task_count} task{emp.task_count !== 1 ? 's' : ''}</p>
+                <div className="flex gap-2 mt-4 pt-3 border-t border-gray-100">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleViewEmployeeTasksByStatus(emp, 'in_progress');
+                    }}
+                    className="flex-1 text-center py-1.5 px-2 bg-amber-50 hover:bg-amber-100 text-amber-700 text-[10px] font-semibold rounded-lg transition-colors border border-amber-200/50"
+                  >
+                    In Progress
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleViewEmployeeTasksByStatus(emp, 'completed');
+                    }}
+                    className="flex-1 text-center py-1.5 px-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-[10px] font-semibold rounded-lg transition-colors border border-emerald-200/50"
+                  >
+                    Completed
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'admins' && (
+        <div className="space-y-4">
+          <div className="flex justify-end">
+            <button onClick={() => setShowUserModal(true)} className="btn-amber text-sm flex items-center gap-2">
+              <UserPlus className="w-4 h-4" /> Add Admin
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+            {employees.filter(e => e.role === 'admin').map((emp) => (
+              <div key={emp.id} className="bg-white border border-gray-200 rounded-xl p-4 group hover:shadow-md hover:border-gray-300 transition-all cursor-pointer"
+                onClick={() => handleViewEmployeeTasks(emp)}>
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-full bg-gray-100 border border-gray-200 flex items-center justify-center text-sm font-medium text-gray-500">
+                      {emp.name.charAt(0)}
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-800">{emp.name}</p>
+                      <p className="text-[10px] text-gray-400 uppercase">{emp.role} &middot; {emp.department}</p>
+                    </div>
+                  </div>
+                  {emp.id !== user.id && (
                     <button
                       onClick={(e) => { e.stopPropagation(); setDeleteUser(emp); }}
                       className="p-1.5 hover:bg-red-50 rounded-lg text-gray-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
