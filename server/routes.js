@@ -291,7 +291,8 @@ router.get('/tasks', auth, (req, res) => {
   }
 
   // Deduplicate group task copies for Admin and Manager dashboard views
-  if (req.user.role !== 'employee') {
+  // Only apply when not filtering by a specific employee/assignee
+  if (req.user.role !== 'employee' && !req.query.assignee_id) {
     sql += ' AND (t.parent_id IS NULL OR t.id = t.parent_id)';
   }
 
