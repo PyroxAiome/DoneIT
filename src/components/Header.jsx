@@ -210,13 +210,7 @@ export default function Header({ user, onLogout, onChangePassword, onViewTask })
                         displayedNotifications.map((n) => (
                           <div
                             key={n.id}
-                            onClick={() => {
-                              if (!n.is_read) handleMarkRead(n.id);
-                              if (n.task_id) {
-                                api.getTask(n.task_id).then(onViewTask).catch(() => {});
-                              }
-                              setShowNotifications(false);
-                            }}
+                            onClick={() => handleNotificationClick(n)}
                             className={`px-4 py-2.5 text-left cursor-pointer hover:bg-gray-50 transition-colors flex items-start gap-2 relative group/item ${
                               !n.is_read ? 'bg-amber-50/30' : ''
                             }`}
