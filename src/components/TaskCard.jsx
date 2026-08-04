@@ -137,7 +137,6 @@ export default function TaskCard({ task, compact, onEdit, onDelete, onSelect, on
             {task.estimated_hours > 0 && (
               <span>{task.estimated_hours}h est.</span>
             )}
-            <span className="flex items-center gap-1"><MessageSquare className="w-3 h-3" />{fbCount}</span>
           </div>
         </div>
 

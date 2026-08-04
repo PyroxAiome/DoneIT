@@ -390,7 +390,7 @@ export default function AdminDashboard({ user }) {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              {employeeFilter && (
+              {employeeFilter && !selectedEmp && (
                 <span className="text-xs flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-700">
                   {selectedEmp?.name}
                   <button onClick={clearEmployeeFilter} className="hover:bg-amber-100 rounded p-0.5"><X className="w-3 h-3" /></button>
