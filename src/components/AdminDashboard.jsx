@@ -6,6 +6,7 @@ import AddUserModal from './AddUserModal';
 import ConfirmDeleteModal from './ConfirmDeleteModal';
 import TaskDetailModal from './TaskDetailModal';
 import BulkImportModal from './BulkImportModal';
+import UserProfileModal from './UserProfileModal';
 import {
   LayoutDashboard, Briefcase, Users, Plus, Search, Grid3X3, List,
   UserPlus, Trash2, Filter, ListTodo, CheckCircle,
@@ -68,6 +69,8 @@ export default function AdminDashboard({ user }) {
   const [dateRangeFilter, setDateRangeFilter] = useState('');
   const [employeeFilter, setEmployeeFilter] = useState(null);
   const [compact, setCompact] = useState(false);
+  const [profileUser, setProfileUser] = useState(null);
+  const [profileTab, setProfileTab] = useState('active');
 
   const handleTabChange = (tabId) => {
     setActiveTab(tabId);
@@ -137,24 +140,13 @@ export default function AdminDashboard({ user }) {
   };
 
   const handleViewEmployeeTasks = (emp) => {
-    setEmployeeFilter(emp.id);
-    setSelectedEmp(emp);
-    setActiveTab('work');
-    setStatusFilter('');
-    setPriorityFilter('');
+    setProfileUser(emp);
+    setProfileTab('active');
   };
 
   const handleViewEmployeeTasksByStatus = (emp, status) => {
-    setEmployeeFilter(emp.id);
-    setSelectedEmp(emp);
-    setPriorityFilter('');
-    if (status === 'completed') {
-      setActiveTab('completed');
-      setStatusFilter('completed');
-    } else {
-      setActiveTab('work');
-      setStatusFilter('in_progress');
-    }
+    setProfileUser(emp);
+    setProfileTab(status === 'completed' ? 'completed' : 'active');
   };
 
   const clearEmployeeFilter = () => {
@@ -446,6 +438,7 @@ export default function AdminDashboard({ user }) {
 
       <TaskModal isOpen={showTaskModal} onClose={() => { setShowTaskModal(false); setEditTask(null); }} onSaved={fetchAll} task={editTask} employees={employees} />
       <BulkImportModal isOpen={showImportModal} onClose={() => setShowImportModal(false)} employees={employees} onImportSuccess={fetchAll} />
+      <UserProfileModal isOpen={!!profileUser} onClose={() => { setProfileUser(null); fetchAll(); }} user={profileUser} initialTab={profileTab} />
       <AddUserModal isOpen={showUserModal} onClose={() => setShowUserModal(false)} onCreated={fetchAll} />
       <TaskDetailModal isOpen={!!detailTask} onClose={() => setDetailTask(null)} task={detailTask} onTaskUpdated={fetchAll} />
       <ConfirmDeleteModal isOpen={!!deleteTask} onClose={() => setDeleteTask(null)} onConfirm={handleDeleteTask}
