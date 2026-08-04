@@ -68,6 +68,8 @@ export default function AdminDashboard({ user }) {
   const [categoryFilter, setCategoryFilter] = useState('');
   const [priorityFilter, setPriorityFilter] = useState('');
   const [dateRangeFilter, setDateRangeFilter] = useState('');
+  const [customFromDate, setCustomFromDate] = useState('');
+  const [customToDate, setCustomToDate] = useState('');
   const [employeeFilter, setEmployeeFilter] = useState(null);
   const [compact, setCompact] = useState(false);
 
@@ -99,7 +101,13 @@ export default function AdminDashboard({ user }) {
     if (priorityFilter) params.priority = priorityFilter;
     if (search) params.search = search;
     if (employeeFilter) params.assignee_id = employeeFilter;
-    if (dateRangeFilter) params.date_range = dateRangeFilter;
+    if (dateRangeFilter) {
+      params.date_range = dateRangeFilter;
+      if (dateRangeFilter === 'custom') {
+        if (customFromDate) params.from = customFromDate;
+        if (customToDate) params.to = customToDate;
+      }
+    }
 
     Promise.all([
       api.getDashboardStats(),
@@ -150,7 +158,7 @@ export default function AdminDashboard({ user }) {
     fetchAll();
     window.addEventListener('task-updated', fetchAll);
     return () => window.removeEventListener('task-updated', fetchAll);
-  }, [statusFilter, categoryFilter, search, employeeFilter, priorityFilter, dateRangeFilter]);
+  }, [statusFilter, categoryFilter, search, employeeFilter, priorityFilter, dateRangeFilter, customFromDate, customToDate]);
 
   const handleDeleteTask = async () => {
     if (deleteTask) {
@@ -374,11 +382,17 @@ export default function AdminDashboard({ user }) {
                 </select>
               </div>
 
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1.5 flex-wrap">
                 <span className="text-[10px] uppercase font-semibold text-gray-400">Date:</span>
                 <select
                   value={dateRangeFilter}
-                  onChange={(e) => setDateRangeFilter(e.target.value)}
+                  onChange={(e) => {
+                    setDateRangeFilter(e.target.value);
+                    if (e.target.value !== 'custom') {
+                      setCustomFromDate('');
+                      setCustomToDate('');
+                    }
+                  }}
                   className={getDateSelectClass(dateRangeFilter)}
                 >
                   <option value="">All Time</option>
@@ -386,7 +400,26 @@ export default function AdminDashboard({ user }) {
                   <option value="week">This Week</option>
                   <option value="month">This Month</option>
                   <option value="year">This Year</option>
+                  <option value="custom">Custom Range...</option>
                 </select>
+
+                {dateRangeFilter === 'custom' && (
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="date"
+                      value={customFromDate}
+                      onChange={(e) => setCustomFromDate(e.target.value)}
+                      className="text-[10px] sm:text-xs border border-gray-200 rounded-lg px-1.5 sm:px-2.5 py-0.5 sm:py-1 focus:outline-none focus:ring-1 focus:ring-amber-500 font-semibold text-gray-700 bg-white"
+                    />
+                    <span className="text-[9px] uppercase font-semibold text-gray-400">to</span>
+                    <input
+                      type="date"
+                      value={customToDate}
+                      onChange={(e) => setCustomToDate(e.target.value)}
+                      className="text-[10px] sm:text-xs border border-gray-200 rounded-lg px-1.5 sm:px-2.5 py-0.5 sm:py-1 focus:outline-none focus:ring-1 focus:ring-amber-500 font-semibold text-gray-700 bg-white"
+                    />
+                  </div>
+                )}
               </div>
             </div>
             <div className="flex items-center gap-2">

@@ -287,6 +287,15 @@ router.get('/tasks', auth, (req, res) => {
       sql += " AND t.created_at >= datetime('now', 'start of month')";
     } else if (req.query.date_range === 'year') {
       sql += " AND t.created_at >= datetime('now', 'start of year')";
+    } else if (req.query.date_range === 'custom') {
+      if (req.query.from) {
+        sql += " AND date(t.created_at) >= date(?)";
+        params.push(req.query.from);
+      }
+      if (req.query.to) {
+        sql += " AND date(t.created_at) <= date(?)";
+        params.push(req.query.to);
+      }
     }
   }
 
