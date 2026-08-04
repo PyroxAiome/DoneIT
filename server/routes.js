@@ -651,6 +651,10 @@ router.put('/tasks/:id', auth, (req, res) => {
     WHERE t.id = ?
   `).get(id);
 
+  if (!updated) {
+    return res.status(404).json({ error: 'Task not found' });
+  }
+
   let msg = '';
   if (updated.creator_id === updated.assignee_id) {
     msg = `${req.user.name} updated self-assigned task: "${updated.title}"`;
@@ -659,9 +663,7 @@ router.put('/tasks/:id', auth, (req, res) => {
   } else {
     msg = `${req.user.name} updated task: "${updated.title}"`;
   }
-  if (updated) {
-    updated.group_assignees = getGroupAssignees(updated.parent_id);
-  }
+  updated.group_assignees = getGroupAssignees(updated.parent_id);
   notifyRelevantUsers(req.user.id, msg, updated.id);
 
   res.json(updated);
