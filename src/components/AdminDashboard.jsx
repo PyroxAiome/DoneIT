@@ -19,7 +19,7 @@ const tabs = [
   { id: 'team', label: 'Team', icon: Users },
   { id: 'admin', label: 'Admin', icon: Shield },
 ];const getPrioritySelectClass = (val) => {
-  const base = "text-xs border rounded-lg px-2.5 py-1 focus:outline-none focus:ring-1 focus:ring-amber-500 font-semibold transition-all ";
+  const base = "text-[10px] sm:text-xs border rounded-lg px-1.5 sm:px-2.5 py-0.5 sm:py-1 focus:outline-none focus:ring-1 focus:ring-amber-500 font-semibold transition-all ";
   switch(val) {
     case 'low': return base + 'text-slate-700 border-slate-300 bg-slate-100';
     case 'medium': return base + 'text-blue-700 border-blue-300 bg-blue-50';
@@ -30,7 +30,7 @@ const tabs = [
 };
 
 const getStatusSelectClass = (val) => {
-  const base = "text-xs border rounded-lg px-2.5 py-1 focus:outline-none focus:ring-1 focus:ring-amber-500 font-semibold transition-all ";
+  const base = "text-[10px] sm:text-xs border rounded-lg px-1.5 sm:px-2.5 py-0.5 sm:py-1 focus:outline-none focus:ring-1 focus:ring-amber-500 font-semibold transition-all ";
   switch(val) {
     case 'todo': return base + 'text-gray-600 border-gray-300 bg-gray-50';
     case 'in_progress': return base + 'text-blue-600 border-blue-300 bg-blue-50';
@@ -41,7 +41,7 @@ const getStatusSelectClass = (val) => {
 };
 
 const getCategorySelectClass = (val) => {
-  const base = "text-xs border rounded-lg px-2.5 py-1 focus:outline-none focus:ring-1 focus:ring-amber-500 font-semibold transition-all ";
+  const base = "text-[10px] sm:text-xs border rounded-lg px-1.5 sm:px-2.5 py-0.5 sm:py-1 focus:outline-none focus:ring-1 focus:ring-amber-500 font-semibold transition-all ";
   if (val) {
     return base + 'text-indigo-700 border-indigo-300 bg-indigo-50';
   }
@@ -49,7 +49,7 @@ const getCategorySelectClass = (val) => {
 };
 
 const getDateSelectClass = (val) => {
-  const base = "text-xs border rounded-lg px-2.5 py-1 focus:outline-none focus:ring-1 focus:ring-amber-500 font-semibold transition-all ";
+  const base = "text-[10px] sm:text-xs border rounded-lg px-1.5 sm:px-2.5 py-0.5 sm:py-1 focus:outline-none focus:ring-1 focus:ring-amber-500 font-semibold transition-all ";
   if (val) {
     return base + 'text-amber-700 border-amber-300 bg-amber-50';
   }
@@ -216,12 +216,12 @@ export default function AdminDashboard({ user }) {
     <div className="space-y-6">
       {selectedEmp ? (
         <div className="space-y-4">
-          <div className="flex items-center justify-between bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+          <div className="flex items-center justify-between bg-white border border-gray-200 rounded-xl p-3 sm:p-4 shadow-sm">
             <div>
-              <h2 className="text-base font-bold text-gray-900">{selectedEmp.name}'s Profile / Work</h2>
-              <p className="text-[11px] text-gray-400 mt-0.5 uppercase font-semibold">{selectedEmp.role} &middot; {selectedEmp.department} &middot; {selectedEmp.email}</p>
+              <h2 className="text-sm sm:text-base font-bold text-gray-900">{selectedEmp.name}'s Profile / Work</h2>
+              <p className="text-[9px] sm:text-[11px] text-gray-400 mt-0.5 uppercase font-semibold">{selectedEmp.role} &middot; {selectedEmp.department} &middot; {selectedEmp.email}</p>
             </div>
-            <button onClick={clearEmployeeFilter} className="bg-gray-800 hover:bg-gray-700 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-all shadow-sm">
+            <button onClick={clearEmployeeFilter} className="bg-gray-800 hover:bg-gray-700 text-white text-[10px] sm:text-xs font-semibold px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg transition-all shadow-sm">
               Back to Team
             </button>
           </div>

@@ -110,28 +110,28 @@ export default function TaskCard({ task, compact, onEdit, onDelete, onSelect, on
   }
 
   return (
-    <div className={`card border-l-4 ${colors.border.replace('border', 'border-l')} ${colors.bg} group relative cursor-pointer`} onClick={() => onViewDetail?.(task)}>
+    <div className={`bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-md transition-shadow p-3 sm:p-4 border-l-4 ${colors.border.replace('border', 'border-l')} ${colors.bg} group relative cursor-pointer`} onClick={() => onViewDetail?.(task)}>
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <div className={`w-2.5 h-2.5 rounded-full ${colors.dot} shrink-0`} />
-            <h3 className="font-medium text-gray-900 text-sm whitespace-normal">{task.title}</h3>
+          <div className="flex items-center gap-1.5">
+            <div className={`w-2 h-2 rounded-full ${colors.dot} shrink-0`} />
+            <h3 className="font-semibold text-gray-900 text-xs sm:text-sm whitespace-normal">{task.title}</h3>
           </div>
-          <div className="flex items-center gap-3 mt-2 text-xs text-gray-500 flex-wrap">
+          <div className="flex items-center gap-2 sm:gap-3 mt-1.5 sm:mt-2 text-[10px] sm:text-xs text-gray-500 flex-wrap">
             {task.group_assignees && task.group_assignees.length > 1 ? (
               <span className="flex items-center gap-1 font-bold text-gray-800" title={task.group_assignees.join(', ')}>
-                <User className="w-3 h-3" />
+                <User className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
                 {task.group_assignees.join(', ')}
               </span>
             ) : task.assignee_name ? (
               <span className="flex items-center gap-1 font-bold text-gray-800">
-                <User className="w-3 h-3" />
+                <User className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
                 {task.assignee_name}
               </span>
             ) : null}
             {task.due_date && (
               <span className={`flex items-center gap-1 ${isOverdue ? 'text-red-500' : ''}`}>
-                <Clock className="w-3 h-3" />{task.due_date}
+                <Clock className="w-2.5 h-2.5 sm:w-3 sm:h-3" />{task.due_date}
               </span>
             )}
             {task.estimated_hours > 0 && (
@@ -141,18 +141,18 @@ export default function TaskCard({ task, compact, onEdit, onDelete, onSelect, on
         </div>
 
         <div className="flex items-start gap-1 shrink-0">
-          <span className={`text-[10px] px-1.5 py-0.5 rounded border capitalize ${statusStyles[task.status] || 'text-gray-500 border-gray-200 bg-gray-50'}`}>
+          <span className={`text-[9px] sm:text-[10px] px-1 sm:px-1.5 py-0.5 rounded border capitalize ${statusStyles[task.status] || 'text-gray-500 border-gray-200 bg-gray-50'}`}>
             {statusLabels[task.status] || task.status}
           </span>
-          <span className={`text-[10px] px-1.5 py-0.5 rounded border capitalize ${priorityStyles[task.priority]}`}>{task.priority}</span>
+          <span className={`text-[9px] sm:text-[10px] px-1 sm:px-1.5 py-0.5 rounded border capitalize ${priorityStyles[task.priority]}`}>{task.priority}</span>
           {canDeleteTask(user, task) && (
-            <button onClick={(e) => { e.stopPropagation(); onDelete?.(task); }} className="p-1 hover:bg-red-50 rounded text-gray-400 hover:text-red-500 transition-colors" title="Delete task">
-              <Trash2 className="w-3.5 h-3.5" />
+            <button onClick={(e) => { e.stopPropagation(); onDelete?.(task); }} className="p-0.5 sm:p-1 hover:bg-red-50 rounded text-gray-400 hover:text-red-500 transition-colors" title="Delete task">
+              <Trash2 className="w-3 sm:w-3.5 h-3 sm:h-3.5" />
             </button>
           )}
           <div className="relative">
-            <button onClick={(e) => { e.stopPropagation(); setShowMenu(!showMenu); }} className="p-1 hover:bg-gray-100 rounded transition-all" title="Task actions">
-              <MoreHorizontal className="w-4 h-4 text-gray-400" />
+            <button onClick={(e) => { e.stopPropagation(); setShowMenu(!showMenu); }} className="p-0.5 sm:p-1 hover:bg-gray-100 rounded transition-all" title="Task actions">
+              <MoreHorizontal className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-gray-400" />
             </button>
             {showMenu && (
               <>
@@ -189,7 +189,7 @@ export default function TaskCard({ task, compact, onEdit, onDelete, onSelect, on
         </div>
       </div>
 
-      <div className="mt-2 text-xs text-gray-500 space-y-1">
+      <div className="mt-1.5 sm:mt-2 text-[11px] sm:text-xs text-gray-500 space-y-0.5">
         {task.description && (
           <p className="line-clamp-2">{task.description}</p>
         )}
@@ -200,14 +200,14 @@ export default function TaskCard({ task, compact, onEdit, onDelete, onSelect, on
         )}
       </div>
 
-      <div className="mt-2.5 pt-1.5 border-t border-dashed border-gray-100 flex items-center gap-1.5 text-[10px] text-gray-400">
+      <div className="mt-2 sm:mt-2.5 pt-1 sm:pt-1.5 border-t border-dashed border-gray-100 flex items-center gap-1.5 text-[9px] sm:text-[10px] text-gray-400">
         {task.creator_id === task.assignee_id ? (
           <span className="bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded font-medium">Self Assigned</span>
         ) : (
           <span>
             Assigned by <span className="font-bold text-gray-900">{task.creator_name || 'System'}</span>
             {task.creator_role && (
-              <span className={`text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded font-semibold ml-1.5 ${
+              <span className={`text-[8px] sm:text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded font-semibold ml-1.5 ${
                 task.creator_role === 'admin' 
                   ? 'bg-red-50 text-red-600 border border-red-100' 
                   : 'bg-blue-50 text-blue-600 border border-blue-100'
@@ -219,10 +219,10 @@ export default function TaskCard({ task, compact, onEdit, onDelete, onSelect, on
         )}
       </div>
 
-      <div className="flex items-center justify-between mt-2.5 pt-2 border-t border-gray-100">
-        <span className="text-[10px] uppercase text-gray-400">{task.category}</span>
-        <span className="text-[11px] text-gray-400 flex items-center gap-1">
-          <MessageSquare className="w-3 h-3" /> {fbCount}
+      <div className="flex items-center justify-between mt-2 sm:mt-2.5 pt-1.5 sm:pt-2 border-t border-gray-100">
+        <span className="text-[9px] sm:text-[10px] uppercase text-gray-400 font-semibold">{task.category}</span>
+        <span className="text-[10px] sm:text-[11px] text-gray-400 flex items-center gap-1">
+          <MessageSquare className="w-2.5 h-2.5 sm:w-3 sm:h-3" /> {fbCount}
         </span>
       </div>
     </div>
