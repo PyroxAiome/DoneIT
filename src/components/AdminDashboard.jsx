@@ -17,7 +17,7 @@ const tabs = [
   { id: 'work', label: 'Work', icon: Briefcase },
   { id: 'completed', label: 'Completed', icon: CheckCircle },
   { id: 'team', label: 'Team', icon: Users },
-  { id: 'admins', label: 'Admins', icon: Shield },
+  { id: 'admin', label: 'Admin', icon: Shield },
 ];const getPrioritySelectClass = (val) => {
   const base = "text-xs border rounded-lg px-2.5 py-1 focus:outline-none focus:ring-1 focus:ring-amber-500 font-semibold transition-all ";
   switch(val) {
@@ -116,7 +116,7 @@ export default function AdminDashboard({ user }) {
       }
       const parts = hash.substring(1).split('/');
       const tabId = parts[0];
-      if (['overview', 'work', 'completed', 'team', 'admins'].includes(tabId)) {
+      if (['overview', 'work', 'completed', 'team', 'admin'].includes(tabId)) {
         setActiveTab(tabId);
       }
       if (parts[1] === 'employee' && parts[2]) {
@@ -498,7 +498,7 @@ export default function AdminDashboard({ user }) {
         </div>
       )}
 
-      {activeTab === 'admins' && (
+      {activeTab === 'admin' && (
         <div className="space-y-4">
           <div className="flex justify-end">
             <button onClick={() => setShowUserModal(true)} className="btn-amber text-sm flex items-center gap-2">
