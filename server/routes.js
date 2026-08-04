@@ -557,44 +557,76 @@ router.put('/tasks/:id', auth, (req, res) => {
   // 3. Synchronize other tasks in the group if assignee_ids array is provided
   if (assignee_ids && Array.isArray(assignee_ids)) {
     const selectedSet = new Set(assignee_ids.map(Number));
-    // Remove primary task's assignee from selectedSet since it was updated above
-    selectedSet.delete(updatedTask.assignee_id);
 
-    // Fetch other tasks in the same group (excluding current task id)
-    const otherGroupTasks = db.prepare('SELECT id, assignee_id FROM tasks WHERE (parent_id = ? OR id = ?) AND id != ?').all(currentParentId, currentParentId, id);
+    // Get all tasks currently in this group
+    const allGroupTasks = db.prepare('SELECT id, assignee_id FROM tasks WHERE id = ? OR parent_id = ?').all(currentParentId, currentParentId);
 
-    for (const gt of otherGroupTasks) {
-      if (selectedSet.has(gt.assignee_id)) {
-        // Keep and update this task copy
-        const otherUpdateParams = [...fieldValues, req.user.id, gt.id];
-        db.prepare(`UPDATE tasks SET ${updates.join(', ')} WHERE id = ?`).run(...otherUpdateParams);
-        selectedSet.delete(gt.assignee_id);
+    const parentTaskRow = allGroupTasks.find(t => t.id === currentParentId);
+    const cloneTaskRows = allGroupTasks.filter(t => t.id !== currentParentId);
+
+    // If the parent task's assignee is not in selectedSet, reassign the parent row to a selected assignee to preserve it
+    let parentRowTargetAssignee = parentTaskRow && selectedSet.has(parentTaskRow.assignee_id) ? parentTaskRow.assignee_id : null;
+    
+    if (parentTaskRow && !parentRowTargetAssignee && selectedSet.size > 0) {
+      parentRowTargetAssignee = Array.from(selectedSet)[0];
+    }
+
+    // Now, update the parent row if it exists
+    if (parentTaskRow && parentRowTargetAssignee) {
+      const parentUpdates = [...updates];
+      const parentValues = [...fieldValues];
+      const assigneeIndex = parentUpdates.indexOf('assignee_id = ?');
+      if (assigneeIndex !== -1) {
+        parentValues[assigneeIndex] = parentRowTargetAssignee;
+      }
+      db.prepare(`UPDATE tasks SET ${parentUpdates.join(', ')}, last_edited_by = ? WHERE id = ?`)
+        .run(...parentValues, req.user.id, currentParentId);
+      
+      selectedSet.delete(parentRowTargetAssignee);
+    }
+
+    // Process clone task copies
+    for (const cloneRow of cloneTaskRows) {
+      if (cloneRow.id === id) {
+        // Skip current primary task because it was updated first
+        selectedSet.delete(cloneRow.assignee_id);
+        continue;
+      }
+
+      if (selectedSet.has(cloneRow.assignee_id)) {
+        // Update this clone copy
+        db.prepare(`UPDATE tasks SET ${updates.join(', ')}, last_edited_by = ? WHERE id = ?`)
+          .run(...fieldValues, req.user.id, cloneRow.id);
+        selectedSet.delete(cloneRow.assignee_id);
       } else {
-        // Deselected assignee - delete this task copy
-        db.prepare('DELETE FROM tasks WHERE id = ?').run(gt.id);
+        // Safe to delete this clone copy
+        db.prepare('DELETE FROM tasks WHERE id = ?').run(cloneRow.id);
       }
     }
 
-    // Insert new task copies for any remaining newly checked assignees
-    if (selectedSet.size > 0) {
+    // Insert new clone copies referencing the parent ID
+    if (selectedSet.size > 0 && currentParentId) {
       const insertStmt = db.prepare(`
         INSERT INTO tasks (title, description, color, status, priority, category,
           assignee_id, creator_id, start_date, due_date, estimated_hours, parent_id)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
+      
+      const templateTask = db.prepare('SELECT * FROM tasks WHERE id = ?').get(currentParentId);
+
       for (const newAssigneeId of selectedSet) {
         insertStmt.run(
-          updatedTask.title,
-          updatedTask.description,
-          updatedTask.color,
-          updatedTask.status,
-          updatedTask.priority,
-          updatedTask.category,
+          templateTask.title,
+          templateTask.description,
+          templateTask.color,
+          templateTask.status,
+          templateTask.priority,
+          templateTask.category,
           newAssigneeId,
-          updatedTask.creator_id,
-          updatedTask.start_date,
-          updatedTask.due_date,
-          updatedTask.estimated_hours,
+          templateTask.creator_id,
+          templateTask.start_date,
+          templateTask.due_date,
+          templateTask.estimated_hours,
           currentParentId
         );
       }
