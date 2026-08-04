@@ -93,6 +93,27 @@ export default function AdminDashboard({ user }) {
   const [detailTask, setDetailTask] = useState(null);
   const [selectedEmp, setSelectedEmp] = useState(null);
 
+  const fetchTasksOnly = () => {
+    setLoading(true);
+    const params = {};
+    if (statusFilter) params.status = statusFilter;
+    if (categoryFilter) params.category = categoryFilter;
+    if (priorityFilter) params.priority = priorityFilter;
+    if (search) params.search = search;
+    if (employeeFilter) params.assignee_id = employeeFilter;
+    if (dateRangeFilter) {
+      params.date_range = dateRangeFilter;
+      if (dateRangeFilter === 'custom') {
+        if (customFromDate) params.from = customFromDate;
+        if (customToDate) params.to = customToDate;
+      }
+    }
+    api.getTasks(params)
+      .then(setTasks)
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  };
+
   const fetchAll = () => {
     setLoading(true);
     const params = {};
@@ -117,7 +138,11 @@ export default function AdminDashboard({ user }) {
       setStats(s);
       setTasks(t);
       setEmployees(e);
-      if (employeeFilter) setSelectedEmp(e.find(emp => emp.id === Number(employeeFilter)));
+      if (employeeFilter) {
+        setSelectedEmp(e.find(emp => emp.id === Number(employeeFilter)) || null);
+      } else {
+        setSelectedEmp(null);
+      }
     }).catch(() => {}).finally(() => setLoading(false));
   };
 
@@ -158,6 +183,10 @@ export default function AdminDashboard({ user }) {
     fetchAll();
     window.addEventListener('task-updated', fetchAll);
     return () => window.removeEventListener('task-updated', fetchAll);
+  }, []);
+
+  useEffect(() => {
+    fetchTasksOnly();
   }, [statusFilter, categoryFilter, search, employeeFilter, priorityFilter, dateRangeFilter, customFromDate, customToDate]);
 
   const handleDeleteTask = async () => {
