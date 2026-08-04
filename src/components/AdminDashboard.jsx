@@ -441,7 +441,7 @@ export default function AdminDashboard({ user }) {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-            {employees.filter(e => e.role !== 'admin').map((emp) => (
+            {employees.map((emp) => (
               <div key={emp.id} className="bg-white border border-gray-200 rounded-xl p-4 group hover:shadow-md hover:border-gray-300 transition-all cursor-pointer"
                 onClick={() => handleViewEmployeeTasks(emp)}>
                 <div className="flex items-start justify-between">
@@ -454,13 +454,15 @@ export default function AdminDashboard({ user }) {
                       <p className="text-[10px] text-gray-400 uppercase">{emp.role} &middot; {emp.department}</p>
                     </div>
                   </div>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); setDeleteUser(emp); }}
-                    className="p-1.5 hover:bg-red-50 rounded-lg text-gray-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
-                    title="Delete user"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
+                  {emp.role !== 'admin' && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setDeleteUser(emp); }}
+                      className="p-1.5 hover:bg-red-50 rounded-lg text-gray-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
+                      title="Delete user"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                 </div>
                 <div className="mt-3 flex items-center gap-2">
                   <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
