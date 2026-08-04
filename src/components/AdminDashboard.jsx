@@ -175,7 +175,7 @@ export default function AdminDashboard({ user }) {
   };
 
   const clearEmployeeFilter = () => {
-    window.location.hash = activeTab;
+    window.location.hash = 'team';
     setStatusFilter('');
     setPriorityFilter('');
   };
@@ -205,41 +205,67 @@ export default function AdminDashboard({ user }) {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          {selectedEmp ? (
+      {selectedEmp ? (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
             <div>
-              <h2 className="text-lg font-semibold text-gray-900">{selectedEmp.name}'s Profile / Work</h2>
-              <p className="text-xs text-gray-500 mt-0.5 capitalize">{selectedEmp.role} &middot; {selectedEmp.department} &middot; {selectedEmp.email}</p>
+              <h2 className="text-base font-bold text-gray-900">{selectedEmp.name}'s Profile / Work</h2>
+              <p className="text-[11px] text-gray-400 mt-0.5 uppercase font-semibold">{selectedEmp.role} &middot; {selectedEmp.department} &middot; {selectedEmp.email}</p>
             </div>
-          ) : (
+            <button onClick={clearEmployeeFilter} className="bg-gray-800 hover:bg-gray-700 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-all shadow-sm">
+              Back to Team
+            </button>
+          </div>
+
+          <div className="flex gap-1 bg-gray-200 p-1 rounded-xl w-fit">
+            <button
+              onClick={() => { window.location.hash = `work/employee/${selectedEmp.id}`; }}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                activeTab === 'work' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              Active Tasks
+            </button>
+            <button
+              onClick={() => { window.location.hash = `completed/employee/${selectedEmp.id}`; }}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                activeTab === 'completed' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              Completed Tasks
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
             <div>
               <h2 className="text-lg font-semibold text-gray-900">Executive Dashboard</h2>
               <p className="text-sm text-gray-500">Full company overview</p>
             </div>
-          )}
-        </div>
-      </div>
+          </div>
 
-      <div className="flex gap-1 bg-gray-200 p-1 rounded-xl w-fit">
-        {tabs.map((tab) => {
-          const Icon = tab.icon;
-          return (
-            <button
-              key={tab.id}
-              onClick={() => handleTabChange(tab.id)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                activeTab === tab.id
-                  ? 'bg-white text-gray-900 shadow-sm'
-                  : 'text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              <Icon className="w-4 h-4" />
-              {tab.label}
-            </button>
-          );
-        })}
-      </div>
+          <div className="flex gap-1 bg-gray-200 p-1 rounded-xl w-fit">
+            {tabs.map((tab) => {
+              const Icon = tab.icon;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => handleTabChange(tab.id)}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                    activeTab === tab.id
+                      ? 'bg-white text-gray-900 shadow-sm'
+                      : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  <Icon className="w-4 h-4" />
+                  {tab.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {activeTab === 'overview' && (
         <div className="space-y-6">
