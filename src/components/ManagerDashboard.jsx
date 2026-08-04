@@ -15,7 +15,7 @@ const tabs = [
 ];
 
 const getPrioritySelectClass = (val) => {
-  const base = "text-xs border rounded-lg px-2.5 py-1 focus:outline-none focus:ring-1 focus:ring-amber-500 font-semibold transition-all ";
+  const base = "text-[10px] sm:text-xs border rounded-lg px-1.5 sm:px-2.5 py-0.5 sm:py-1 focus:outline-none focus:ring-1 focus:ring-amber-500 font-semibold transition-all ";
   switch(val) {
     case 'low': return base + 'text-slate-700 border-slate-300 bg-slate-100';
     case 'medium': return base + 'text-blue-700 border-blue-300 bg-blue-50';
@@ -26,7 +26,7 @@ const getPrioritySelectClass = (val) => {
 };
 
 const getStatusSelectClass = (val) => {
-  const base = "text-xs border rounded-lg px-2.5 py-1 focus:outline-none focus:ring-1 focus:ring-amber-500 font-semibold transition-all ";
+  const base = "text-[10px] sm:text-xs border rounded-lg px-1.5 sm:px-2.5 py-0.5 sm:py-1 focus:outline-none focus:ring-1 focus:ring-amber-500 font-semibold transition-all ";
   switch(val) {
     case 'todo': return base + 'text-gray-600 border-gray-300 bg-gray-50';
     case 'in_progress': return base + 'text-blue-600 border-blue-300 bg-blue-50';
@@ -267,10 +267,11 @@ export default function ManagerDashboard({ user }) {
         )}
 
         <div className="flex items-center gap-1.5">
+          <span className="text-[10px] uppercase font-semibold text-gray-400">Category:</span>
           <select
             value={categoryFilter}
             onChange={(e) => setCategoryFilter(e.target.value)}
-            className="text-xs bg-white border border-gray-200 rounded-lg px-2.5 py-1 text-gray-500 hover:text-gray-700 focus:outline-none focus:ring-1 focus:ring-amber-500"
+            className="text-[10px] sm:text-xs bg-white border border-gray-200 rounded-lg px-1.5 sm:px-2.5 py-0.5 sm:py-1 text-gray-500 hover:text-gray-700 focus:outline-none focus:ring-1 focus:ring-amber-500 font-semibold"
           >
             <option value="">All Categories</option>
             <option value="General">General</option>

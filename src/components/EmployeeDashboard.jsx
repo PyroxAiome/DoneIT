@@ -121,7 +121,7 @@ export default function EmployeeDashboard({ user }) {
               <button
                 key={s}
                 onClick={() => setStatusFilter(s)}
-                className={`text-xs px-2.5 py-1 rounded-lg border transition-colors ${
+                className={`text-[10px] sm:text-xs px-1.5 sm:px-2.5 py-0.5 sm:py-1 rounded-lg border transition-colors font-semibold ${
                   statusFilter === s
                     ? 'bg-gray-800 text-white border-gray-700'
                     : 'bg-white border-gray-200 text-gray-500 hover:text-gray-700 hover:bg-gray-50'
@@ -134,10 +134,11 @@ export default function EmployeeDashboard({ user }) {
         )}
 
         <div className="flex items-center gap-1.5">
+          <span className="text-[10px] uppercase font-semibold text-gray-400">Category:</span>
           <select
             value={categoryFilter}
             onChange={(e) => setCategoryFilter(e.target.value)}
-            className="text-xs bg-white border border-gray-200 rounded-lg px-2.5 py-1 text-gray-500 hover:text-gray-700 focus:outline-none focus:ring-1 focus:ring-amber-500"
+            className="text-[10px] sm:text-xs bg-white border border-gray-200 rounded-lg px-1.5 sm:px-2.5 py-0.5 sm:py-1 text-gray-500 hover:text-gray-700 focus:outline-none focus:ring-1 focus:ring-amber-500 font-semibold"
           >
             <option value="">All Categories</option>
             <option value="General">General</option>
