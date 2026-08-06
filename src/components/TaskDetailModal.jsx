@@ -23,7 +23,7 @@ const formatDescription = (desc) => {
   return desc;
 };
 
-export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated }) {
+export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated, readOnly }) {
   const user = useAuth();
    const [tab, setTab] = useState('reviews');
    const [comments, setComments] = useState([]);
@@ -306,7 +306,7 @@ export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated }
                           <span className="text-[10px] text-gray-400">{new Date(c.created_at).toLocaleDateString()}</span>
                         </div>
                         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          {canEditComment(c) && editCommentId !== c.id && (
+                          {!readOnly && canEditComment(c) && editCommentId !== c.id && (
                             <>
                               <button onClick={() => startEdit(c)} className="text-gray-300 hover:text-gray-600 p-1" title="Edit">
                                 <Edit3 className="w-3 h-3" />
@@ -329,10 +329,12 @@ export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated }
                       ) : (
                         <p className="text-sm text-gray-600 mt-1">{c.comment_text}</p>
                       )}
-                      <button onClick={() => setReplyToId(replyToId === c.id ? null : c.id)}
-                        className="text-[11px] text-gray-400 hover:text-gray-600 flex items-center gap-1 mt-1.5 transition-colors">
-                        <Reply className="w-3 h-3" /> Reply
-                      </button>
+                      {!readOnly && (
+                        <button onClick={() => setReplyToId(replyToId === c.id ? null : c.id)}
+                          className="text-[11px] text-gray-400 hover:text-gray-600 flex items-center gap-1 mt-1.5 transition-colors">
+                          <Reply className="w-3 h-3" /> Reply
+                        </button>
+                      )}
                     </div>
 
                     {/* Replies */}
@@ -345,7 +347,7 @@ export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated }
                               <span className="text-[10px] text-gray-400">{new Date(r.created_at).toLocaleDateString()}</span>
                             </div>
                             <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                              {canEditComment(r) && editCommentId !== r.id && (
+                              {!readOnly && canEditComment(r) && editCommentId !== r.id && (
                                 <>
                                   <button onClick={() => startEdit(r)} className="text-gray-300 hover:text-gray-600 p-1" title="Edit">
                                     <Edit3 className="w-3 h-3" />
@@ -389,7 +391,7 @@ export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated }
               )}
 
               {/* Top-level review input — only admin/manager */}
-              {user.role !== 'employee' && (
+              {!readOnly && user.role !== 'employee' && (
                 <div className="flex gap-2 pt-2 border-t border-gray-100">
                   <input value={fbText} onChange={(e) => setFbText(e.target.value)}
                     className="input-field text-sm flex-1" placeholder="Write a review..."
@@ -404,7 +406,7 @@ export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated }
           {tab === 'explanation' && (
             <div className="space-y-5">
               {/* Add new logic log */}
-              {(() => {
+              {!readOnly && (() => {
                 const userExplanationsCount = explanationsList.filter(e => e.user_id === user.id).length;
                 const reachedLimit = userExplanationsCount >= 3;
                 return reachedLimit ? (
@@ -465,7 +467,7 @@ export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated }
                               </div>
                               <div className="flex items-center gap-2">
                                 <span className="text-[10px] font-medium text-gray-400">{formattedDate}</span>
-                                {editingExpId !== exp.id && isOwner && (
+                                {!readOnly && editingExpId !== exp.id && isOwner && (
                                   <div className="flex items-center gap-1.5 opacity-0 group-hover/exp:opacity-100 transition-opacity">
                                     {exp.user_id === user.id && (
                                       <button onClick={() => { setEditingExpId(exp.id); setEditingExpText(exp.explanation_text); }} className="text-gray-500 hover:text-gray-700">
@@ -518,33 +520,35 @@ export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated }
 
           {tab === 'daily-logs' && (
             <div className="space-y-5">
-              <form onSubmit={handleSaveDailyLog} className="bg-amber-50/40 border border-amber-100 rounded-xl p-4 space-y-3">
-                <div className="flex items-center justify-between gap-4">
-                  <span className="text-xs font-semibold text-amber-900">Add Daily Achievement / Log</span>
-                  <div className="flex items-center gap-1.5 text-xs text-gray-500">
-                    <span className="font-medium">Date:</span>
-                    <input
-                      type="date"
-                      value={newLogDate}
-                      onChange={(e) => setNewLogDate(e.target.value)}
-                      className="border border-gray-200 rounded px-2 py-1 text-gray-700 bg-white focus:outline-none focus:ring-1 focus:ring-amber-500 focus:border-amber-500"
-                    />
+              {!readOnly && (
+                <form onSubmit={handleSaveDailyLog} className="bg-amber-50/40 border border-amber-100 rounded-xl p-4 space-y-3">
+                  <div className="flex items-center justify-between gap-4">
+                    <span className="text-xs font-semibold text-amber-900">Add Daily Achievement / Log</span>
+                    <div className="flex items-center gap-1.5 text-xs text-gray-500">
+                      <span className="font-medium">Date:</span>
+                      <input
+                        type="date"
+                        value={newLogDate}
+                        onChange={(e) => setNewLogDate(e.target.value)}
+                        className="border border-gray-200 rounded px-2 py-1 text-gray-700 bg-white focus:outline-none focus:ring-1 focus:ring-amber-500 focus:border-amber-500"
+                      />
+                    </div>
                   </div>
-                </div>
-                <textarea
-                  value={newLogContent}
-                  onChange={(e) => setNewLogContent(e.target.value)}
-                  className="w-full border border-gray-200 rounded-lg p-2.5 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-amber-500 focus:border-amber-500 min-h-[90px] resize-y placeholder:text-gray-400"
-                  placeholder="What did you achieve or fail on today? What problem was solved/faced?..."
-                  required
-                />
-                <div className="flex justify-end">
-                  <button type="submit" disabled={saving || !newLogContent.trim()} className="btn-amber text-xs flex items-center gap-1 px-3 py-1.5 disabled:opacity-50">
-                    {saving ? <div className="w-3 h-3 border-2 border-white/40 border-t-white rounded-full animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-                    Log Work
-                  </button>
-                </div>
-              </form>
+                  <textarea
+                    value={newLogContent}
+                    onChange={(e) => setNewLogContent(e.target.value)}
+                    className="w-full border border-gray-200 rounded-lg p-2.5 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-amber-500 focus:border-amber-500 min-h-[90px] resize-y placeholder:text-gray-400"
+                    placeholder="What did you achieve or fail on today? What problem was solved/faced?..."
+                    required
+                  />
+                  <div className="flex justify-end">
+                    <button type="submit" disabled={saving || !newLogContent.trim()} className="btn-amber text-xs flex items-center gap-1 px-3 py-1.5 disabled:opacity-50">
+                      {saving ? <div className="w-3 h-3 border-2 border-white/40 border-t-white rounded-full animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                      Log Work
+                    </button>
+                  </div>
+                </form>
+              )}
 
               <div className="space-y-4">
                 <h5 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Product Development History</h5>
@@ -607,10 +611,10 @@ export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated }
                                 <div className="flex items-center justify-between gap-3 text-[11px] text-gray-500 pt-2 border-t border-gray-100">
                                   <div className="flex items-center gap-3">
                                     <button
-                                      onClick={() => handleReactToLog(log.id, 'like')}
+                                      onClick={() => !readOnly && handleReactToLog(log.id, 'like')}
                                       className={`flex items-center gap-1 hover:text-emerald-600 transition-colors ${
                                         log.user_reaction === 'like' ? 'text-emerald-600 font-semibold' : ''
-                                      }`}
+                                      } ${readOnly ? 'cursor-default hover:text-gray-500' : ''}`}
                                       title={log.liked_by_names && log.liked_by_names.length > 0 ? `Liked by: ${log.liked_by_names.join(', ')}` : 'Like achievement'}
                                     >
                                       <ThumbsUp className="w-3.5 h-3.5" />
@@ -624,7 +628,7 @@ export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated }
                                   </div>
                                   
                                   <div className="flex items-center gap-3">
-                                    {isOwner && (
+                                    {!readOnly && isOwner && (
                                       <>
                                         <button
                                           onClick={() => {
@@ -667,7 +671,7 @@ export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated }
                                             </div>
                                             <p className="text-gray-600 whitespace-pre-wrap leading-relaxed">{c.comment_text}</p>
                                           </div>
-                                          {(c.user_id === user.id || user.role === 'admin') && (
+                                          {!readOnly && (c.user_id === user.id || user.role === 'admin') && (
                                             <button
                                               onClick={() => handleDeleteLogComment(log.id, c.id)}
                                               className="text-gray-400 hover:text-red-500 transition-colors p-0.5"
@@ -681,22 +685,24 @@ export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated }
                                     </div>
                                   )}
 
-                                  <form onSubmit={(e) => handleAddLogComment(e, log.id)} className="flex items-center gap-1.5 mt-2">
-                                    <input
-                                      type="text"
-                                      value={dailyLogCommentsText[log.id] || ''}
-                                      onChange={(e) => setDailyLogCommentsText(prev => ({ ...prev, [log.id]: e.target.value }))}
-                                      placeholder="Add a comment on this achievement..."
-                                      className="flex-1 bg-white border border-gray-200 rounded-lg px-2.5 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-amber-500 focus:border-amber-500"
-                                    />
-                                    <button
-                                      type="submit"
-                                      disabled={!(dailyLogCommentsText[log.id] || '').trim()}
-                                      className="p-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white transition-colors"
-                                    >
-                                      <Send className="w-3 h-3" />
-                                    </button>
-                                  </form>
+                                  {!readOnly && (
+                                    <form onSubmit={(e) => handleAddLogComment(e, log.id)} className="flex items-center gap-1.5 mt-2">
+                                      <input
+                                        type="text"
+                                        value={dailyLogCommentsText[log.id] || ''}
+                                        onChange={(e) => setDailyLogCommentsText(prev => ({ ...prev, [log.id]: e.target.value }))}
+                                        placeholder="Add a comment on this achievement..."
+                                        className="flex-1 bg-white border border-gray-200 rounded-lg px-2.5 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-amber-500 focus:border-amber-500"
+                                      />
+                                      <button
+                                        type="submit"
+                                        disabled={!(dailyLogCommentsText[log.id] || '').trim()}
+                                        className="p-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white transition-colors"
+                                      >
+                                        <Send className="w-3 h-3" />
+                                      </button>
+                                    </form>
+                                  )}
                                 </div>
                               </>
                             )}
