@@ -305,9 +305,16 @@ router.get('/tasks', auth, (req, res) => {
     sql += ' AND (t.parent_id IS NULL OR t.id = t.parent_id)';
   }
 
-  if (req.user.role === 'employee' && !req.query.assignee_id) {
-    sql += ' AND t.assignee_id = ?';
-    params.push(req.user.id);
+  if (req.user.role === 'employee') {
+    if (req.query.assignee_id) {
+      const targetUser = db.prepare('SELECT role FROM users WHERE id = ?').get(req.query.assignee_id);
+      if (!targetUser || targetUser.role !== 'employee') {
+        return res.json([]);
+      }
+    } else {
+      sql += ' AND t.assignee_id = ?';
+      params.push(req.user.id);
+    }
   }
 
   sql += ' ORDER BY t.created_at DESC';
