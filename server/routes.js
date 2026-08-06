@@ -305,7 +305,7 @@ router.get('/tasks', auth, (req, res) => {
     sql += ' AND (t.parent_id IS NULL OR t.id = t.parent_id)';
   }
 
-  if (req.user.role === 'employee') {
+  if (req.user.role === 'employee' && !req.query.assignee_id) {
     sql += ' AND t.assignee_id = ?';
     params.push(req.user.id);
   }
