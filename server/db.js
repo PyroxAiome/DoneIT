@@ -11,6 +11,13 @@ const db = new Database(join(__dirname, '..', 'doneit.db'));
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
 
+try {
+  const schema = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='task_dependencies'").get();
+  if (schema && !schema.sql.includes('confirmed')) {
+    db.exec("DROP TABLE IF EXISTS task_dependencies");
+  }
+} catch (e) {}
+
 db.exec(`
   CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -119,13 +126,6 @@ const seedAdmin = () => {
 };
 
 seedAdmin();
-
-try {
-  db.prepare("INSERT INTO task_dependencies (task_id, requester_id, tagee_id, dependency_text, status) VALUES (0, 0, 0, 'temp', 'confirmed')").run();
-  db.exec("DELETE FROM task_dependencies WHERE dependency_text = 'temp'");
-} catch (e) {
-  try { db.exec("DROP TABLE IF EXISTS task_dependencies"); } catch {}
-}
 
 try { db.exec("ALTER TABLE tasks ADD COLUMN logical_explanation TEXT DEFAULT ''"); } catch {}
 try { db.exec("ALTER TABLE tasks ADD COLUMN last_edited_by INTEGER REFERENCES users(id) ON DELETE SET NULL"); } catch {}
