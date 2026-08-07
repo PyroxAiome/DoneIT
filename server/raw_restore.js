@@ -36,25 +36,8 @@ function readVarint(buf, offset) {
   return { val: res, size: bytesRead };
 }
 
-// Extract strings matching patterns
-const fileStr = dbBuffer.toString('binary');
-const utf8Strings = Array.from(fileStr.matchAll(/[\x20-\x7e]{3,}/g)).map(m => m[0]);
-
-console.log(`Extracted ${utf8Strings.length} printable text tokens.`);
-
-// Find emails and passwords
-const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
-const bcryptRegex = /\$2[ab]\$10\$[A-Za-z0-9./]{53}/g;
-
-const foundEmails = Array.from(new Set(fileStr.match(emailRegex) || []));
-const foundBcrypts = Array.from(new Set(fileStr.match(bcryptRegex) || []));
-
-console.log(`Found ${foundEmails.length} unique email addresses in raw storage.`);
-console.log(`Found ${foundBcrypts.length} encrypted password hashes.`);
-
 // Table leaf cell parser (b-tree page flag 0x0d)
 const records = [];
-const pageSize = 4096;
 
 for (let p = 0; p < dbBuffer.length; p += 512) {
   if (dbBuffer[p] === 0x0d) { // Table b-tree leaf page
@@ -104,9 +87,7 @@ for (let p = 0; p < dbBuffer.length; p += 512) {
           if (cols.length >= 3) {
             records.push({ rowId: rowId.val, cols });
           }
-        } catch (e) {
-          // ignore corrupted cell parse
-        }
+        } catch (e) {}
       }
     }
   }
@@ -115,19 +96,22 @@ for (let p = 0; p < dbBuffer.length; p += 512) {
 console.log(`Parsed ${records.length} database records from binary B-Tree cells.`);
 
 async function restore() {
+  // Truncate existing users and tasks before full relational re-import
+  await pool.query("TRUNCATE TABLE users, tasks, notifications, task_daily_logs, task_daily_log_reactions, task_daily_log_comments, task_explanations, task_dependencies CASCADE");
+
+  const validUserIds = new Set();
   let userCount = 0;
   let taskCount = 0;
-  let notifCount = 0;
 
+  // 1. First Pass: Restore Users with explicit IDs
   for (const r of records) {
     const c = r.cols;
-    // Check if record is a User (email present and role)
     const emailCol = c.find(val => typeof val === 'string' && val.includes('@') && val.includes('.'));
     const roleCol = c.find(val => typeof val === 'string' && ['admin', 'manager', 'employee'].includes(val));
     
     if (emailCol && roleCol) {
       const nameCol = c.find(val => typeof val === 'string' && val !== emailCol && val !== roleCol && !val.startsWith('$2'));
-      const passCol = c.find(val => typeof val === 'string' && val.startsWith('$2a$') || (typeof val === 'string' && val.startsWith('$2b$')));
+      const passCol = c.find(val => typeof val === 'string' && (val.startsWith('$2a$') || val.startsWith('$2b$')));
       const deptCol = c.find(val => typeof val === 'string' && ['Engineering', 'Executive', 'Sales', 'Marketing', 'General'].includes(val)) || 'Engineering';
 
       if (nameCol && emailCol && passCol) {
@@ -135,50 +119,55 @@ async function restore() {
           await pool.query(`
             INSERT INTO users (id, name, email, password_hash, role, department)
             VALUES ($1, $2, $3, $4, $5, $6)
-            ON CONFLICT (email) DO NOTHING
+            ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, email = EXCLUDED.email
           `, [r.rowId, nameCol, emailCol, passCol, roleCol, deptCol]);
+          validUserIds.add(r.rowId);
           userCount++;
         } catch (e) {}
       }
     }
+  }
 
-    // Check if record is a Task (status present and priority present)
+  // 2. Second Pass: Restore Tasks with Assignee IDs, Creator IDs, and Progress
+  for (const r of records) {
+    const c = r.cols;
     const statusCol = c.find(val => typeof val === 'string' && ['todo', 'in_progress', 'under_review', 'completed', 'blocked'].includes(val));
     const priorityCol = c.find(val => typeof val === 'string' && ['low', 'medium', 'high', 'urgent'].includes(val));
 
     if (statusCol && priorityCol) {
-      const titleCol = c.find(val => typeof val === 'string' && val.length > 0 && val !== statusCol && val !== priorityCol && !['slate','yellow','blue','green','purple','red'].includes(val));
+      const titleCol = c.find(val => typeof val === 'string' && val.length > 0 && val !== statusCol && val !== priorityCol && !['slate','yellow','blue','green','purple','red'].includes(val) && !['General', 'Bug', 'Feature', 'Refactor', 'Design'].includes(val));
       const colorCol = c.find(val => typeof val === 'string' && ['slate','yellow','blue','green','purple','red'].includes(val)) || 'slate';
       const categoryCol = c.find(val => typeof val === 'string' && ['General', 'Bug', 'Feature', 'Refactor', 'Design'].includes(val)) || 'General';
+      const descCol = c.find(val => typeof val === 'string' && val.length > 0 && val !== titleCol && val !== statusCol && val !== priorityCol && val !== colorCol && val !== categoryCol) || '';
+
+      // Find candidate integer user IDs in column payload
+      const intCols = c.filter(val => typeof val === 'number' && Number.isInteger(val) && validUserIds.has(val));
+      const assigneeId = intCols.length > 0 ? intCols[0] : null;
+      const creatorId = intCols.length > 1 ? intCols[1] : (intCols.length > 0 ? intCols[0] : null);
+      
+      // Find progress percentage (0..100)
+      const progressCol = c.find(val => typeof val === 'number' && Number.isInteger(val) && val >= 0 && val <= 100 && !validUserIds.has(val)) || 0;
 
       if (titleCol) {
         try {
           await pool.query(`
-            INSERT INTO tasks (id, title, status, priority, color, category)
-            VALUES ($1, $2, $3, $4, $5, $6)
-            ON CONFLICT (id) DO NOTHING
-          `, [r.rowId, titleCol, statusCol, priorityCol, colorCol, categoryCol]);
+            INSERT INTO tasks (id, title, description, status, priority, color, category, assignee_id, creator_id, progress_percent)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+            ON CONFLICT (id) DO UPDATE SET title = EXCLUDED.title, assignee_id = EXCLUDED.assignee_id
+          `, [r.rowId, titleCol, descCol, statusCol, priorityCol, colorCol, categoryCol, assigneeId, creatorId, progressCol]);
           taskCount++;
         } catch (e) {}
       }
     }
   }
 
-  // Ensure default admin exists
-  const { rows: adminRows } = await pool.query("SELECT id FROM users WHERE role = 'admin'");
-  if (adminRows.length === 0 && foundEmails.length > 0) {
-    console.log("Adding admin fallback...");
-    const bcryptHash = foundBcrypts[0] || '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy';
-    await pool.query("INSERT INTO users (name, email, password_hash, role, department) VALUES ('Admin', 'admin@admin.com', $1, 'admin', 'Executive') ON CONFLICT DO NOTHING", [bcryptHash]);
-  }
-
-  // Reset sequence counters
+  // Reset auto-increment sequence counters
   await pool.query("SELECT setval(pg_get_serial_sequence('users', 'id'), (SELECT COALESCE(MAX(id), 0) FROM users) + 1, false);");
   await pool.query("SELECT setval(pg_get_serial_sequence('tasks', 'id'), (SELECT COALESCE(MAX(id), 0) FROM tasks) + 1, false);");
 
-  console.log(`\n🎉 RESTORATION SUCCESSFUL!`);
-  console.log(`✅ Restored ${userCount} Users into PostgreSQL`);
-  console.log(`✅ Restored ${taskCount} Tasks into PostgreSQL`);
+  console.log(`\n🎉 ENHANCED RESTORATION COMPLETE!`);
+  console.log(`✅ Restored ${userCount} Users with exact IDs into PostgreSQL`);
+  console.log(`✅ Linked & Restored ${taskCount} Tasks with Assignee IDs into PostgreSQL`);
 
   await pool.end();
 }
