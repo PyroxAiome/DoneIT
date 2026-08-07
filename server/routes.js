@@ -1149,7 +1149,7 @@ router.get('/dependencies/pending', auth, (req, res) => {
       LEFT JOIN tasks t ON d.task_id = t.id
       LEFT JOIN users r ON d.requester_id = r.id
       LEFT JOIN users tg ON d.tagee_id = tg.id
-      WHERE d.status = 'pending'
+      WHERE d.status IN ('pending', 'resolved')
       ORDER BY d.created_at DESC
     `).all();
   } else {
@@ -1235,6 +1235,41 @@ router.put('/tasks/:id/dependencies/:depId/reply', auth, (req, res) => {
 
   const task = db.prepare('SELECT title FROM tasks WHERE id = ?').get(id);
   const msg = `${req.user.name} resolved the dependency on task: "${task ? task.title : 'Task'}"`;
+  createNotification(dep.requester_id, req.user.id, msg, id);
+
+  const updated = db.prepare(`
+    SELECT d.*, 
+      r.name as requester_name, r.role as requester_role, r.email as requester_email,
+      t.name as tagee_name, t.role as tagee_role, t.email as tagee_email
+    FROM task_dependencies d
+    LEFT JOIN users r ON d.requester_id = r.id
+    LEFT JOIN users t ON d.tagee_id = t.id
+    WHERE d.id = ?
+  `).get(depId);
+
+  res.json(updated);
+});
+
+router.put('/tasks/:id/dependencies/:depId/confirm', auth, (req, res) => {
+  const { id, depId } = req.params;
+  if (!['admin', 'manager'].includes(req.user.role)) {
+    return res.status(403).json({ error: 'Only admins and managers can confirm dependencies' });
+  }
+
+  const dep = db.prepare('SELECT * FROM task_dependencies WHERE id = ? AND task_id = ?').get(depId, id);
+  if (!dep) {
+    return res.status(404).json({ error: 'Dependency not found' });
+  }
+
+  db.prepare(`
+    UPDATE task_dependencies
+    SET status = 'confirmed'
+    WHERE id = ?
+  `).run(depId);
+
+  const task = db.prepare('SELECT title FROM tasks WHERE id = ?').get(id);
+  const msg = `${req.user.name} confirmed resolution of the dependency on task: "${task ? task.title : 'Task'}"`;
+  createNotification(dep.tagee_id, req.user.id, msg, id);
   createNotification(dep.requester_id, req.user.id, msg, id);
 
   const updated = db.prepare(`

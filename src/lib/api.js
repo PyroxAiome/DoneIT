@@ -176,4 +176,9 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify({ reply_text }),
     }),
+
+  confirmDependency: (taskId, depId) =>
+    request(`/tasks/${taskId}/dependencies/${depId}/confirm`, {
+      method: 'PUT',
+    }),
 };

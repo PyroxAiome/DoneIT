@@ -102,7 +102,7 @@ db.exec(`
     tagee_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     dependency_text TEXT NOT NULL,
     reply_text TEXT DEFAULT NULL,
-    status TEXT CHECK(status IN ('pending', 'resolved')) DEFAULT 'pending',
+    status TEXT CHECK(status IN ('pending', 'resolved', 'confirmed')) DEFAULT 'pending',
     created_at TEXT DEFAULT (datetime('now')),
     resolved_at TEXT DEFAULT NULL
   );
@@ -119,6 +119,13 @@ const seedAdmin = () => {
 };
 
 seedAdmin();
+
+try {
+  db.prepare("INSERT INTO task_dependencies (task_id, requester_id, tagee_id, dependency_text, status) VALUES (0, 0, 0, 'temp', 'confirmed')").run();
+  db.exec("DELETE FROM task_dependencies WHERE dependency_text = 'temp'");
+} catch (e) {
+  try { db.exec("DROP TABLE IF EXISTS task_dependencies"); } catch {}
+}
 
 try { db.exec("ALTER TABLE tasks ADD COLUMN logical_explanation TEXT DEFAULT ''"); } catch {}
 try { db.exec("ALTER TABLE tasks ADD COLUMN last_edited_by INTEGER REFERENCES users(id) ON DELETE SET NULL"); } catch {}
