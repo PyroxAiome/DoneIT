@@ -8,7 +8,7 @@ const pool = new pg.Pool({
 });
 
 async function fixMismatch() {
-  console.log("Starting full cleanup of notifications from Reviews & Logical Explanations...");
+  console.log("Starting full cleanup of notifications and group task linkage...");
 
   // 1. Move all system notifications out of admin_comments into notifications table
   await pool.query(`
@@ -47,16 +47,27 @@ async function fixMismatch() {
 
   console.log(`Cleaned ${deletedExplanations || 0} system notifications from Logical Explanation tab.`);
 
-  // 4. Deduplicate duplicate task cards
-  const { rowCount: deletedTasks } = await pool.query(`
-    DELETE FROM tasks t1
-    USING tasks t2
-    WHERE t1.id > t2.id
-      AND LOWER(TRIM(t1.title)) = LOWER(TRIM(t2.title))
-      AND (t1.assignee_id = t2.assignee_id OR (t1.assignee_id IS NULL AND t2.assignee_id IS NULL))
+  // 4. Properly group multi-assignee tasks using parent_id instead of showing duplicate cards
+  console.log("4. Linking multi-assignee group tasks using parent_id...");
+
+  const { rows: duplicateGroups } = await pool.query(`
+    SELECT LOWER(TRIM(title)) as title_clean, MIN(id) as parent_task_id, COUNT(*) as copy_count
+    FROM tasks
+    GROUP BY LOWER(TRIM(title))
+    HAVING COUNT(*) > 1
   `);
 
-  console.log(`Removed ${deletedTasks || 0} duplicate task cards.`);
+  let linkedCount = 0;
+  for (const group of duplicateGroups) {
+    const { rowCount } = await pool.query(`
+      UPDATE tasks
+      SET parent_id = $1
+      WHERE LOWER(TRIM(title)) = $2
+    `, [group.parent_task_id, group.title_clean]);
+    linkedCount += (rowCount || 0);
+  }
+
+  console.log(`Linked ${duplicateGroups.length} multi-assignee group tasks (${linkedCount} total task copies connected).`);
 
   // 5. Reset auto-increment sequences
   await pool.query("SELECT setval(pg_get_serial_sequence('users', 'id'), (SELECT COALESCE(MAX(id), 0) FROM users) + 1, false);");
@@ -65,9 +76,9 @@ async function fixMismatch() {
   await pool.query("SELECT setval(pg_get_serial_sequence('task_daily_logs', 'id'), (SELECT COALESCE(MAX(id), 0) FROM task_daily_logs) + 1, false);");
   await pool.query("SELECT setval(pg_get_serial_sequence('task_explanations', 'id'), (SELECT COALESCE(MAX(id), 0) FROM task_explanations) + 1, false);");
 
-  console.log("\n🎉 CLEANUP & FIX COMPLETELY SUCCESSFUL!");
+  console.log("\n🎉 GROUP TASK LINKAGE & CLEANUP COMPLETE!");
+  console.log("✅ Group tasks properly linked: only 1 card will show on Admin/Manager dashboard, while all assigned employees keep their task copies!");
   console.log("✅ Suraj fake notification logs removed from Reviews & Logical Explanation tabs.");
-  console.log("✅ Duplicate task cards removed.");
 
   await pool.end();
 }
