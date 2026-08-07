@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { LogOut, User, Shield, Users, Key, Bell, X, Video } from 'lucide-react';
+import { LogOut, User, Shield, Users, Key, Bell, X, Video, GitMerge } from 'lucide-react';
 import { api } from '../lib/api';
 import StandupModal from './StandupModal';
 
@@ -14,6 +14,8 @@ export default function Header({ user, onLogout, onChangePassword, onViewTask })
   const [dateFilter, setDateFilter] = useState('all');
   const [customDate, setCustomDate] = useState('');
   const [showStandup, setShowStandup] = useState(false);
+  const [showDeps, setShowDeps] = useState(false);
+  const [pendingDeps, setPendingDeps] = useState([]);
 
   const getFilteredNotifications = () => {
     if (user.role !== 'admin' || dateFilter === 'all') return notifications;
@@ -44,6 +46,20 @@ export default function Header({ user, onLogout, onChangePassword, onViewTask })
 
   const displayedNotifications = getFilteredNotifications();
 
+  const depsRef = useRef(null);
+
+  const loadPendingDeps = () => {
+    api.getPendingDependencies()
+      .then(setPendingDeps)
+      .catch(() => {});
+  };
+
+  useEffect(() => {
+    loadPendingDeps();
+    window.addEventListener('dependency-updated', loadPendingDeps);
+    return () => window.removeEventListener('dependency-updated', loadPendingDeps);
+  }, [user.id]);
+
   useEffect(() => {
     const loadNotifications = () => {
       api.getNotifications()
@@ -60,6 +76,7 @@ export default function Header({ user, onLogout, onChangePassword, onViewTask })
       try {
         const newNotification = JSON.parse(event.data);
         setNotifications(prev => [newNotification, ...prev]);
+        loadPendingDeps();
       } catch (err) {
         console.error("Error parsing SSE message:", err);
       }
@@ -82,6 +99,17 @@ export default function Header({ user, onLogout, onChangePassword, onViewTask })
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showNotifications]);
+
+  useEffect(() => {
+    if (!showDeps) return;
+    const handleClickOutside = (event) => {
+      if (depsRef.current && !depsRef.current.contains(event.target)) {
+        setShowDeps(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showDeps]);
 
   const unreadCount = notifications.filter(n => !n.is_read).length;
 
@@ -151,6 +179,75 @@ export default function Header({ user, onLogout, onChangePassword, onViewTask })
               {roleLabel}
             </span>
           </div>
+
+          {user && (
+            <div className="relative" ref={depsRef}>
+              <button
+                onClick={() => { setShowDeps(!showDeps); setShowNotifications(false); }}
+                className={`p-1.5 sm:p-2 rounded-lg transition-colors relative flex items-center justify-center ${
+                  pendingDeps.length > 0 
+                    ? 'bg-purple-50 text-purple-600 hover:bg-purple-100 hover:text-purple-700' 
+                    : 'text-gray-400 hover:bg-gray-100 hover:text-gray-600'
+                }`}
+                title="Dependency Blocker Notifications"
+              >
+                <GitMerge className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                {pendingDeps.length > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 min-w-4 h-4 px-1 bg-purple-600 rounded-full text-[8px] font-bold text-white flex items-center justify-center animate-pulse">
+                    {pendingDeps.length}
+                  </span>
+                )}
+              </button>
+
+              {showDeps && (
+                <div className="fixed right-4 left-4 top-14 sm:absolute sm:right-0 sm:left-auto sm:top-10 sm:w-80 w-auto bg-white border border-gray-200 rounded-xl shadow-lg py-1 z-[1000] max-h-[80vh] flex flex-col">
+                  <div className="flex items-center justify-between px-4 py-2 border-b border-gray-100 shrink-0 bg-purple-50/50">
+                    <span className="text-xs font-bold text-purple-950 flex items-center gap-1.5">
+                      <GitMerge className="w-3.5 h-3.5 text-purple-600" />
+                      Dependencies Blockers
+                    </span>
+                    <span className="text-[10px] bg-purple-200 text-purple-800 font-bold px-1.5 py-0.2 rounded-full">
+                      {pendingDeps.length} pending
+                    </span>
+                  </div>
+                  <div className="overflow-y-auto divide-y divide-gray-100 max-h-[350px]">
+                    {pendingDeps.length === 0 ? (
+                      <div className="px-4 py-6 text-center text-xs text-gray-400">
+                        No pending blockers requiring your help.
+                      </div>
+                    ) : (
+                      pendingDeps.map((dep) => (
+                        <div key={dep.id} className="p-3 hover:bg-gray-50 transition-colors flex flex-col gap-2">
+                          <div>
+                            <p className="text-xs text-gray-700">
+                              <span className="font-bold text-gray-950">{dep.requester_name}</span> tagged you on task: 
+                              <span className="font-semibold text-purple-700 ml-1">"{dep.task_title}"</span>
+                            </p>
+                            <p className="text-[11px] text-gray-500 bg-gray-50 border border-gray-100 rounded p-1.5 mt-1 whitespace-pre-wrap italic">
+                              "{dep.dependency_text}"
+                            </p>
+                          </div>
+                          <div className="flex justify-end">
+                            <button
+                              onClick={() => {
+                                setShowDeps(false);
+                                if (onViewTask) {
+                                  onViewTask({ id: dep.task_id });
+                                }
+                              }}
+                              className="text-[10px] font-bold text-purple-700 bg-purple-50 hover:bg-purple-100 px-2.5 py-1 rounded-md border border-purple-200/50 transition-all"
+                            >
+                              Resolve Blocker
+                            </button>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {user && (
             <div className="relative" ref={notificationsRef}>

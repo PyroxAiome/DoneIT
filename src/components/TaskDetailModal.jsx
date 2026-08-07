@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { api } from '../lib/api';
 import { useAuth } from '../App';
-import { X, Send, Edit3, Trash2, Check, X as XIcon, MessageSquare, FileText, Reply, Calendar, ThumbsUp, ThumbsDown } from 'lucide-react';
+import { X, Send, Edit3, Trash2, Check, X as XIcon, MessageSquare, FileText, Reply, Calendar, ThumbsUp, ThumbsDown, GitMerge } from 'lucide-react';
 
 const formatDescription = (desc) => {
   if (!desc) return '';
@@ -48,6 +48,12 @@ export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated, 
    const [editingExpId, setEditingExpId] = useState(null);
    const [editingExpText, setEditingExpText] = useState('');
 
+   const [dependencies, setDependencies] = useState([]);
+   const [users, setUsers] = useState([]);
+   const [tageeId, setTageeId] = useState('');
+   const [depText, setDepText] = useState('');
+   const [replyTexts, setReplyTexts] = useState({});
+
    useEffect(() => {
      if (isOpen && task) {
        api.getTask(task.id).then(t => {
@@ -56,6 +62,8 @@ export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated, 
        api.getComments(task.id).then(setComments).catch(() => {});
        api.getDailyLogs(task.id).then(setDailyLogs).catch(() => {});
        api.getExplanations(task.id).then(setExplanationsList).catch(() => {});
+       api.getDependencies(task.id).then(setDependencies).catch(() => {});
+       api.getEmployees(true).then(setUsers).catch(() => {});
      }
    }, [isOpen, task]);
 
@@ -251,6 +259,36 @@ export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated, 
     return comment.admin_id === user.id;
   };
 
+  const handleAddDependency = (e) => {
+    e.preventDefault();
+    if (!tageeId || !depText.trim()) return;
+    setSaving(true);
+    api.createDependency(task.id, tageeId, depText)
+      .then(newDep => {
+        setDependencies(prev => [...prev, newDep]);
+        setTageeId('');
+        setDepText('');
+        window.dispatchEvent(new CustomEvent('dependency-updated'));
+      })
+      .catch(() => {})
+      .finally(() => setSaving(false));
+  };
+
+  const handleReplyDependency = (e, depId) => {
+    e.preventDefault();
+    const rText = replyTexts[depId];
+    if (!rText || !rText.trim()) return;
+    setSaving(true);
+    api.replyDependency(task.id, depId, rText)
+      .then(updatedDep => {
+        setDependencies(prev => prev.map(d => d.id === depId ? updatedDep : d));
+        setReplyTexts(prev => ({ ...prev, [depId]: '' }));
+        window.dispatchEvent(new CustomEvent('dependency-updated'));
+      })
+      .catch(() => {})
+      .finally(() => setSaving(false));
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/30 backdrop-blur-sm" onClick={onClose}>
       <div className="bg-white border border-gray-200 rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
@@ -276,18 +314,22 @@ export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated, 
         )}
 
         {/* Tab buttons */}
-        <div className="flex border-b border-gray-100">
+        <div className="flex border-b border-gray-100 overflow-x-auto scrollbar-none shrink-0">
           <button onClick={() => setTab('reviews')}
-            className={`flex items-center gap-1.5 px-5 py-3 text-sm font-medium transition-colors ${tab === 'reviews' ? 'text-amber-600 border-b-2 border-amber-500' : 'text-gray-500 hover:text-gray-700'}`}>
+            className={`flex items-center gap-1.5 px-5 py-3 text-sm font-medium transition-colors whitespace-nowrap ${tab === 'reviews' ? 'text-amber-600 border-b-2 border-amber-500' : 'text-gray-500 hover:text-gray-700'}`}>
             <MessageSquare className="w-4 h-4" /> Reviews
           </button>
           <button onClick={() => setTab('explanation')}
-            className={`flex items-center gap-1.5 px-5 py-3 text-sm font-medium transition-colors ${tab === 'explanation' ? 'text-amber-600 border-b-2 border-amber-500' : 'text-gray-500 hover:text-gray-700'}`}>
+            className={`flex items-center gap-1.5 px-5 py-3 text-sm font-medium transition-colors whitespace-nowrap ${tab === 'explanation' ? 'text-amber-600 border-b-2 border-amber-500' : 'text-gray-500 hover:text-gray-700'}`}>
             <FileText className="w-4 h-4" /> Logical Explanation
           </button>
           <button onClick={() => setTab('daily-logs')}
-            className={`flex items-center gap-1.5 px-5 py-3 text-sm font-medium transition-colors ${tab === 'daily-logs' ? 'text-amber-600 border-b-2 border-amber-500' : 'text-gray-500 hover:text-gray-700'}`}>
+            className={`flex items-center gap-1.5 px-5 py-3 text-sm font-medium transition-colors whitespace-nowrap ${tab === 'daily-logs' ? 'text-amber-600 border-b-2 border-amber-500' : 'text-gray-500 hover:text-gray-700'}`}>
             <Calendar className="w-4 h-4" /> Daily Achievements
+          </button>
+          <button onClick={() => setTab('dependencies')}
+            className={`flex items-center gap-1.5 px-5 py-3 text-sm font-medium transition-colors whitespace-nowrap ${tab === 'dependencies' ? 'text-amber-600 border-b-2 border-amber-500' : 'text-gray-500 hover:text-gray-700'}`}>
+            <GitMerge className="w-4 h-4" /> Dependencies
           </button>
         </div>
 
@@ -707,6 +749,136 @@ export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated, 
                               </>
                             )}
                           </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {tab === 'dependencies' && (
+            <div className="space-y-6">
+              {/* Dependency Request Form (Only show if not readOnly) */}
+              {!readOnly && (
+                <form onSubmit={handleAddDependency} className="bg-purple-50/40 border border-purple-100 rounded-xl p-4 space-y-3.5">
+                  <h4 className="text-xs font-bold text-purple-950 flex items-center gap-1.5 uppercase tracking-wider">
+                    <GitMerge className="w-4 h-4 text-purple-600" />
+                    Tag Colleague for Blocked Dependency
+                  </h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Tag Person</label>
+                      <select
+                        value={tageeId}
+                        onChange={(e) => setTageeId(e.target.value)}
+                        required
+                        className="border border-gray-200 rounded px-2.5 py-1.5 text-xs text-gray-700 bg-white focus:outline-none focus:ring-1 focus:ring-purple-500 focus:border-purple-500"
+                      >
+                        <option value="">Select colleague...</option>
+                        {users
+                          .filter(u => u.id !== user.id) // Exclude current user from tagging themselves
+                          .map(u => (
+                            <option key={u.id} value={u.id}>
+                              {u.name} ({u.role})
+                            </option>
+                          ))}
+                      </select>
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">What is needed from them?</label>
+                    <textarea
+                      value={depText}
+                      onChange={(e) => setDepText(e.target.value)}
+                      required
+                      placeholder="Specify the details of the dependency or blocker..."
+                      className="w-full border border-gray-200 rounded-lg p-2.5 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-purple-500 focus:border-purple-500 min-h-[70px] resize-y placeholder:text-gray-400"
+                    />
+                  </div>
+                  <div className="flex justify-end">
+                    <button
+                      type="submit"
+                      disabled={saving || !tageeId || !depText.trim()}
+                      className="bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors shadow-sm"
+                    >
+                      {saving ? <div className="w-3 h-3 border-2 border-white/40 border-t-white rounded-full animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                      Tag Blocker
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              {/* Dependency Logs List */}
+              <div className="space-y-4">
+                <h5 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Dependency History</h5>
+                {dependencies.length === 0 ? (
+                  <p className="text-sm text-gray-400 text-center py-6 bg-gray-50 border border-gray-100 rounded-xl">No dependencies logged for this task.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {dependencies.map((dep) => {
+                      const isTagee = Number(dep.tagee_id) === Number(user.id);
+                      return (
+                        <div key={dep.id} className={`border rounded-xl p-4 flex flex-col gap-3 shadow-sm ${
+                          dep.status === 'resolved' 
+                            ? 'bg-emerald-50/10 border-emerald-100' 
+                            : 'bg-purple-50/10 border-purple-100'
+                        }`}>
+                          <div className="flex items-center justify-between flex-wrap gap-2">
+                            <div className="flex items-center gap-2">
+                              <span className="text-[11px] font-semibold text-gray-800">{dep.requester_name}</span>
+                              <span className="text-gray-400 text-[10px]">&rarr;</span>
+                              <span className="text-[11px] font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded-md border border-purple-100">{dep.tagee_name}</span>
+                            </div>
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
+                              dep.status === 'resolved' 
+                                ? 'bg-emerald-100 text-emerald-800' 
+                                : 'bg-purple-100 text-purple-800'
+                            }`}>
+                              {dep.status}
+                            </span>
+                          </div>
+
+                          <div className="text-xs text-gray-700 leading-relaxed bg-white border border-gray-100/80 rounded-lg p-2.5 whitespace-pre-wrap">
+                            {dep.dependency_text}
+                          </div>
+
+                          {/* Render Reply (if any) */}
+                          {dep.reply_text ? (
+                            <div className="border-t border-dashed border-gray-200 pt-3 pl-3 flex flex-col gap-1.5">
+                              <div className="flex items-center gap-1.5 text-[9px] text-gray-500">
+                                <span className="font-bold text-gray-800">{dep.tagee_name}</span>
+                                <span>replied on</span>
+                                <span>{dep.resolved_at ? new Date(dep.resolved_at).toLocaleString() : ''}</span>
+                              </div>
+                              <div className="text-xs text-emerald-900 bg-emerald-50/30 border border-emerald-100/50 rounded-lg p-2.5 whitespace-pre-wrap">
+                                {dep.reply_text}
+                              </div>
+                            </div>
+                          ) : (
+                            /* If no reply, show reply form to the tagged person */
+                            isTagee && !readOnly && (
+                              <form onSubmit={(e) => handleReplyDependency(e, dep.id)} className="border-t border-dashed border-purple-200 pt-3 flex flex-col gap-2">
+                                <textarea
+                                  value={replyTexts[dep.id] || ''}
+                                  onChange={(e) => setReplyTexts(prev => ({ ...prev, [dep.id]: e.target.value }))}
+                                  required
+                                  placeholder="Type your response to resolve this blocker..."
+                                  className="w-full border border-gray-200 rounded-lg p-2 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-purple-500 focus:border-purple-500 min-h-[50px] resize-y placeholder:text-gray-400"
+                                />
+                                <div className="flex justify-end">
+                                  <button
+                                    type="submit"
+                                    disabled={saving || !(replyTexts[dep.id] || '').trim()}
+                                    className="bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold px-2.5 py-1 rounded-md transition-colors"
+                                  >
+                                    Submit Reply & Resolve
+                                  </button>
+                                </div>
+                              </form>
+                            )
+                          )}
                         </div>
                       );
                     })}

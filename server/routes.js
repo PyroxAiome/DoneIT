@@ -244,6 +244,7 @@ router.delete('/users/:id', auth, adminOnly, (req, res) => {
 
 // ─── TASKS ──────────────────────────────────────────────────────
 router.get('/tasks', auth, (req, res) => {
+  console.log("Tasks GET Request query:", req.query, "user role:", req.user.role, "user id:", req.user.id);
   let sql = `
     SELECT t.*, 
       u.name as assignee_name, u.email as assignee_email,
@@ -1135,6 +1136,102 @@ router.delete('/tasks/:id/explanations/:expId', auth, (req, res) => {
   }
   db.prepare('DELETE FROM task_explanations WHERE id = ?').run(expId);
   res.json({ success: true });
+});
+
+// ─── DEPENDENCIES ────────────────────────────────────────────────
+router.get('/dependencies/pending', auth, (req, res) => {
+  const pending = db.prepare(`
+    SELECT d.*, t.title as task_title, r.name as requester_name, r.email as requester_email
+    FROM task_dependencies d
+    LEFT JOIN tasks t ON d.task_id = t.id
+    LEFT JOIN users r ON d.requester_id = r.id
+    WHERE d.tagee_id = ? AND d.status = 'pending'
+    ORDER BY d.created_at DESC
+  `).all(req.user.id);
+  res.json(pending);
+});
+
+router.get('/tasks/:id/dependencies', auth, (req, res) => {
+  const { id } = req.params;
+  const deps = db.prepare(`
+    SELECT d.*, 
+      r.name as requester_name, r.role as requester_role, r.email as requester_email,
+      t.name as tagee_name, t.role as tagee_role, t.email as tagee_email
+    FROM task_dependencies d
+    LEFT JOIN users r ON d.requester_id = r.id
+    LEFT JOIN users t ON d.tagee_id = t.id
+    WHERE d.task_id = ?
+    ORDER BY d.created_at ASC
+  `).all(id);
+  res.json(deps);
+});
+
+router.post('/tasks/:id/dependencies', auth, (req, res) => {
+  const { id } = req.params;
+  const { tagee_id, dependency_text } = req.body;
+  if (!tagee_id || !dependency_text || !dependency_text.trim()) {
+    return res.status(400).json({ error: 'Tagged person and description are required' });
+  }
+
+  const info = db.prepare(`
+    INSERT INTO task_dependencies (task_id, requester_id, tagee_id, dependency_text)
+    VALUES (?, ?, ?, ?)
+  `).run(id, req.user.id, tagee_id, dependency_text);
+
+  const task = db.prepare('SELECT title FROM tasks WHERE id = ?').get(id);
+  const msg = `${req.user.name} tagged you for a dependency on task: "${task ? task.title : 'Task'}"`;
+  createNotification(tagee_id, req.user.id, msg, id);
+
+  const created = db.prepare(`
+    SELECT d.*, 
+      r.name as requester_name, r.role as requester_role, r.email as requester_email,
+      t.name as tagee_name, t.role as tagee_role, t.email as tagee_email
+    FROM task_dependencies d
+    LEFT JOIN users r ON d.requester_id = r.id
+    LEFT JOIN users t ON d.tagee_id = t.id
+    WHERE d.id = ?
+  `).get(info.lastInsertRowid);
+
+  res.status(201).json(created);
+});
+
+router.put('/tasks/:id/dependencies/:depId/reply', auth, (req, res) => {
+  const { id, depId } = req.params;
+  const { reply_text } = req.body;
+  if (!reply_text || !reply_text.trim()) {
+    return res.status(400).json({ error: 'Reply text is required' });
+  }
+
+  const dep = db.prepare('SELECT * FROM task_dependencies WHERE id = ? AND task_id = ?').get(depId, id);
+  if (!dep) {
+    return res.status(404).json({ error: 'Dependency not found' });
+  }
+
+  if (Number(dep.tagee_id) !== Number(req.user.id)) {
+    return res.status(403).json({ error: 'Only the tagged person can reply to this dependency' });
+  }
+
+  db.prepare(`
+    UPDATE task_dependencies
+    SET reply_text = ?, status = 'resolved', resolved_at = datetime('now')
+    WHERE id = ?
+  `).run(reply_text, depId);
+
+  const task = db.prepare('SELECT title FROM tasks WHERE id = ?').get(id);
+  const msg = `${req.user.name} resolved the dependency on task: "${task ? task.title : 'Task'}"`;
+  createNotification(dep.requester_id, req.user.id, msg, id);
+
+  const updated = db.prepare(`
+    SELECT d.*, 
+      r.name as requester_name, r.role as requester_role, r.email as requester_email,
+      t.name as tagee_name, t.role as tagee_role, t.email as tagee_email
+    FROM task_dependencies d
+    LEFT JOIN users r ON d.requester_id = r.id
+    LEFT JOIN users t ON d.tagee_id = t.id
+    WHERE d.id = ?
+  `).get(depId);
+
+  res.json(updated);
 });
 
 export default router;

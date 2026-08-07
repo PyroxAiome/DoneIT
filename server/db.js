@@ -94,6 +94,18 @@ db.exec(`
     comment_text TEXT NOT NULL,
     created_at TEXT DEFAULT (datetime('now'))
   );
+
+  CREATE TABLE IF NOT EXISTS task_dependencies (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+    requester_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    tagee_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    dependency_text TEXT NOT NULL,
+    reply_text TEXT DEFAULT NULL,
+    status TEXT CHECK(status IN ('pending', 'resolved')) DEFAULT 'pending',
+    created_at TEXT DEFAULT (datetime('now')),
+    resolved_at TEXT DEFAULT NULL
+  );
 `);
 
 const seedAdmin = () => {

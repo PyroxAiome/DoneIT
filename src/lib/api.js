@@ -158,4 +158,22 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ tasks }),
     }),
+
+  getPendingDependencies: () =>
+    request('/dependencies/pending'),
+
+  getDependencies: (taskId) =>
+    request(`/tasks/${taskId}/dependencies`),
+
+  createDependency: (taskId, tagee_id, dependency_text) =>
+    request(`/tasks/${taskId}/dependencies`, {
+      method: 'POST',
+      body: JSON.stringify({ tagee_id, dependency_text }),
+    }),
+
+  replyDependency: (taskId, depId, reply_text) =>
+    request(`/tasks/${taskId}/dependencies/${depId}/reply`, {
+      method: 'PUT',
+      body: JSON.stringify({ reply_text }),
+    }),
 };
