@@ -1,7 +1,11 @@
+import dotenv from 'dotenv';
+dotenv.config();
+
 import express from 'express';
 import cors from 'cors';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { initDatabase } from './db.js';
 import router from './routes.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -25,6 +29,14 @@ app.use((req, res, next) => {
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`DoneIt server running on http://localhost:${PORT}`);
-});
+// Initialize database tables, then start server
+initDatabase()
+  .then(() => {
+    app.listen(PORT, () => {
+      console.log(`DoneIt server running on http://localhost:${PORT}`);
+    });
+  })
+  .catch((err) => {
+    console.error('Failed to initialize database:', err);
+    process.exit(1);
+  });

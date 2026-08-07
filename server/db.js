@@ -1,172 +1,162 @@
-import Database from 'better-sqlite3';
+import dotenv from 'dotenv';
+import pg from 'pg';
 import bcrypt from 'bcryptjs';
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+dotenv.config();
 
-const db = new Database(join(__dirname, '..', 'doneit.db'));
+const pool = new pg.Pool({
+  connectionString: process.env.DATABASE_URL || 'postgresql://localhost:5432/doneit',
+});
 
-db.pragma('journal_mode = WAL');
-db.pragma('foreign_keys = ON');
+// Log unexpected connection errors
+pool.on('error', (err) => {
+  console.error('Unexpected error on idle PostgreSQL client', err);
+  process.exit(-1);
+});
 
-try {
-  const schema = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='task_dependencies'").get();
-  if (schema && !schema.sql.includes('confirmed')) {
-    db.exec("DROP TABLE IF EXISTS task_dependencies");
-  }
-} catch (e) {}
+/**
+ * Run a query against the pool.
+ * @param {string} text - SQL query text with $1, $2, ... placeholders
+ * @param {Array} params - parameter values
+ * @returns {Promise<{rows: Array, rowCount: number}>}
+ */
+const query = (text, params) => pool.query(text, params);
 
-db.exec(`
-  CREATE TABLE IF NOT EXISTS users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
-    email TEXT UNIQUE NOT NULL,
-    password_hash TEXT NOT NULL,
-    role TEXT NOT NULL CHECK(role IN ('admin','manager','employee')) DEFAULT 'employee',
-    department TEXT DEFAULT 'Engineering',
-    avatar_url TEXT DEFAULT '',
-    created_at TEXT DEFAULT (datetime('now'))
-  );
+/**
+ * Get a dedicated client from the pool (for transactions).
+ * Remember to call client.release() when done.
+ */
+const getClient = () => pool.connect();
 
-  CREATE TABLE IF NOT EXISTS tasks (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    title TEXT NOT NULL,
-    description TEXT DEFAULT '',
-    color TEXT CHECK(color IN ('slate','yellow','blue','green','purple','red')) DEFAULT 'slate',
-    status TEXT CHECK(status IN ('todo','in_progress','under_review','completed','blocked')) DEFAULT 'todo',
-    priority TEXT CHECK(priority IN ('low','medium','high','urgent')) DEFAULT 'medium',
-    category TEXT DEFAULT 'General',
-    assignee_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
-    creator_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
-    parent_id INTEGER REFERENCES tasks(id) ON DELETE SET NULL,
-    progress_percent INTEGER DEFAULT 0 CHECK(progress_percent >= 0 AND progress_percent <= 100),
-    start_date TEXT,
-    due_date TEXT,
-    estimated_hours REAL DEFAULT 0,
-    logical_explanation TEXT DEFAULT '',
-    created_at TEXT DEFAULT (datetime('now')),
-    updated_at TEXT DEFAULT (datetime('now'))
-  );
-  
-  CREATE TABLE IF NOT EXISTS admin_comments (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    task_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
-    admin_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    parent_id INTEGER REFERENCES admin_comments(id) ON DELETE CASCADE,
-    comment_text TEXT NOT NULL,
-    created_at TEXT DEFAULT (datetime('now'))
-  );
+/**
+ * Initialize all database tables and seed the admin user.
+ * Called once at server startup.
+ */
+const initDatabase = async () => {
+  // ── Create Tables ──────────────────────────────────────────────
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS users (
+      id SERIAL PRIMARY KEY,
+      name TEXT NOT NULL,
+      email TEXT UNIQUE NOT NULL,
+      password_hash TEXT NOT NULL,
+      role TEXT NOT NULL DEFAULT 'employee' CHECK(role IN ('admin','manager','employee')),
+      department TEXT DEFAULT 'Engineering',
+      avatar_url TEXT DEFAULT '',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
 
-  CREATE TABLE IF NOT EXISTS notifications (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    message TEXT NOT NULL,
-    task_id INTEGER REFERENCES tasks(id) ON DELETE SET NULL,
-    is_read INTEGER DEFAULT 0,
-    created_at TEXT DEFAULT (datetime('now'))
-  );
+    CREATE TABLE IF NOT EXISTS tasks (
+      id SERIAL PRIMARY KEY,
+      title TEXT NOT NULL,
+      description TEXT DEFAULT '',
+      color TEXT CHECK(color IN ('slate','yellow','blue','green','purple','red')) DEFAULT 'slate',
+      status TEXT CHECK(status IN ('todo','in_progress','under_review','completed','blocked')) DEFAULT 'todo',
+      priority TEXT CHECK(priority IN ('low','medium','high','urgent')) DEFAULT 'medium',
+      category TEXT DEFAULT 'General',
+      assignee_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      creator_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      parent_id INTEGER REFERENCES tasks(id) ON DELETE SET NULL,
+      progress_percent INTEGER DEFAULT 0 CHECK(progress_percent >= 0 AND progress_percent <= 100),
+      start_date TEXT,
+      due_date TEXT,
+      estimated_hours REAL DEFAULT 0,
+      logical_explanation TEXT DEFAULT '',
+      last_edited_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
 
-  CREATE TABLE IF NOT EXISTS task_daily_logs (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    task_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
-    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    log_date TEXT NOT NULL,
-    content TEXT NOT NULL,
-    created_at TEXT DEFAULT (datetime('now')),
-    updated_at TEXT DEFAULT (datetime('now'))
-  );
+    CREATE TABLE IF NOT EXISTS admin_comments (
+      id SERIAL PRIMARY KEY,
+      task_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+      admin_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      parent_id INTEGER REFERENCES admin_comments(id) ON DELETE CASCADE,
+      comment_text TEXT NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
 
-  CREATE TABLE IF NOT EXISTS task_daily_log_reactions (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    log_id INTEGER NOT NULL REFERENCES task_daily_logs(id) ON DELETE CASCADE,
-    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    reaction_type TEXT CHECK(reaction_type IN ('like', 'dislike')) NOT NULL,
-    created_at TEXT DEFAULT (datetime('now')),
-    UNIQUE(log_id, user_id)
-  );
+    CREATE TABLE IF NOT EXISTS notifications (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      message TEXT NOT NULL,
+      task_id INTEGER REFERENCES tasks(id) ON DELETE SET NULL,
+      is_read INTEGER DEFAULT 0,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
 
-  CREATE INDEX IF NOT EXISTS idx_tasks_assignee_id ON tasks(assignee_id);
-  CREATE INDEX IF NOT EXISTS idx_tasks_parent_id ON tasks(parent_id);
-  CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
-  CREATE INDEX IF NOT EXISTS idx_tasks_priority ON tasks(priority);
-  CREATE INDEX IF NOT EXISTS idx_tasks_category ON tasks(category);
-  CREATE INDEX IF NOT EXISTS idx_tasks_created_at ON tasks(created_at);
+    CREATE TABLE IF NOT EXISTS task_daily_logs (
+      id SERIAL PRIMARY KEY,
+      task_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      log_date TEXT NOT NULL,
+      content TEXT NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
 
-  CREATE TABLE IF NOT EXISTS task_daily_log_comments (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    log_id INTEGER NOT NULL REFERENCES task_daily_logs(id) ON DELETE CASCADE,
-    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    comment_text TEXT NOT NULL,
-    created_at TEXT DEFAULT (datetime('now'))
-  );
+    CREATE TABLE IF NOT EXISTS task_daily_log_reactions (
+      id SERIAL PRIMARY KEY,
+      log_id INTEGER NOT NULL REFERENCES task_daily_logs(id) ON DELETE CASCADE,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      reaction_type TEXT CHECK(reaction_type IN ('like', 'dislike')) NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(log_id, user_id)
+    );
 
-  CREATE TABLE IF NOT EXISTS task_dependencies (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    task_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
-    requester_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    tagee_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    dependency_text TEXT NOT NULL,
-    reply_text TEXT DEFAULT NULL,
-    status TEXT CHECK(status IN ('pending', 'resolved', 'confirmed')) DEFAULT 'pending',
-    created_at TEXT DEFAULT (datetime('now')),
-    resolved_at TEXT DEFAULT NULL
-  );
-`);
+    CREATE TABLE IF NOT EXISTS task_daily_log_comments (
+      id SERIAL PRIMARY KEY,
+      log_id INTEGER NOT NULL REFERENCES task_daily_logs(id) ON DELETE CASCADE,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      comment_text TEXT NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
 
-const seedAdmin = () => {
-  const existing = db.prepare("SELECT id FROM users WHERE email = 'admin@admin.com'").get();
-  if (existing) return;
-
-  const hash = bcrypt.hashSync('admin', 10);
-  db.prepare(
-    'INSERT INTO users (name, email, password_hash, role, department) VALUES (?, ?, ?, ?, ?)'
-  ).run('Admin', 'admin@admin.com', hash, 'admin', 'Executive');
-};
-
-seedAdmin();
-
-try { db.exec("ALTER TABLE tasks ADD COLUMN logical_explanation TEXT DEFAULT ''"); } catch {}
-try { db.exec("ALTER TABLE tasks ADD COLUMN last_edited_by INTEGER REFERENCES users(id) ON DELETE SET NULL"); } catch {}
-try { db.exec("ALTER TABLE tasks ADD COLUMN parent_id INTEGER REFERENCES tasks(id) ON DELETE SET NULL"); } catch {}
-try { db.exec("ALTER TABLE admin_comments ADD COLUMN parent_id INTEGER REFERENCES admin_comments(id) ON DELETE CASCADE"); } catch {}
-try {
-  db.exec(`
     CREATE TABLE IF NOT EXISTS task_explanations (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       task_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
       user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       explanation_text TEXT NOT NULL,
-      created_at TEXT DEFAULT (datetime('now'))
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS task_dependencies (
+      id SERIAL PRIMARY KEY,
+      task_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+      requester_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      tagee_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      dependency_text TEXT NOT NULL,
+      reply_text TEXT DEFAULT NULL,
+      status TEXT CHECK(status IN ('pending', 'resolved', 'confirmed')) DEFAULT 'pending',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      resolved_at TIMESTAMP DEFAULT NULL
     );
   `);
 
-  // Migrate old logical explanations from tasks table to task_explanations timeline table
-  const unmigrated = db.prepare(`
-    SELECT id, creator_id, logical_explanation, created_at 
-    FROM tasks 
-    WHERE logical_explanation IS NOT NULL 
-      AND logical_explanation != ''
-  `).all();
-
-  const insertExp = db.prepare(`
-    INSERT INTO task_explanations (task_id, user_id, explanation_text, created_at)
-    VALUES (?, ?, ?, ?)
+  // ── Create Indexes ─────────────────────────────────────────────
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_tasks_assignee_id ON tasks(assignee_id);
+    CREATE INDEX IF NOT EXISTS idx_tasks_parent_id ON tasks(parent_id);
+    CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
+    CREATE INDEX IF NOT EXISTS idx_tasks_priority ON tasks(priority);
+    CREATE INDEX IF NOT EXISTS idx_tasks_category ON tasks(category);
+    CREATE INDEX IF NOT EXISTS idx_tasks_created_at ON tasks(created_at);
   `);
 
-  const checkExists = db.prepare(`
-    SELECT id FROM task_explanations 
-    WHERE task_id = ? AND explanation_text = ?
-  `);
-
-  for (const t of unmigrated) {
-    const exists = checkExists.get(t.id, t.logical_explanation);
-    if (!exists) {
-      const userId = t.creator_id || 1;
-      insertExp.run(t.id, userId, t.logical_explanation, t.created_at);
-    }
+  // ── Seed Admin User ────────────────────────────────────────────
+  const { rows } = await pool.query("SELECT id FROM users WHERE email = 'admin@admin.com'");
+  if (rows.length === 0) {
+    const hash = bcrypt.hashSync('admin', 10);
+    await pool.query(
+      'INSERT INTO users (name, email, password_hash, role, department) VALUES ($1, $2, $3, $4, $5)',
+      ['Admin', 'admin@admin.com', hash, 'admin', 'Executive']
+    );
+    console.log('Admin user seeded.');
   }
-} catch (e) {}
 
+  console.log('PostgreSQL database initialized successfully.');
+};
+
+const db = { query, getClient, pool };
+export { initDatabase };
 export default db;
