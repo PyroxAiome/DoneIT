@@ -147,6 +147,11 @@ export default function Header({ user, onLogout, onChangePassword, onViewTask })
     } catch {}
   };
 
+  const myPendingDeps = pendingDeps.filter(d => Number(d.tagee_id) === Number(user.id));
+  const otherPendingDeps = ['admin', 'manager'].includes(user.role) 
+    ? pendingDeps.filter(d => Number(d.tagee_id) !== Number(user.id)) 
+    : [];
+
   return (
     <header className="border-b border-gray-200 bg-white/80 backdrop-blur-sm sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-2 sm:px-6 lg:px-8 h-12 sm:h-14 flex items-center justify-between">
@@ -211,37 +216,78 @@ export default function Header({ user, onLogout, onChangePassword, onViewTask })
                     </span>
                   </div>
                   <div className="overflow-y-auto divide-y divide-gray-100 max-h-[350px]">
-                    {pendingDeps.length === 0 ? (
-                      <div className="px-4 py-6 text-center text-xs text-gray-400">
-                        No pending blockers requiring your help.
-                      </div>
-                    ) : (
-                      pendingDeps.map((dep) => (
-                        <div key={dep.id} className="p-3 hover:bg-gray-50 transition-colors flex flex-col gap-2">
-                          <div>
-                            <p className="text-xs text-gray-700">
-                              <span className="font-bold text-gray-950">{dep.requester_name}</span> tagged you on task: 
-                              <span className="font-semibold text-purple-700 ml-1">"{dep.task_title}"</span>
-                            </p>
-                            <p className="text-[11px] text-gray-500 bg-gray-50 border border-gray-100 rounded p-1.5 mt-1 whitespace-pre-wrap italic">
-                              "{dep.dependency_text}"
-                            </p>
-                          </div>
-                          <div className="flex justify-end">
-                            <button
-                              onClick={() => {
-                                setShowDeps(false);
-                                if (onViewTask) {
-                                  onViewTask({ id: dep.task_id, defaultTab: 'dependencies' });
-                                }
-                              }}
-                              className="text-[10px] font-bold text-purple-700 bg-purple-50 hover:bg-purple-100 px-2.5 py-1 rounded-md border border-purple-200/50 transition-all"
-                            >
-                              Resolve Blocker
-                            </button>
-                          </div>
+                    {myPendingDeps.length > 0 && (
+                      <div>
+                        <div className="px-3 py-1.5 bg-purple-50 text-[9px] font-bold text-purple-800 uppercase tracking-wider">
+                          Tagging Me ({myPendingDeps.length})
                         </div>
-                      ))
+                        {myPendingDeps.map((dep) => (
+                          <div key={dep.id} className="p-3 hover:bg-gray-50 transition-colors flex flex-col gap-2">
+                            <div>
+                              <p className="text-xs text-gray-700">
+                                <span className="font-bold text-gray-950">{dep.requester_name}</span> requested your help on task: 
+                                <span className="font-semibold text-purple-700 ml-1">"{dep.task_title}"</span>
+                              </p>
+                              <p className="text-[11px] text-gray-500 bg-gray-50 border border-gray-100 rounded p-1.5 mt-1 whitespace-pre-wrap italic">
+                                "{dep.dependency_text}"
+                              </p>
+                            </div>
+                            <div className="flex justify-end">
+                              <button
+                                onClick={() => {
+                                  setShowDeps(false);
+                                  if (onViewTask) {
+                                    onViewTask({ id: dep.task_id, defaultTab: 'dependencies' });
+                                  }
+                                }}
+                                className="text-[10px] font-bold text-purple-700 bg-purple-50 hover:bg-purple-100 px-2.5 py-1 rounded-md border border-purple-200/50 transition-all"
+                              >
+                                Resolve Blocker
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {otherPendingDeps.length > 0 && (
+                      <div>
+                        <div className="px-3 py-1.5 bg-gray-50 text-[9px] font-bold text-gray-500 uppercase tracking-wider border-t border-gray-100">
+                          Tagging Others ({otherPendingDeps.length})
+                        </div>
+                        {otherPendingDeps.map((dep) => (
+                          <div key={dep.id} className="p-3 hover:bg-gray-50 transition-colors flex flex-col gap-2">
+                            <div>
+                              <p className="text-xs text-gray-700">
+                                <span className="font-bold text-gray-950">{dep.requester_name}</span> &rarr; <span className="font-semibold text-purple-700">{dep.tagee_name}</span> on task:
+                                <span className="font-semibold text-gray-900 ml-1">"{dep.task_title}"</span>
+                              </p>
+                              <p className="text-[11px] text-gray-500 bg-gray-50 border border-gray-100 rounded p-1.5 mt-1 whitespace-pre-wrap italic">
+                                "{dep.dependency_text}"
+                              </p>
+                            </div>
+                            <div className="flex justify-end">
+                              <button
+                                onClick={() => {
+                                  setShowDeps(false);
+                                  if (onViewTask) {
+                                    onViewTask({ id: dep.task_id, defaultTab: 'dependencies' });
+                                  }
+                                }}
+                                className="text-[10px] font-bold text-gray-700 bg-gray-100 hover:bg-gray-200 px-2.5 py-1 rounded-md border border-gray-200 transition-all"
+                              >
+                                View Blocker
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {pendingDeps.length === 0 && (
+                      <div className="px-4 py-6 text-center text-xs text-gray-400">
+                        No pending blockers.
+                      </div>
                     )}
                   </div>
                 </div>

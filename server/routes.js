@@ -1140,14 +1140,30 @@ router.delete('/tasks/:id/explanations/:expId', auth, (req, res) => {
 
 // ─── DEPENDENCIES ────────────────────────────────────────────────
 router.get('/dependencies/pending', auth, (req, res) => {
-  const pending = db.prepare(`
-    SELECT d.*, t.title as task_title, r.name as requester_name, r.email as requester_email
-    FROM task_dependencies d
-    LEFT JOIN tasks t ON d.task_id = t.id
-    LEFT JOIN users r ON d.requester_id = r.id
-    WHERE d.tagee_id = ? AND d.status = 'pending'
-    ORDER BY d.created_at DESC
-  `).all(req.user.id);
+  let pending;
+  if (['admin', 'manager'].includes(req.user.role)) {
+    pending = db.prepare(`
+      SELECT d.*, t.title as task_title, r.name as requester_name, r.email as requester_email,
+        tg.name as tagee_name, tg.email as tagee_email
+      FROM task_dependencies d
+      LEFT JOIN tasks t ON d.task_id = t.id
+      LEFT JOIN users r ON d.requester_id = r.id
+      LEFT JOIN users tg ON d.tagee_id = tg.id
+      WHERE d.status = 'pending'
+      ORDER BY d.created_at DESC
+    `).all();
+  } else {
+    pending = db.prepare(`
+      SELECT d.*, t.title as task_title, r.name as requester_name, r.email as requester_email,
+        tg.name as tagee_name, tg.email as tagee_email
+      FROM task_dependencies d
+      LEFT JOIN tasks t ON d.task_id = t.id
+      LEFT JOIN users r ON d.requester_id = r.id
+      LEFT JOIN users tg ON d.tagee_id = tg.id
+      WHERE d.tagee_id = ? AND d.status = 'pending'
+      ORDER BY d.created_at DESC
+    `).all(req.user.id);
+  }
   res.json(pending);
 });
 
