@@ -52,6 +52,9 @@ export const api = {
   deleteUser: (id) =>
     request(`/users/${id}`, { method: 'DELETE' }),
 
+  updateUser: (id, data) =>
+    request(`/users/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+
   getTasks: (params = {}) => {
     const qs = new URLSearchParams();
     if (params.assignee_id) qs.set('assignee_id', params.assignee_id);

@@ -1,11 +1,26 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { api } from '../lib/api';
 import { X, AlertCircle, Check } from 'lucide-react';
 
-export default function AddUserModal({ isOpen, onClose, onCreated }) {
+export default function AddUserModal({ isOpen, onClose, onCreated, onUpdated, editingUser }) {
   const [form, setForm] = useState({ name: '', email: '', password: '', role: 'employee', department: 'General' });
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (editingUser) {
+      setForm({
+        name: editingUser.name || '',
+        email: editingUser.email || '',
+        password: '',
+        role: editingUser.role || 'employee',
+        department: editingUser.department || 'General'
+      });
+    } else {
+      setForm({ name: '', email: '', password: '', role: 'employee', department: 'General' });
+    }
+    setError('');
+  }, [editingUser, isOpen]);
 
   if (!isOpen) return null;
 
@@ -15,14 +30,19 @@ export default function AddUserModal({ isOpen, onClose, onCreated }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    if (!form.name || !form.email || !form.password) {
+    if (!form.name || !form.email || (!editingUser && !form.password)) {
       setError('Name, email, and password are required');
       return;
     }
     setBusy(true);
     try {
-      const user = await api.createUser(form);
-      onCreated(user);
+      if (editingUser) {
+        const updated = await api.updateUser(editingUser.id, form);
+        if (onUpdated) onUpdated(updated);
+      } else {
+        const user = await api.createUser(form);
+        if (onCreated) onCreated(user);
+      }
       reset();
       onClose();
     } catch (err) {
@@ -36,7 +56,7 @@ export default function AddUserModal({ isOpen, onClose, onCreated }) {
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/30 backdrop-blur-sm" onClick={() => { reset(); onClose(); }}>
       <div className="card max-w-md w-full" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-4">
-          <h3 className="font-semibold text-gray-900">Add Team Member</h3>
+          <h3 className="font-semibold text-gray-900">{editingUser ? 'Edit Team Member Profile' : 'Add Team Member'}</h3>
           <button onClick={() => { reset(); onClose(); }} className="p-1 hover:bg-gray-100 rounded transition-colors">
             <X className="w-4 h-4 text-gray-400" />
           </button>
@@ -52,15 +72,17 @@ export default function AddUserModal({ isOpen, onClose, onCreated }) {
         <form onSubmit={handleSubmit} className="space-y-3">
           <div>
             <label className="text-xs text-gray-500 uppercase tracking-wider block mb-1">Full Name</label>
-            <input value={form.name} onChange={handleChange('name')} className="input-field" placeholder="John Doe" />
+            <input value={form.name} onChange={handleChange('name')} className="input-field" placeholder="John Doe" required />
           </div>
           <div>
             <label className="text-xs text-gray-500 uppercase tracking-wider block mb-1">Email</label>
-            <input type="email" value={form.email} onChange={handleChange('email')} className="input-field" placeholder="john@company.com" />
+            <input type="email" value={form.email} onChange={handleChange('email')} className="input-field" placeholder="john@company.com" required />
           </div>
           <div>
-            <label className="text-xs text-gray-500 uppercase tracking-wider block mb-1">Password</label>
-            <input type="password" value={form.password} onChange={handleChange('password')} className="input-field" placeholder="Set password" />
+            <label className="text-xs text-gray-500 uppercase tracking-wider block mb-1">
+              Password {editingUser && <span className="text-[10px] text-gray-400 font-normal lowercase">(leave blank to keep current)</span>}
+            </label>
+            <input type="password" value={form.password} onChange={handleChange('password')} className="input-field" placeholder={editingUser ? "Optional password reset" : "Set password"} />
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
@@ -92,7 +114,7 @@ export default function AddUserModal({ isOpen, onClose, onCreated }) {
             <button type="button" onClick={() => { reset(); onClose(); }} className="btn-primary text-sm">Cancel</button>
             <button type="submit" disabled={busy} className="btn-amber text-sm flex items-center gap-2 disabled:opacity-50">
               {busy ? <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" /> : <Check className="w-4 h-4" />}
-              {busy ? 'Adding...' : 'Add Member'}
+              {busy ? 'Saving...' : (editingUser ? 'Save Changes' : 'Add Member')}
             </button>
           </div>
         </form>

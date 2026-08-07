@@ -9,7 +9,7 @@ import BulkImportModal from './BulkImportModal';
 import {
   LayoutDashboard, Briefcase, Users, Plus, Search, Grid3X3, List,
   UserPlus, Trash2, Filter, ListTodo, CheckCircle,
-  MessageSquare, X, FileSpreadsheet, Shield
+  MessageSquare, X, FileSpreadsheet, Shield, Edit2
 } from 'lucide-react';
 
 const tabs = [
@@ -90,6 +90,7 @@ export default function AdminDashboard({ user }) {
   const [showUserModal, setShowUserModal] = useState(false);
   const [deleteTask, setDeleteTask] = useState(null);
   const [deleteUser, setDeleteUser] = useState(null);
+  const [editingUser, setEditingUser] = useState(null);
   const [detailTask, setDetailTask] = useState(null);
   const [selectedEmp, setSelectedEmp] = useState(null);
 
@@ -526,13 +527,26 @@ export default function AdminDashboard({ user }) {
                     </div>
                   </div>
                   {emp.role !== 'admin' && (
-                    <button
-                      onClick={(e) => { e.stopPropagation(); setDeleteUser(emp); }}
-                      className="p-1.5 hover:bg-red-50 rounded-lg text-gray-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
-                      title="Delete user"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingUser(emp);
+                          setShowUserModal(true);
+                        }}
+                        className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-gray-700 transition-colors"
+                        title="Edit profile"
+                      >
+                        <Edit2 className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setDeleteUser(emp); }}
+                        className="p-1.5 hover:bg-red-50 rounded-lg text-gray-300 hover:text-red-500 transition-colors"
+                        title="Delete user"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   )}
                 </div>
                 <div className="mt-3 flex items-center gap-2">
@@ -635,7 +649,13 @@ export default function AdminDashboard({ user }) {
 
       <TaskModal isOpen={showTaskModal} onClose={() => { setShowTaskModal(false); setEditTask(null); }} onSaved={fetchAll} task={editTask} employees={employees} />
       <BulkImportModal isOpen={showImportModal} onClose={() => setShowImportModal(false)} employees={employees} onImportSuccess={fetchAll} />
-      <AddUserModal isOpen={showUserModal} onClose={() => setShowUserModal(false)} onCreated={fetchAll} />
+      <AddUserModal 
+        isOpen={showUserModal} 
+        onClose={() => { setShowUserModal(false); setEditingUser(null); }} 
+        onCreated={fetchAll} 
+        onUpdated={fetchAll}
+        editingUser={editingUser}
+      />
       <TaskDetailModal isOpen={!!detailTask} onClose={() => setDetailTask(null)} task={detailTask} onTaskUpdated={fetchAll} />
       <ConfirmDeleteModal isOpen={!!deleteTask} onClose={() => setDeleteTask(null)} onConfirm={handleDeleteTask}
         title="Delete Task" message={`Delete "${deleteTask?.title}"? This cannot be undone.`} />

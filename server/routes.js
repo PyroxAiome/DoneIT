@@ -232,6 +232,38 @@ router.post('/users', auth, adminOnly, (req, res) => {
   res.status(201).json(user);
 });
 
+router.put('/users/:id', auth, adminOnly, (req, res) => {
+  const { id } = req.params;
+  const { name, email, password, role, department } = req.body;
+  if (!name || !email || !role) {
+    return res.status(400).json({ error: 'Name, email, and role are required' });
+  }
+
+  const conflict = db.prepare('SELECT id FROM users WHERE email = ? AND id != ?').get(email, id);
+  if (conflict) {
+    return res.status(409).json({ error: 'Email already in use' });
+  }
+
+  if (password && password.trim() !== '') {
+    const hash = bcrypt.hashSync(password, 10);
+    db.prepare(`
+      UPDATE users
+      SET name = ?, email = ?, password_hash = ?, role = ?, department = ?
+      WHERE id = ?
+    `).run(name, email, hash, role, department || 'General', id);
+  } else {
+    db.prepare(`
+      UPDATE users
+      SET name = ?, email = ?, role = ?, department = ?
+      WHERE id = ?
+    `).run(name, email, role, department || 'General', id);
+  }
+
+  const updated = db.prepare('SELECT id, name, email, role, department, avatar_url, created_at FROM users WHERE id = ?').get(id);
+  if (!updated) return res.status(404).json({ error: 'User not found' });
+  res.json(updated);
+});
+
 router.delete('/users/:id', auth, adminOnly, (req, res) => {
   const { id } = req.params;
   if (parseInt(id) === req.user.id) {
