@@ -218,17 +218,19 @@ router.get('/employees', auth, async (req, res) => {
 
     const { rows: users } = await db.query(`
       SELECT u.id, u.name, u.email, u.role, u.department, u.avatar_url, u.created_at,
-        COALESCE(tc.task_count, 0) as task_count,
-        COALESCE(tc.avg_progress, 0) as avg_progress
+        (
+          SELECT COUNT(DISTINCT t.id)
+          FROM tasks t
+          WHERE t.assignee_id = u.id OR (u.role = 'admin' AND t.creator_id = u.id)
+        ) as task_count,
+        COALESCE(
+          (
+            SELECT ROUND(AVG(t.progress_percent), 0)
+            FROM tasks t
+            WHERE t.assignee_id = u.id OR (u.role = 'admin' AND t.creator_id = u.id)
+          ), 0
+        ) as avg_progress
       FROM users u
-      LEFT JOIN (
-        SELECT assignee_id,
-          COUNT(*) as task_count,
-          ROUND(AVG(progress_percent), 0) as avg_progress
-        FROM tasks
-        WHERE assignee_id IS NOT NULL
-        GROUP BY assignee_id
-      ) tc ON u.id = tc.assignee_id
       WHERE ${roleFilter}
       ORDER BY u.name
     `);

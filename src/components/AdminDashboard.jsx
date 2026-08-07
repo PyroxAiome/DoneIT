@@ -602,7 +602,7 @@ export default function AdminDashboard({ user }) {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-            {employees.filter(e => e.role === 'admin' && e.id === user.id).map((emp) => (
+            {employees.filter(e => e.role === 'admin').map((emp) => (
               <div key={emp.id} className="bg-white border border-gray-200 rounded-xl p-4 group hover:shadow-md hover:border-gray-300 transition-all cursor-pointer"
                 onClick={() => handleViewEmployeeTasks(emp)}>
                 <div className="flex items-start justify-between">
