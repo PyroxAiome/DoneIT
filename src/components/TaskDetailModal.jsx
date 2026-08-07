@@ -761,8 +761,8 @@ export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated, 
 
           {tab === 'dependencies' && (
             <div className="space-y-6">
-              {/* Dependency Request Form (Only show if not readOnly) */}
-              {!readOnly && (
+              {/* Dependency Request Form (Only show if not readOnly and user is assignee or admin/manager) */}
+              {!readOnly && (Number(taskData?.assignee_id || task.assignee_id) === Number(user.id) || ['admin', 'manager'].includes(user.role)) && (
                 <form onSubmit={handleAddDependency} className="bg-purple-50/40 border border-purple-100 rounded-xl p-4 space-y-3.5">
                   <h4 className="text-xs font-bold text-purple-950 flex items-center gap-1.5 uppercase tracking-wider">
                     <GitMerge className="w-4 h-4 text-purple-600" />
