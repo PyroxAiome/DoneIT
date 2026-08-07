@@ -57,7 +57,18 @@ const getDateSelectClass = (val) => {
 };
 
 export default function AdminDashboard({ user }) {
-  const [activeTab, setActiveTab] = useState('overview');
+  const getInitialHashState = () => {
+    const hash = window.location.hash;
+    if (!hash) return { tab: 'overview', empId: null };
+    const parts = hash.substring(1).split('/');
+    const tabId = parts[0];
+    const validTab = ['overview', 'work', 'completed', 'team', 'admin'].includes(tabId) ? tabId : 'overview';
+    const empId = (parts[1] === 'employee' && parts[2]) ? Number(parts[2]) : null;
+    return { tab: validTab, empId };
+  };
+
+  const initialHash = getInitialHashState();
+  const [activeTab, setActiveTab] = useState(initialHash.tab);
   const [stats, setStats] = useState(null);
   const [tasks, setTasks] = useState([]);
   const [employees, setEmployees] = useState([]);
@@ -70,7 +81,7 @@ export default function AdminDashboard({ user }) {
   const [dateRangeFilter, setDateRangeFilter] = useState('');
   const [customFromDate, setCustomFromDate] = useState('');
   const [customToDate, setCustomToDate] = useState('');
-  const [employeeFilter, setEmployeeFilter] = useState(null);
+  const [employeeFilter, setEmployeeFilter] = useState(initialHash.empId);
   const [compact, setCompact] = useState(false);
 
   useEffect(() => {
