@@ -25,7 +25,7 @@ const formatDescription = (desc) => {
 
 export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated, readOnly }) {
   const user = useAuth();
-   const [tab, setTab] = useState('reviews');
+   const [tab, setTab] = useState(task?.defaultTab || 'reviews');
    const [comments, setComments] = useState([]);
    const [fbText, setFbText] = useState('');
    const [explanation, setExplanation] = useState('');
@@ -56,6 +56,7 @@ export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated, 
 
    useEffect(() => {
      if (isOpen && task) {
+       setTab(task.defaultTab || 'reviews');
        api.getTask(task.id).then(t => {
          setTaskData(t);
        }).catch(() => {});

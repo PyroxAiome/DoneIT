@@ -232,7 +232,7 @@ export default function Header({ user, onLogout, onChangePassword, onViewTask })
                               onClick={() => {
                                 setShowDeps(false);
                                 if (onViewTask) {
-                                  onViewTask({ id: dep.task_id });
+                                  onViewTask({ id: dep.task_id, defaultTab: 'dependencies' });
                                 }
                               }}
                               className="text-[10px] font-bold text-purple-700 bg-purple-50 hover:bg-purple-100 px-2.5 py-1 rounded-md border border-purple-200/50 transition-all"
