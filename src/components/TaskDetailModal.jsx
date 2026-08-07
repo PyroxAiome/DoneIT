@@ -289,7 +289,7 @@ export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated, 
       .catch(() => {})
   };
 
-  const isResolver = dependencies.some(d => Number(d.tagee_id) === Number(user.id) && d.status === 'pending');
+  const isResolver = dependencies.some(d => Number(d.tagee_id) === Number(user.id));
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/30 backdrop-blur-sm" onClick={onClose}>
