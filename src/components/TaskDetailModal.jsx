@@ -287,8 +287,9 @@ export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated, 
         window.dispatchEvent(new CustomEvent('dependency-updated'));
       })
       .catch(() => {})
-      .finally(() => setSaving(false));
   };
+
+  const isResolver = dependencies.some(d => Number(d.tagee_id) === Number(user.id) && d.status === 'pending');
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/30 backdrop-blur-sm" onClick={onClose}>
@@ -761,8 +762,8 @@ export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated, 
 
           {tab === 'dependencies' && (
             <div className="space-y-6">
-              {/* Dependency Request Form (Only show if not readOnly and user is assignee or admin/manager) */}
-              {!readOnly && (Number(taskData?.assignee_id || task.assignee_id) === Number(user.id) || ['admin', 'manager'].includes(user.role)) && (
+              {/* Dependency Request Form (Only show if not readOnly, user is not resolving, and user is assignee or admin/manager) */}
+              {!readOnly && !isResolver && (Number(taskData?.assignee_id || task.assignee_id) === Number(user.id) || ['admin', 'manager'].includes(user.role)) && (
                 <form onSubmit={handleAddDependency} className="bg-purple-50/40 border border-purple-100 rounded-xl p-4 space-y-3.5">
                   <h4 className="text-xs font-bold text-purple-950 flex items-center gap-1.5 uppercase tracking-wider">
                     <GitMerge className="w-4 h-4 text-purple-600" />
