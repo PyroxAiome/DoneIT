@@ -951,10 +951,10 @@ router.get('/dashboard/stats', auth, adminOrManager, async (req, res) => {
     `);
 
     res.json({
-      totalTasks,
-      totalEmployees,
-      totalManagers,
-      avgCompletion: avgCompletion || 0,
+      totalTasks: parseInt(totalTasks) || 0,
+      totalEmployees: parseInt(totalEmployees) || 0,
+      totalManagers: parseInt(totalManagers) || 0,
+      avgCompletion: parseInt(avgCompletion) || 0,
       statusBreakdown,
       recentTasks,
     });
