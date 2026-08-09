@@ -490,7 +490,7 @@ export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated, 
                   <div className="relative border-l border-gray-100 pl-4 ml-2 space-y-4">
                     {explanationsList.map((exp) => {
                       const isOwner = exp.user_id === user.id || user.role === 'admin';
-                      const formattedDate = exp.created_at ? new Date(exp.created_at.replace(' ', 'T') + 'Z').toLocaleDateString(undefined, {
+                      const formattedDate = exp.created_at ? new Date(exp.created_at).toLocaleDateString(undefined, {
                         weekday: 'short',
                         year: 'numeric',
                         month: 'short',
