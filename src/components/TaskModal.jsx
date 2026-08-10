@@ -6,6 +6,7 @@ import TaskVerificationModal from './TaskVerificationModal';
 
 export default function TaskModal({ isOpen, onClose, onSaved, task, employees }) {
   const currentUser = useAuth();
+  if (!isOpen) return null;
   const isEdit = !!task;
   const [form, setForm] = useState({
     title: '', description: '', color: 'slate', status: 'todo', priority: 'medium',
