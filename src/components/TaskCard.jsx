@@ -2,6 +2,7 @@ import { Clock, User, MessageSquare, ChevronRight, MoreHorizontal, Edit3, Trash2
 import { useState, useEffect } from 'react';
 import { api } from '../lib/api';
 import { useAuth } from '../App';
+import TaskVerificationModal from './TaskVerificationModal';
 const roleColorMap = {
   admin: { border: 'border-red-300', bg: 'bg-red-50', dot: 'bg-red-500' },
   manager: { border: 'border-blue-300', bg: 'bg-blue-50', dot: 'bg-blue-500' },
@@ -76,6 +77,7 @@ export default function TaskCard({ task, compact, onEdit, onDelete, onSelect, on
   const user = useAuth();
   const colors = priorityColorMap[task.priority] || priorityColorMap.medium;
   const [showMenu, setShowMenu] = useState(false);
+  const [showVerifyModal, setShowVerifyModal] = useState(false);
   const [fbCount, setFbCount] = useState(0);
   const isOverdue = task.due_date && new Date(task.due_date) < new Date() && task.status !== 'completed';
   const statusActions = ['todo', 'in_progress', 'under_review', 'completed'].filter(s => s !== task.status);
@@ -89,7 +91,10 @@ export default function TaskCard({ task, compact, onEdit, onDelete, onSelect, on
 
   const handleStatusChange = async (newStatus) => {
     try {
-      await api.updateTask(task.id, { status: newStatus });
+      const updated = await api.updateTask(task.id, { status: newStatus });
+      if (updated && updated.verificationRequired) {
+        setShowVerifyModal(true);
+      }
       if (onEdit) onEdit();
     } catch {}
     setShowMenu(false);
@@ -247,6 +252,13 @@ export default function TaskCard({ task, compact, onEdit, onDelete, onSelect, on
           <MessageSquare className="w-2.5 h-2.5 sm:w-3 sm:h-3" /> {fbCount}
         </span>
       </div>
+
+      <TaskVerificationModal
+        isOpen={showVerifyModal}
+        onClose={() => setShowVerifyModal(false)}
+        task={task}
+        currentUser={user}
+      />
     </div>
   );
 }

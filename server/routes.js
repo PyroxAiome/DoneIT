@@ -599,6 +599,12 @@ router.put('/tasks/:id', auth, async (req, res) => {
       }
     }
 
+    let verificationRequired = false;
+    if (req.user.role !== 'admin' && req.body.status === 'completed') {
+      req.body.status = 'under_review';
+      verificationRequired = true;
+    }
+
     const fields = ['title', 'description', 'color', 'status', 'priority', 'category',
       'progress_percent', 'start_date', 'due_date', 'estimated_hours',
       'logical_explanation'];
@@ -766,6 +772,7 @@ router.put('/tasks/:id', auth, async (req, res) => {
     }
     const groupResult = await getGroupAssignees(updated.parent_id);
     updated.group_assignees = groupResult.names;
+    updated.verificationRequired = verificationRequired;
     await notifyRelevantUsers(req.user.id, msg, updated.id);
 
     res.json(updated);

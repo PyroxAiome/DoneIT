@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { api } from '../lib/api';
 import { X, AlertCircle, Check } from 'lucide-react';
 import { useAuth } from '../App';
+import TaskVerificationModal from './TaskVerificationModal';
 
 export default function TaskModal({ isOpen, onClose, onSaved, task, employees }) {
   const currentUser = useAuth();
@@ -13,6 +14,8 @@ export default function TaskModal({ isOpen, onClose, onSaved, task, employees })
   const [selectedAssigneeIds, setSelectedAssigneeIds] = useState([]);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [showVerifyModal, setShowVerifyModal] = useState(false);
+  const [savedTask, setSavedTask] = useState(null);
 
   const assigneeList = [];
   const seenIds = new Set();
@@ -54,29 +57,45 @@ export default function TaskModal({ isOpen, onClose, onSaved, task, employees })
         due_date: task.due_date || '',
         estimated_hours: task.estimated_hours ? String(task.estimated_hours) : '',
       });
-      if (task.group_assignee_ids && task.group_assignee_ids.length > 0) {
+      if (task.group_assignee_ids && Array.isArray(task.group_assignee_ids)) {
         setSelectedAssigneeIds(task.group_assignee_ids.map(Number));
+      } else if (task.assignee_id) {
+        setSelectedAssigneeIds([Number(task.assignee_id)]);
       } else {
-        setSelectedAssigneeIds(task.assignee_id ? [Number(task.assignee_id)] : []);
+        setSelectedAssigneeIds([]);
       }
     } else {
-      setForm({ title: '', description: '', color: 'slate', status: 'todo', priority: 'medium', category: 'General', assignee_id: '', start_date: '', due_date: '', estimated_hours: '' });
-      setSelectedAssigneeIds([]);
+      setForm({
+        title: '', description: '', color: 'slate', status: 'todo', priority: 'medium',
+        category: 'General', assignee_id: currentUser ? String(currentUser.id) : '', start_date: '', due_date: '', estimated_hours: '',
+      });
+      if (currentUser && currentUser.role === 'employee') {
+        setSelectedAssigneeIds([Number(currentUser.id)]);
+      } else {
+        setSelectedAssigneeIds([]);
+      }
     }
     setError('');
-  }, [task, isOpen]);
+  }, [task, isOpen, currentUser]);
 
-  if (!isOpen) return null;
+  const toggleAssigneeSelection = (empId) => {
+    if (currentUser?.role === 'employee' && empId !== currentUser?.id) {
+      return;
+    }
+    setSelectedAssigneeIds(prev => {
+      const next = prev.includes(empId) ? prev.filter(id => id !== empId) : [...prev, empId];
+      return next;
+    });
+  };
 
-  const handleChange = (field) => (e) => setForm({ ...form, [field]: e.target.value });
+  const handleChange = (field) => (e) => {
+    setForm(prev => ({ ...prev, [field]: e.target.value }));
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError('');
-    if (!form.title) { setError('Title is required'); return; }
-    if (isEdit && currentUser?.role !== 'admin') {
-      if (!form.assignee_id) { setError('Assignee is required'); return; }
-    } else {
+    if (!form.title.trim()) { setError('Title is required'); return; }
+    if (currentUser?.role !== 'employee') {
       if (selectedAssigneeIds.length === 0) { setError('At least one assignee must be selected'); return; }
     }
     setBusy(true);
@@ -88,7 +107,13 @@ export default function TaskModal({ isOpen, onClose, onSaved, task, employees })
           assignee_ids: selectedAssigneeIds,
           estimated_hours: form.estimated_hours ? Number(form.estimated_hours) : 0,
         };
-        await api.updateTask(task.id, payload);
+        const updated = await api.updateTask(task.id, payload);
+        if (updated && updated.verificationRequired) {
+          setSavedTask(updated);
+          setShowVerifyModal(true);
+          onSaved();
+          return;
+        }
       } else {
         const payload = {
           ...form,
@@ -246,6 +271,16 @@ export default function TaskModal({ isOpen, onClose, onSaved, task, employees })
           </div>
         </form>
       </div>
+
+      <TaskVerificationModal
+        isOpen={showVerifyModal}
+        onClose={() => {
+          setShowVerifyModal(false);
+          onClose();
+        }}
+        task={savedTask || task}
+        currentUser={currentUser}
+      />
     </div>
   );
 }
