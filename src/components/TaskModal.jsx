@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { api } from '../lib/api';
 import { X, AlertCircle, Check } from 'lucide-react';
 import { useAuth } from '../App';
-import TaskVerificationModal from './TaskVerificationModal';
 
 export default function TaskModal({ isOpen, onClose, onSaved, task, employees }) {
   const currentUser = useAuth();
@@ -15,8 +14,6 @@ export default function TaskModal({ isOpen, onClose, onSaved, task, employees })
   const [selectedAssigneeIds, setSelectedAssigneeIds] = useState([]);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  const [showVerifyModal, setShowVerifyModal] = useState(false);
-  const [savedTask, setSavedTask] = useState(null);
 
   const assigneeList = [];
   const seenIds = new Set();
@@ -108,13 +105,7 @@ export default function TaskModal({ isOpen, onClose, onSaved, task, employees })
           assignee_ids: selectedAssigneeIds,
           estimated_hours: form.estimated_hours ? Number(form.estimated_hours) : 0,
         };
-        const updated = await api.updateTask(task.id, payload);
-        if (updated && updated.verificationRequired) {
-          setSavedTask(updated);
-          setShowVerifyModal(true);
-          onSaved();
-          return;
-        }
+        await api.updateTask(task.id, payload);
       } else {
         const payload = {
           ...form,
@@ -272,16 +263,6 @@ export default function TaskModal({ isOpen, onClose, onSaved, task, employees })
           </div>
         </form>
       </div>
-
-      <TaskVerificationModal
-        isOpen={showVerifyModal}
-        onClose={() => {
-          setShowVerifyModal(false);
-          onClose();
-        }}
-        task={savedTask || task}
-        currentUser={currentUser}
-      />
     </div>
   );
 }

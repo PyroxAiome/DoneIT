@@ -2,7 +2,7 @@ import { Clock, User, MessageSquare, ChevronRight, MoreHorizontal, Edit3, Trash2
 import { useState, useEffect } from 'react';
 import { api } from '../lib/api';
 import { useAuth } from '../App';
-import TaskVerificationModal from './TaskVerificationModal';
+
 const roleColorMap = {
   admin: { border: 'border-red-300', bg: 'bg-red-50', dot: 'bg-red-500' },
   manager: { border: 'border-blue-300', bg: 'bg-blue-50', dot: 'bg-blue-500' },
@@ -77,13 +77,9 @@ export default function TaskCard({ task, compact, onEdit, onDelete, onSelect, on
   const user = useAuth();
   const colors = priorityColorMap[task.priority] || priorityColorMap.medium;
   const [showMenu, setShowMenu] = useState(false);
-  const [showVerifyModal, setShowVerifyModal] = useState(false);
   const [fbCount, setFbCount] = useState(0);
   const isOverdue = task.due_date && new Date(task.due_date) < new Date() && task.status !== 'completed';
   const statusActions = ['todo', 'in_progress', 'under_review', 'completed'].filter(s => s !== task.status);
-  const isGroupTask = task.parent_id !== null || (task.group_assignee_ids && task.group_assignee_ids.length > 1);
-  const isAdminCreatedGroupTask = isGroupTask && task.creator_role === 'admin';
-  const disableStatusChange = isAdminCreatedGroupTask && user?.role !== 'admin';
 
   useEffect(() => {
     api.getComments(task.id).then(c => setFbCount(c.length)).catch(() => {});
@@ -91,9 +87,10 @@ export default function TaskCard({ task, compact, onEdit, onDelete, onSelect, on
 
   const handleStatusChange = async (newStatus) => {
     try {
-      const updated = await api.updateTask(task.id, { status: newStatus });
-      if (updated && updated.verificationRequired) {
-        setShowVerifyModal(true);
+      const result = await api.updateTask(task.id, { status: newStatus });
+      if (result && result.verificationRequired) {
+        // Backend intercepted 'completed' → 'under_review'. Open detail modal to show WhatsApp review banner.
+        if (onViewDetail) onViewDetail({ ...task, status: 'under_review' });
       }
       if (onEdit) onEdit();
     } catch {}
@@ -188,15 +185,13 @@ export default function TaskCard({ task, compact, onEdit, onDelete, onSelect, on
                     {['urgent', 'high', 'medium', 'low'].filter(p => p !== task.priority).map(p => (
                       <button key={p} onClick={() => { api.updateTask(task.id, { priority: p }).then(() => onEdit?.()); setShowMenu(false); }} className="w-full text-left px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 capitalize">{p}</button>
                     ))}
-                    {!disableStatusChange && (
-                      <>
-                        <div className="border-t border-gray-100 my-1" />
-                        <div className="px-3 py-1.5 text-[10px] text-gray-400 uppercase tracking-wider">Set Status</div>
-                        {statusActions.map(s => (
-                          <button key={s} onClick={() => handleStatusChange(s)} className="w-full text-left px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50">{statusLabels[s]}</button>
-                        ))}
-                      </>
-                    )}
+                    <>
+                      <div className="border-t border-gray-100 my-1" />
+                      <div className="px-3 py-1.5 text-[10px] text-gray-400 uppercase tracking-wider">Set Status</div>
+                      {statusActions.map(s => (
+                        <button key={s} onClick={() => handleStatusChange(s)} className="w-full text-left px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50">{statusLabels[s]}</button>
+                      ))}
+                    </>
                     <div className="border-t border-gray-100 my-1" />
                     {canModifyTask(user, task) && (
                       <button onClick={() => { onSelect?.(task); setShowMenu(false); }} className="w-full text-left px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2">
@@ -252,13 +247,6 @@ export default function TaskCard({ task, compact, onEdit, onDelete, onSelect, on
           <MessageSquare className="w-2.5 h-2.5 sm:w-3 sm:h-3" /> {fbCount}
         </span>
       </div>
-
-      <TaskVerificationModal
-        isOpen={showVerifyModal}
-        onClose={() => setShowVerifyModal(false)}
-        task={task}
-        currentUser={user}
-      />
     </div>
   );
 }

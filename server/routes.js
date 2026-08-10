@@ -592,18 +592,14 @@ router.put('/tasks/:id', auth, async (req, res) => {
       }
     }
 
-    const isGroupTask = task.parent_id !== null;
-    if (req.user.role !== 'admin' && isGroupTask && creatorRole === 'admin') {
-      if (req.body.status !== undefined && req.body.status !== task.status) {
-        return res.status(403).json({ error: 'Status changes on Admin-assigned group tasks can only be made by an Admin.' });
-      }
-    }
-
     let verificationRequired = false;
     if (req.user.role !== 'admin' && req.body.status === 'completed') {
       req.body.status = 'under_review';
       verificationRequired = true;
     }
+
+    // Non-admins can change status freely (todo, in_progress, under_review).
+    // 'completed' is already intercepted above and converted to 'under_review'.
 
     const fields = ['title', 'description', 'color', 'status', 'priority', 'category',
       'progress_percent', 'start_date', 'due_date', 'estimated_hours',
@@ -868,16 +864,13 @@ router.post('/tasks/:id/comments', auth, async (req, res) => {
 router.get('/tasks/:id/comments', auth, async (req, res) => {
   try {
     const { id } = req.params;
-    const { rows: taskRows } = await db.query('SELECT parent_id FROM tasks WHERE id = $1', [id]);
-    const task = taskRows[0];
-    const rootId = task && task.parent_id ? task.parent_id : id;
     const { rows: comments } = await db.query(`
       SELECT ac.*, u.name as admin_name
       FROM admin_comments ac
       LEFT JOIN users u ON ac.admin_id = u.id
-      WHERE ac.task_id IN (SELECT id FROM tasks WHERE id = $1 OR parent_id = $2)
+      WHERE ac.task_id = $1
       ORDER BY ac.parent_id IS NULL DESC, ac.created_at ASC
-    `, [rootId, rootId]);
+    `, [id]);
     res.json(comments);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -984,9 +977,9 @@ router.get('/tasks/:id/daily-logs', auth, async (req, res) => {
         (SELECT reaction_type FROM task_daily_log_reactions WHERE log_id = dl.id AND user_id = $1) as user_reaction
       FROM task_daily_logs dl
       LEFT JOIN users u ON dl.user_id = u.id
-      WHERE dl.task_id IN (SELECT id FROM tasks WHERE id = $2 OR parent_id = $3)
+      WHERE dl.task_id = $2
       ORDER BY dl.log_date DESC, dl.created_at DESC
-    `, [req.user.id, rootId, rootId]);
+    `, [req.user.id, id]);
 
     const logsWithLikesAndComments = [];
     for (const log of logs) {
@@ -1239,20 +1232,16 @@ router.delete('/notifications/:id', auth, async (req, res) => {
   }
 });
 
-// ─── TASK LOGICAL EXPLANATIONS ────────────────────────────────────
 router.get('/tasks/:id/explanations', auth, async (req, res) => {
   try {
     const { id } = req.params;
-    const { rows: taskRows } = await db.query('SELECT parent_id FROM tasks WHERE id = $1', [id]);
-    const task = taskRows[0];
-    const rootId = task && task.parent_id ? task.parent_id : id;
     const { rows: explanations } = await db.query(`
       SELECT te.*, u.name as user_name, u.role as user_role
       FROM task_explanations te
       LEFT JOIN users u ON te.user_id = u.id
-      WHERE te.task_id IN (SELECT id FROM tasks WHERE id = $1 OR parent_id = $2)
+      WHERE te.task_id = $1
       ORDER BY te.created_at DESC
-    `, [rootId, rootId]);
+    `, [id]);
     res.json(explanations);
   } catch (err) {
     res.status(500).json({ error: err.message });

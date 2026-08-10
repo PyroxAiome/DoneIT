@@ -307,6 +307,31 @@ export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated, 
           </button>
         </div>
 
+        {/* Admin Verification / WhatsApp Review Call Banner */}
+        {(taskData?.status === 'under_review' || task.status === 'under_review') && (
+          <div className="mx-5 mt-4 p-3.5 bg-amber-50 border border-amber-200/80 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-start gap-2.5">
+              <div className="p-1.5 bg-amber-500 text-white rounded-lg shrink-0 mt-0.5 shadow-xs">
+                <MessageSquare className="w-4 h-4" />
+              </div>
+              <div>
+                <h4 className="text-xs font-bold text-amber-950 uppercase tracking-wide">Call / Message Admin for Task Review</h4>
+                <p className="text-xs text-amber-800 mt-0.5 leading-normal">
+                  To complete this task, please call or message the Admin on WhatsApp to request a review meeting.
+                </p>
+              </div>
+            </div>
+            <a
+              href={`https://wa.me/?text=${encodeURIComponent(`Hi Admin, I would like to request a meeting to review and complete my task: "${taskData?.title || task.title}"`)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn-amber text-xs font-semibold px-3 py-1.5 flex items-center justify-center gap-1.5 shrink-0 shadow-xs whitespace-nowrap"
+            >
+              💬 Message Admin on WhatsApp
+            </a>
+          </div>
+        )}
+
         {/* Description section */}
         {(taskData?.description || task.description) && (
           <div className="px-5 py-3.5 bg-gray-50 border-b border-gray-100">
