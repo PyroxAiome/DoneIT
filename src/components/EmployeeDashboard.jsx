@@ -4,9 +4,13 @@ import TaskCard from './TaskCard';
 import TaskModal from './TaskModal';
 import ConfirmDeleteModal from './ConfirmDeleteModal';
 import TaskDetailModal from './TaskDetailModal';
-import { Search, ListTodo, Filter, Plus, CheckCircle, Users, X } from 'lucide-react';
+import TaskVerificationModal from './TaskVerificationModal';
+import { Search, ListTodo, Filter, Plus, CheckCircle, Users, X, FolderGit2 } from 'lucide-react';
+import ProjectsList from './ProjectsList';
+import ProjectDetail from './ProjectDetail';
 
 const tabs = [
+  { id: 'projects', label: 'Projects', icon: FolderGit2 },
   { id: 'work', label: 'Work', icon: ListTodo },
   { id: 'completed', label: 'Completed', icon: CheckCircle },
   { id: 'team', label: 'Team', icon: Users },
@@ -27,6 +31,8 @@ export default function EmployeeDashboard({ user }) {
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [editTask, setEditTask] = useState(null);
+  const [verificationTask, setVerificationTask] = useState(null);
+  const [selectedProject, setSelectedProject] = useState(null);
 
   const fetchTasksOnly = () => {
     setLoading(true);
@@ -61,8 +67,9 @@ export default function EmployeeDashboard({ user }) {
       }
       const parts = hash.substring(1).split('/');
       const tabId = parts[0];
-      if (['work', 'completed', 'team'].includes(tabId)) {
+      if (['projects', 'work', 'completed', 'team'].includes(tabId)) {
         setActiveTab(tabId);
+        if (tabId !== 'projects') setSelectedProject(null);
       }
       if (parts[1] === 'employee' && parts[2]) {
         const empId = Number(parts[2]);
@@ -182,6 +189,23 @@ export default function EmployeeDashboard({ user }) {
         </div>
       )}
 
+      {activeTab === 'projects' && (
+        <div className="space-y-6 mt-4">
+          {selectedProject ? (
+            <ProjectDetail
+              project={selectedProject}
+              user={user}
+              onBack={() => setSelectedProject(null)}
+            />
+          ) : (
+            <ProjectsList
+              user={user}
+              onProjectSelect={(p) => setSelectedProject(p)}
+            />
+          )}
+        </div>
+      )}
+
       {activeTab === 'team' && !selectedEmp ? (
         <div className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
@@ -233,7 +257,7 @@ export default function EmployeeDashboard({ user }) {
             })}
           </div>
         </div>
-      ) : (
+      ) : activeTab !== 'projects' ? (
         <>
           <div className="flex items-center gap-3 flex-wrap">
             <div className="relative flex-1 min-w-[200px] max-w-sm">
@@ -302,15 +326,17 @@ export default function EmployeeDashboard({ user }) {
                   onDelete={setDeleteTarget}
                   onSelect={(t) => { setEditTask(t); setShowTaskModal(true); }}
                   onViewDetail={setDetailTask}
+                  onVerificationNeeded={setVerificationTask}
                 />
               ))}
             </div>
           )}
         </>
-      )}
+      ) : null}
 
-      <TaskModal isOpen={showTaskModal} onClose={() => { setShowTaskModal(false); setEditTask(null); }} onSaved={fetchTasksOnly} task={editTask} />
+      <TaskModal isOpen={showTaskModal} onClose={() => { setShowTaskModal(false); setEditTask(null); }} onSaved={fetchTasksOnly} task={editTask} onVerificationNeeded={setVerificationTask} />
       <TaskDetailModal isOpen={!!detailTask} onClose={() => setDetailTask(null)} task={detailTask} onTaskUpdated={fetchTasksOnly} readOnly={isReadOnly} />
+      <TaskVerificationModal isOpen={!!verificationTask} onClose={() => setVerificationTask(null)} task={verificationTask} />
       <ConfirmDeleteModal
         isOpen={!!deleteTarget}
         onClose={() => setDeleteTarget(null)}

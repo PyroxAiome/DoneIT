@@ -184,4 +184,47 @@ export const api = {
     request(`/tasks/${taskId}/dependencies/${depId}/confirm`, {
       method: 'PUT',
     }),
+
+  // Projects
+  getProjects: () =>
+    request('/projects'),
+
+  createProject: (data) =>
+    request('/projects', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  updateProject: (id, data) =>
+    request(`/projects/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+
+  deleteProject: (id) =>
+    request(`/projects/${id}`, { method: 'DELETE' }),
+
+  getProjectMembers: (id) =>
+    request(`/projects/${id}/members`),
+
+  addProjectMember: (id, user_id) =>
+    request(`/projects/${id}/members`, {
+      method: 'POST',
+      body: JSON.stringify({ user_id }),
+    }),
+
+  removeProjectMember: (id, userId) =>
+    request(`/projects/${id}/members/${userId}`, { method: 'DELETE' }),
+
+  getProjectTasks: (id, params = {}) => {
+    const qs = new URLSearchParams();
+    qs.set('project_id', id);
+    if (params.assignee_id) qs.set('assignee_id', params.assignee_id);
+    if (params.status) qs.set('status', params.status);
+    if (params.category) qs.set('category', params.category);
+    if (params.priority) qs.set('priority', params.priority);
+    if (params.search) qs.set('search', params.search);
+    const q = qs.toString();
+    return request(`/tasks${q ? '?' + q : ''}`);
+  },
 };

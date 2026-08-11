@@ -73,7 +73,7 @@ const formatDescription = (desc) => {
   return desc;
 };
 
-export default function TaskCard({ task, compact, onEdit, onDelete, onSelect, onViewDetail, readOnly }) {
+export default function TaskCard({ task, compact, onEdit, onDelete, onSelect, onViewDetail, onVerificationNeeded, readOnly }) {
   const user = useAuth();
   const colors = priorityColorMap[task.priority] || priorityColorMap.medium;
   const [showMenu, setShowMenu] = useState(false);
@@ -89,8 +89,11 @@ export default function TaskCard({ task, compact, onEdit, onDelete, onSelect, on
     try {
       const result = await api.updateTask(task.id, { status: newStatus });
       if (result && result.verificationRequired) {
-        // Backend intercepted 'completed' → 'under_review'. Open detail modal to show WhatsApp review banner.
-        if (onViewDetail) onViewDetail({ ...task, status: 'under_review' });
+        if (onVerificationNeeded) {
+          onVerificationNeeded({ ...task, status: 'under_review' });
+        } else if (onViewDetail) {
+          onViewDetail({ ...task, status: 'under_review' });
+        }
       }
       if (onEdit) onEdit();
     } catch {}

@@ -4,12 +4,16 @@ import TaskCard from './TaskCard';
 import TaskModal from './TaskModal';
 import ConfirmDeleteModal from './ConfirmDeleteModal';
 import TaskDetailModal from './TaskDetailModal';
+import TaskVerificationModal from './TaskVerificationModal';
 import {
   BarChart3, Users, CheckCircle, Plus, Search, Filter,
-  ListTodo, User, LayoutGrid, X
+  ListTodo, User, LayoutGrid, X, FolderGit2
 } from 'lucide-react';
+import ProjectsList from './ProjectsList';
+import ProjectDetail from './ProjectDetail';
 
 const tabs = [
+  { id: 'projects', label: 'Projects', icon: FolderGit2 },
   { id: 'work', label: 'Work', icon: ListTodo },
   { id: 'completed', label: 'Completed', icon: CheckCircle },
 ];
@@ -53,7 +57,9 @@ export default function ManagerDashboard({ user }) {
   const [editTask, setEditTask] = useState(null);
   const [deleteTask, setDeleteTask] = useState(null);
   const [detailTask, setDetailTask] = useState(null);
+  const [verificationTask, setVerificationTask] = useState(null);
   const [myTasksOnly, setMyTasksOnly] = useState(false);
+  const [selectedProject, setSelectedProject] = useState(null);
 
   const fetchTasksOnly = () => {
     setLoading(true);
@@ -173,7 +179,12 @@ export default function ManagerDashboard({ user }) {
           return (
             <button
               key={tab.id}
-              onClick={() => { setActiveTab(tab.id); setStatusFilter(''); setPriorityFilter(''); }}
+              onClick={() => { 
+                setActiveTab(tab.id); 
+                setStatusFilter(''); 
+                setPriorityFilter('');
+                if (tab.id !== 'projects') setSelectedProject(null);
+              }}
               className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-all whitespace-nowrap ${
                 activeTab === tab.id
                   ? 'bg-white text-gray-900 shadow-sm'
@@ -226,9 +237,28 @@ export default function ManagerDashboard({ user }) {
         </div>
       )}
 
-      <div className="flex items-center gap-3 flex-wrap">
-        <div className="relative flex-1 min-w-[200px] max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+      {activeTab === 'projects' && (
+        <div className="space-y-6 mt-4">
+          {selectedProject ? (
+            <ProjectDetail
+              project={selectedProject}
+              user={user}
+              onBack={() => setSelectedProject(null)}
+            />
+          ) : (
+            <ProjectsList
+              user={user}
+              onProjectSelect={(p) => setSelectedProject(p)}
+            />
+          )}
+        </div>
+      )}
+
+      {(activeTab === 'work' || activeTab === 'completed') && (
+        <>
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="relative flex-1 min-w-[200px] max-w-sm">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input value={searchText} onChange={(e) => setSearchText(e.target.value)} className="input-field pl-9" placeholder="Search tasks..." />
         </div>
         
@@ -312,13 +342,16 @@ export default function ManagerDashboard({ user }) {
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {displayedTasks.map((task) => (
-            <TaskCard key={task.id} task={task} onEdit={fetchAll} onDelete={setDeleteTask} onSelect={(t) => { setEditTask(t); setShowTaskModal(true); }} onViewDetail={setDetailTask} />
+            <TaskCard key={task.id} task={task} onEdit={fetchAll} onDelete={setDeleteTask} onSelect={(t) => { setEditTask(t); setShowTaskModal(true); }} onViewDetail={setDetailTask} onVerificationNeeded={setVerificationTask} />
           ))}
         </div>
       )}
+      </>
+      )}
 
-      <TaskModal isOpen={showTaskModal} onClose={() => { setShowTaskModal(false); setEditTask(null); }} onSaved={fetchAll} task={editTask} employees={employees} />
+      <TaskModal isOpen={showTaskModal} onClose={() => { setShowTaskModal(false); setEditTask(null); }} onSaved={fetchAll} task={editTask} employees={employees} onVerificationNeeded={setVerificationTask} />
       <TaskDetailModal isOpen={!!detailTask} onClose={() => setDetailTask(null)} task={detailTask} onTaskUpdated={fetchAll} />
+      <TaskVerificationModal isOpen={!!verificationTask} onClose={() => setVerificationTask(null)} task={verificationTask} />
       <ConfirmDeleteModal isOpen={!!deleteTask} onClose={() => setDeleteTask(null)} onConfirm={handleDeleteTask}
         title="Delete Task" message={`Delete "${deleteTask?.title}"?`} />
     </div>

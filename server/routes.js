@@ -351,6 +351,12 @@ router.get('/tasks', auth, async (req, res) => {
       sql += ` AND (t.title LIKE $${paramIdx++} OR t.description LIKE $${paramIdx++})`;
       params.push(`%${req.query.search}%`, `%${req.query.search}%`);
     }
+    if (req.query.project_id) {
+      sql += ` AND t.project_id = $${paramIdx++}`;
+      params.push(req.query.project_id);
+    } else {
+      sql += ` AND t.project_id IS NULL`;
+    }
 
     // Admin-exclusive date range filtering
     if (req.user.role === 'admin' && req.query.date_range) {
@@ -420,7 +426,7 @@ router.get('/tasks/:id', auth, async (req, res) => {
 router.post('/tasks', auth, async (req, res) => {
   try {
     const { title, description, color, status, priority, category, assignee_id, assignee_ids,
-      start_date, due_date, estimated_hours } = req.body;
+      start_date, due_date, estimated_hours, project_id } = req.body;
 
     if (!title) return res.status(400).json({ error: 'Title required' });
 
@@ -441,14 +447,15 @@ router.post('/tasks', auth, async (req, res) => {
       const targetId = assignees[i];
       const result = await db.query(`
         INSERT INTO tasks (title, description, color, status, priority, category,
-          assignee_id, creator_id, start_date, due_date, estimated_hours, parent_id)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id
+          assignee_id, creator_id, start_date, due_date, estimated_hours, parent_id, project_id)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING id
       `, [
         title, description || '', color || 'slate', status || 'todo',
         priority || 'medium', category || 'General',
         targetId, req.user.id,
         start_date || null, due_date || null, estimated_hours || 0,
-        i === 0 ? null : parentId
+        i === 0 ? null : parentId,
+        project_id || null
       ]);
 
       const insertedId = result.rows[0].id;
@@ -1488,6 +1495,152 @@ router.put('/tasks/:id/dependencies/:depId/confirm', auth, async (req, res) => {
     `, [depId]);
 
     res.json(updatedRows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── PROJECTS ───────────────────────────────────────────────────
+router.get('/projects', auth, async (req, res) => {
+  try {
+    let sql;
+    let params = [];
+    if (req.user.role === 'admin') {
+      sql = `
+        SELECT p.*,
+          (SELECT COUNT(*) FROM project_members pm WHERE pm.project_id = p.id) as member_count,
+          (SELECT COUNT(*) FROM tasks t WHERE t.project_id = p.id AND (t.parent_id IS NULL OR t.id = t.parent_id)) as task_count
+        FROM projects p
+        ORDER BY p.created_at DESC
+      `;
+    } else {
+      sql = `
+        SELECT p.*,
+          (SELECT COUNT(*) FROM project_members pm WHERE pm.project_id = p.id) as member_count,
+          (SELECT COUNT(*) FROM tasks t WHERE t.project_id = p.id AND (t.parent_id IS NULL OR t.id = t.parent_id)) as task_count
+        FROM projects p
+        JOIN project_members pm ON p.id = pm.project_id
+        WHERE pm.user_id = $1
+        ORDER BY p.created_at DESC
+      `;
+      params.push(req.user.id);
+    }
+    const { rows } = await db.query(sql, params);
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/projects', auth, adminOnly, async (req, res) => {
+  try {
+    const { name, description, status } = req.body;
+    if (!name) return res.status(400).json({ error: 'Name required' });
+    
+    const result = await db.query(`
+      INSERT INTO projects (name, description, status, creator_id)
+      VALUES ($1, $2, $3, $4) RETURNING id
+    `, [name, description || '', status || 'active', req.user.id]);
+    
+    const { rows } = await db.query(`
+      SELECT p.*, 0 as member_count, 0 as task_count
+      FROM projects p WHERE p.id = $1
+    `, [result.rows[0].id]);
+    
+    res.status(201).json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.put('/projects/:id', auth, adminOnly, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, description, status } = req.body;
+    if (!name) return res.status(400).json({ error: 'Name required' });
+    
+    const result = await db.query(`
+      UPDATE projects SET name = $1, description = $2, status = $3, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $4 RETURNING id
+    `, [name, description || '', status || 'active', id]);
+    
+    if (result.rowCount === 0) return res.status(404).json({ error: 'Project not found' });
+    
+    const { rows } = await db.query(`
+      SELECT p.*,
+        (SELECT COUNT(*) FROM project_members pm WHERE pm.project_id = p.id) as member_count,
+        (SELECT COUNT(*) FROM tasks t WHERE t.project_id = p.id AND (t.parent_id IS NULL OR t.id = t.parent_id)) as task_count
+      FROM projects p WHERE p.id = $1
+    `, [id]);
+    
+    res.json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete('/projects/:id', auth, adminOnly, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await db.query('DELETE FROM projects WHERE id = $1', [id]);
+    if (result.rowCount === 0) return res.status(404).json({ error: 'Project not found' });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/projects/:id/members', auth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    if (req.user.role !== 'admin') {
+      const { rows: membership } = await db.query('SELECT 1 FROM project_members WHERE project_id = $1 AND user_id = $2', [id, req.user.id]);
+      if (membership.length === 0) return res.status(403).json({ error: 'Not a member of this project' });
+    }
+
+    const { rows } = await db.query(`
+      SELECT u.id, u.name, u.email, u.role, u.department, u.avatar_url, pm.added_at
+      FROM project_members pm
+      JOIN users u ON pm.user_id = u.id
+      WHERE pm.project_id = $1
+      ORDER BY u.name
+    `, [id]);
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/projects/:id/members', auth, adminOnly, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { user_id } = req.body;
+    if (!user_id) return res.status(400).json({ error: 'user_id required' });
+    
+    await db.query(`
+      INSERT INTO project_members (project_id, user_id)
+      VALUES ($1, $2) ON CONFLICT (project_id, user_id) DO NOTHING
+    `, [id, user_id]);
+    
+    const { rows } = await db.query(`
+      SELECT u.id, u.name, u.email, u.role, u.department, u.avatar_url, pm.added_at
+      FROM project_members pm
+      JOIN users u ON pm.user_id = u.id
+      WHERE pm.project_id = $1 AND pm.user_id = $2
+    `, [id, user_id]);
+    
+    res.status(201).json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete('/projects/:id/members/:userId', auth, adminOnly, async (req, res) => {
+  try {
+    const { id, userId } = req.params;
+    await db.query('DELETE FROM project_members WHERE project_id = $1 AND user_id = $2', [id, userId]);
+    res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

@@ -3,9 +3,8 @@ import { api } from '../lib/api';
 import { X, AlertCircle, Check } from 'lucide-react';
 import { useAuth } from '../App';
 
-export default function TaskModal({ isOpen, onClose, onSaved, task, employees }) {
+export default function TaskModal({ isOpen, onClose, onSaved, task, employees, onVerificationNeeded, projectId }) {
   const currentUser = useAuth();
-  if (!isOpen) return null;
   const isEdit = !!task;
   const [form, setForm] = useState({
     title: '', description: '', color: 'slate', status: 'todo', priority: 'medium',
@@ -76,6 +75,8 @@ export default function TaskModal({ isOpen, onClose, onSaved, task, employees })
     setError('');
   }, [task, isOpen, currentUser]);
 
+  if (!isOpen) return null;
+
   const toggleAssigneeSelection = (empId) => {
     if (currentUser?.role === 'employee' && empId !== currentUser?.id) {
       return;
@@ -98,6 +99,7 @@ export default function TaskModal({ isOpen, onClose, onSaved, task, employees })
     }
     setBusy(true);
     try {
+      let result;
       if (isEdit) {
         const payload = {
           ...form,
@@ -105,7 +107,8 @@ export default function TaskModal({ isOpen, onClose, onSaved, task, employees })
           assignee_ids: selectedAssigneeIds,
           estimated_hours: form.estimated_hours ? Number(form.estimated_hours) : 0,
         };
-        await api.updateTask(task.id, payload);
+        if (projectId) payload.project_id = projectId;
+        result = await api.updateTask(task.id, payload);
       } else {
         const payload = {
           ...form,
@@ -113,10 +116,14 @@ export default function TaskModal({ isOpen, onClose, onSaved, task, employees })
           assignee_ids: selectedAssigneeIds,
           estimated_hours: form.estimated_hours ? Number(form.estimated_hours) : 0,
         };
-        await api.createTask(payload);
+        if (projectId) payload.project_id = projectId;
+        result = await api.createTask(payload);
       }
       onSaved();
       onClose();
+      if (result && result.verificationRequired) {
+        onVerificationNeeded?.({ ...task, title: form.title, status: 'under_review' });
+      }
     } catch (err) {
       setError(err.message);
     } finally {
@@ -154,21 +161,12 @@ export default function TaskModal({ isOpen, onClose, onSaved, task, employees })
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-xs text-gray-500 uppercase tracking-wider block mb-1">Status</label>
-               {(() => {
-                 const isGroupTask = task?.parent_id !== null || (task?.group_assignee_ids && task?.group_assignee_ids.length > 1);
-                 const isAdminCreatedGroupTask = isGroupTask && task?.creator_role === 'admin';
-                 const disableStatusField = isEdit && isAdminCreatedGroupTask && currentUser?.role !== 'admin';
-                 return (
-                   <select value={form.status} onChange={handleChange('status')} className="input-field" disabled={disableStatusField}>
-                     <option value="todo">To Do</option>
-                     <option value="in_progress">In Progress</option>
-                     <option value="under_review">Under Review</option>
-                     {(!(!isEdit && (currentUser?.role === 'employee' || currentUser?.role === 'manager'))) && (
-                       <option value="completed">Completed</option>
-                     )}
-                   </select>
-                 );
-               })()}
+              <select value={form.status} onChange={handleChange('status')} className="input-field">
+                <option value="todo">To Do</option>
+                <option value="in_progress">In Progress</option>
+                <option value="under_review">Under Review</option>
+                <option value="completed">Completed</option>
+              </select>
             </div>
             <div>
               <label className="text-xs text-gray-500 uppercase tracking-wider block mb-1">Priority</label>

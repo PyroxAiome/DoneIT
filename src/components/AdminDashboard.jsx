@@ -9,11 +9,14 @@ import BulkImportModal from './BulkImportModal';
 import {
   LayoutDashboard, Briefcase, Users, Plus, Search, Grid3X3, List,
   UserPlus, Trash2, Filter, ListTodo, CheckCircle,
-  MessageSquare, X, FileSpreadsheet, Shield, Edit2
+  MessageSquare, X, FileSpreadsheet, Shield, Edit2, FolderGit2
 } from 'lucide-react';
+import ProjectsList from './ProjectsList';
+import ProjectDetail from './ProjectDetail';
 
 const tabs = [
   { id: 'overview', label: 'Overview', icon: LayoutDashboard },
+  { id: 'projects', label: 'Projects', icon: FolderGit2 },
   { id: 'work', label: 'Work', icon: Briefcase },
   { id: 'completed', label: 'Completed', icon: CheckCircle },
   { id: 'team', label: 'Team', icon: Users },
@@ -62,7 +65,7 @@ export default function AdminDashboard({ user }) {
     if (!hash) return { tab: 'overview', empId: null };
     const parts = hash.substring(1).split('/');
     const tabId = parts[0];
-    const validTab = ['overview', 'work', 'completed', 'team', 'admin'].includes(tabId) ? tabId : 'overview';
+    const validTab = ['overview', 'projects', 'work', 'completed', 'team', 'admin'].includes(tabId) ? tabId : 'overview';
     const empId = (parts[1] === 'employee' && parts[2]) ? Number(parts[2]) : null;
     return { tab: validTab, empId };
   };
@@ -104,6 +107,7 @@ export default function AdminDashboard({ user }) {
   const [editingUser, setEditingUser] = useState(null);
   const [detailTask, setDetailTask] = useState(null);
   const [selectedEmp, setSelectedEmp] = useState(null);
+  const [selectedProject, setSelectedProject] = useState(null);
 
   const fetchTasksOnly = () => {
     setLoading(true);
@@ -169,8 +173,11 @@ export default function AdminDashboard({ user }) {
       }
       const parts = hash.substring(1).split('/');
       const tabId = parts[0];
-      if (['overview', 'work', 'completed', 'team', 'admin'].includes(tabId)) {
+      if (['overview', 'projects', 'work', 'completed', 'team', 'admin'].includes(tabId)) {
         setActiveTab(tabId);
+        if (tabId !== 'projects') {
+          setSelectedProject(null);
+        }
       }
       if (parts[1] === 'employee' && parts[2]) {
         const empId = Number(parts[2]);
@@ -360,6 +367,23 @@ export default function AdminDashboard({ user }) {
                 })}
               </div>
             </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === 'projects' && (
+        <div className="space-y-6">
+          {selectedProject ? (
+            <ProjectDetail
+              project={selectedProject}
+              user={user}
+              onBack={() => setSelectedProject(null)}
+            />
+          ) : (
+            <ProjectsList
+              user={user}
+              onProjectSelect={(p) => setSelectedProject(p)}
+            />
           )}
         </div>
       )}
