@@ -227,4 +227,6 @@ export const api = {
     const q = qs.toString();
     return request(`/tasks${q ? '?' + q : ''}`);
   },
+
+  getTaskQuota: () => request('/tasks/quota'),
 };

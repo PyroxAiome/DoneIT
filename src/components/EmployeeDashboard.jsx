@@ -135,6 +135,16 @@ export default function EmployeeDashboard({ user }) {
     return 0;
   });
 
+  const [quota, setQuota] = useState(null);
+
+  const fetchQuota = () => {
+    api.getTaskQuota().then(setQuota).catch(() => {});
+  };
+
+  useEffect(() => {
+    fetchQuota();
+  }, [tasks]);
+
   return (
     <div className="space-y-6">
       {selectedEmp ? (
@@ -153,13 +163,29 @@ export default function EmployeeDashboard({ user }) {
           </div>
         </div>
       ) : (
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div>
             <h2 className="text-lg font-semibold text-gray-900">My Workspace</h2>
-            <p className="text-sm text-gray-500">Welcome back, {user.name.split(' ')[0]}</p>
+            <div className="flex items-center gap-2 flex-wrap">
+              <p className="text-sm text-gray-500">Welcome back, {user.name.split(' ')[0]}</p>
+              {quota && quota.isRestricted && (
+                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200/70" title="Weekly limit: 2 tasks, Monthly limit: 8 tasks. Managers/Admins can assign unlimited tasks to you.">
+                  Creation quota: {quota.weekCount}/{quota.weekLimit} this week &middot; {quota.monthCount}/{quota.monthLimit} this month
+                </span>
+              )}
+            </div>
           </div>
           {activeTab === 'work' && !isReadOnly && (
-            <button onClick={() => { setEditTask(null); setShowTaskModal(true); }} className="btn-amber text-sm flex items-center gap-2">
+            <button
+              onClick={() => { setEditTask(null); setShowTaskModal(true); }}
+              disabled={quota?.isRestricted && !quota?.canCreate}
+              className={`text-sm flex items-center gap-2 ${
+                quota?.isRestricted && !quota?.canCreate
+                  ? 'bg-gray-200 text-gray-400 cursor-not-allowed px-3 py-1.5 rounded-lg border border-gray-300'
+                  : 'btn-amber'
+              }`}
+              title={quota?.isRestricted && !quota?.canCreate ? 'Weekly/Monthly task creation limit reached (max 2/week, 8/month). Please ask your Manager or Admin to assign tasks.' : ''}
+            >
               <Plus className="w-4 h-4" /> New Task
             </button>
           )}

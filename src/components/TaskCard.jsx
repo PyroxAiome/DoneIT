@@ -120,7 +120,16 @@ export default function TaskCard({ task, compact, onEdit, onDelete, onSelect, on
                 {task.assignee_name}
               </span>
             ) : null}
-            {task.due_date && <span className={`flex items-center gap-1 ${isOverdue ? 'text-red-500' : ''}`}><Clock className="w-3 h-3" />{task.due_date}</span>}
+            {(task.start_date || task.due_date) && (
+              <span className={`flex items-center gap-1 ${isOverdue ? 'text-red-500' : ''}`}>
+                <Clock className="w-3 h-3" />
+                {task.start_date && task.due_date
+                  ? `${task.start_date} → ${task.due_date}`
+                  : task.start_date
+                  ? `Start: ${task.start_date}`
+                  : task.due_date}
+              </span>
+            )}
           </div>
         </div>
         <div className="flex items-center gap-1.5">
@@ -140,23 +149,32 @@ export default function TaskCard({ task, compact, onEdit, onDelete, onSelect, on
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5">
             <div className={`w-2 h-2 rounded-full ${colors.dot} shrink-0`} />
-            <h3 className="font-semibold text-gray-900 text-xs sm:text-sm whitespace-normal">{task.title}</h3>
+            <h3 className="font-semibold text-gray-900 text-xs sm:text-sm whitespace-normal leading-snug">{task.title}</h3>
           </div>
-          <div className="flex items-center gap-2 sm:gap-3 mt-1.5 sm:mt-2 text-[10px] sm:text-xs text-gray-500 flex-wrap">
+          <div className="flex items-center gap-2 sm:gap-2.5 mt-2 text-[10px] sm:text-xs text-gray-500 flex-wrap">
+            <span className={`text-[9px] sm:text-[10px] px-1.5 py-0.5 rounded border capitalize font-semibold ${statusStyles[task.status] || 'text-gray-500 border-gray-200 bg-gray-50'}`}>
+              {statusLabels[task.status] || task.status}
+            </span>
+            <span className={`text-[9px] sm:text-[10px] px-1.5 py-0.5 rounded border capitalize font-semibold ${priorityStyles[task.priority]}`}>{task.priority}</span>
             {task.group_assignees && task.group_assignees.length > 1 ? (
               <span className="flex items-center gap-1 font-bold text-gray-800" title={task.group_assignees.join(', ')}>
-                <User className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
+                <User className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-gray-500" />
                 {task.group_assignees.join(', ')}
               </span>
             ) : task.assignee_name ? (
               <span className="flex items-center gap-1 font-bold text-gray-800">
-                <User className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
+                <User className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-gray-500" />
                 {task.assignee_name}
               </span>
             ) : null}
-            {task.due_date && (
-              <span className={`flex items-center gap-1 ${isOverdue ? 'text-red-500' : ''}`}>
-                <Clock className="w-2.5 h-2.5 sm:w-3 sm:h-3" />{task.due_date}
+            {(task.start_date || task.due_date) && (
+              <span className={`flex items-center gap-1 ${isOverdue ? 'text-red-500 font-semibold' : ''}`}>
+                <Clock className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
+                {task.start_date && task.due_date
+                  ? `${task.start_date} → ${task.due_date}`
+                  : task.start_date
+                  ? `Start: ${task.start_date}`
+                  : task.due_date}
               </span>
             )}
             {task.estimated_hours > 0 && (
@@ -165,20 +183,16 @@ export default function TaskCard({ task, compact, onEdit, onDelete, onSelect, on
           </div>
         </div>
 
-        <div className="flex items-start gap-1 shrink-0">
-          <span className={`text-[9px] sm:text-[10px] px-1 sm:px-1.5 py-0.5 rounded border capitalize ${statusStyles[task.status] || 'text-gray-500 border-gray-200 bg-gray-50'}`}>
-            {statusLabels[task.status] || task.status}
-          </span>
-          <span className={`text-[9px] sm:text-[10px] px-1 sm:px-1.5 py-0.5 rounded border capitalize ${priorityStyles[task.priority]}`}>{task.priority}</span>
+        <div className="flex items-center gap-1 shrink-0">
           {!readOnly && canDeleteTask(user, task) && (
-            <button onClick={(e) => { e.stopPropagation(); onDelete?.(task); }} className="p-0.5 sm:p-1 hover:bg-red-50 rounded text-gray-400 hover:text-red-500 transition-colors" title="Delete task">
-              <Trash2 className="w-3 sm:w-3.5 h-3 sm:h-3.5" />
+            <button onClick={(e) => { e.stopPropagation(); onDelete?.(task); }} className="p-1 hover:bg-red-50 rounded text-gray-400 hover:text-red-500 transition-colors" title="Delete task">
+              <Trash2 className="w-3.5 h-3.5" />
             </button>
           )}
           {!readOnly && (
             <div className="relative">
-              <button onClick={(e) => { e.stopPropagation(); setShowMenu(!showMenu); }} className="p-0.5 sm:p-1 hover:bg-gray-100 rounded transition-all" title="Task actions">
-                <MoreHorizontal className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-gray-400" />
+              <button onClick={(e) => { e.stopPropagation(); setShowMenu(!showMenu); }} className="p-1 hover:bg-gray-100 rounded transition-all" title="Task actions">
+                <MoreHorizontal className="w-4 h-4 text-gray-400" />
               </button>
               {showMenu && (
                 <>

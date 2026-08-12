@@ -315,6 +315,37 @@ router.delete('/users/:id', auth, adminOnly, async (req, res) => {
 });
 
 // ─── TASKS ──────────────────────────────────────────────────────
+router.get('/tasks/quota', auth, async (req, res) => {
+  try {
+    if (req.user.role !== 'employee') {
+      return res.json({ role: req.user.role, isRestricted: false });
+    }
+    const { rows: weekRows } = await db.query(`
+      SELECT COUNT(*) as count FROM tasks 
+      WHERE creator_id = $1 AND created_at >= DATE_TRUNC('week', CURRENT_TIMESTAMP)
+    `, [req.user.id]);
+    const { rows: monthRows } = await db.query(`
+      SELECT COUNT(*) as count FROM tasks 
+      WHERE creator_id = $1 AND created_at >= DATE_TRUNC('month', CURRENT_TIMESTAMP)
+    `, [req.user.id]);
+
+    const weekCount = parseInt(weekRows[0]?.count || '0', 10);
+    const monthCount = parseInt(monthRows[0]?.count || '0', 10);
+
+    res.json({
+      role: 'employee',
+      isRestricted: true,
+      weekCount,
+      weekLimit: 2,
+      monthCount,
+      monthLimit: 8,
+      canCreate: weekCount < 2 && monthCount < 8
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.get('/tasks', auth, async (req, res) => {
   try {
     console.log("Tasks GET Request query:", req.query, "user role:", req.user.role, "user id:", req.user.id);
@@ -380,13 +411,13 @@ router.get('/tasks', auth, async (req, res) => {
       }
     }
 
-    // Deduplicate group task copies for Admin and Manager dashboard views
+    // Deduplicate group task copies for Admin, Manager, and Project views
     // Only apply when not filtering by a specific employee/assignee
-    if (req.user.role !== 'employee' && !req.query.assignee_id) {
+    if (!req.query.assignee_id) {
       sql += ' AND (t.parent_id IS NULL OR t.id = t.parent_id)';
     }
 
-    if (req.user.role === 'employee' && !req.query.assignee_id) {
+    if (req.user.role === 'employee' && !req.query.assignee_id && !req.query.project_id) {
       sql += ` AND t.assignee_id = $${paramIdx++}`;
       params.push(req.user.id);
     }
@@ -430,6 +461,30 @@ router.post('/tasks', auth, async (req, res) => {
 
     if (!title) return res.status(400).json({ error: 'Title required' });
 
+    if (req.user.role === 'employee') {
+      const { rows: weekRows } = await db.query(`
+        SELECT COUNT(*) as count FROM tasks 
+        WHERE creator_id = $1 AND created_at >= DATE_TRUNC('week', CURRENT_TIMESTAMP)
+      `, [req.user.id]);
+      const weekCount = parseInt(weekRows[0]?.count || '0', 10);
+      if (weekCount >= 2) {
+        return res.status(403).json({ 
+          error: 'Weekly task creation limit reached (max 2 self-created tasks per week). Please ask your Manager or Admin to assign tasks.' 
+        });
+      }
+
+      const { rows: monthRows } = await db.query(`
+        SELECT COUNT(*) as count FROM tasks 
+        WHERE creator_id = $1 AND created_at >= DATE_TRUNC('month', CURRENT_TIMESTAMP)
+      `, [req.user.id]);
+      const monthCount = parseInt(monthRows[0]?.count || '0', 10);
+      if (monthCount >= 8) {
+        return res.status(403).json({ 
+          error: 'Monthly task creation limit reached (max 8 self-created tasks per month). Please ask your Manager or Admin to assign tasks.' 
+        });
+      }
+    }
+
     let assignees = [];
     if (req.user.role === 'employee') {
       assignees = [req.user.id];
@@ -465,6 +520,13 @@ router.post('/tasks', auth, async (req, res) => {
         if (assignees.length > 1) {
           await db.query('UPDATE tasks SET parent_id = $1 WHERE id = $2', [parentId, parentId]);
         }
+      }
+
+      if (project_id && targetId) {
+        await db.query(`
+          INSERT INTO project_members (project_id, user_id)
+          VALUES ($1, $2) ON CONFLICT (project_id, user_id) DO NOTHING
+        `, [project_id, targetId]);
       }
     }
 
@@ -610,7 +672,7 @@ router.put('/tasks/:id', auth, async (req, res) => {
 
     const fields = ['title', 'description', 'color', 'status', 'priority', 'category',
       'progress_percent', 'start_date', 'due_date', 'estimated_hours',
-      'logical_explanation'];
+      'logical_explanation', 'project_id'];
 
     const updates = [];
     const values = [];
@@ -725,8 +787,8 @@ router.put('/tasks/:id', auth, async (req, res) => {
         for (const newAssigneeId of selectedSet) {
           await db.query(`
             INSERT INTO tasks (title, description, color, status, priority, category,
-              assignee_id, creator_id, start_date, due_date, estimated_hours, parent_id)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+              assignee_id, creator_id, start_date, due_date, estimated_hours, parent_id, project_id)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
           `, [
             templateTask.title,
             templateTask.description,
@@ -739,7 +801,8 @@ router.put('/tasks/:id', auth, async (req, res) => {
             templateTask.start_date,
             templateTask.due_date,
             templateTask.estimated_hours,
-            currentParentId
+            currentParentId,
+            templateTask.project_id || null
           ]);
         }
       }

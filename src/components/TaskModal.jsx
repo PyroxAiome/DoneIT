@@ -40,6 +40,14 @@ export default function TaskModal({ isOpen, onClose, onSaved, task, employees, o
 
   assigneeList.sort((a, b) => a.name.localeCompare(b.name));
 
+  const [projectsList, setProjectsList] = useState([]);
+
+  useEffect(() => {
+    if (isOpen && currentUser?.role === 'admin') {
+      api.getProjects().then(setProjectsList).catch(() => {});
+    }
+  }, [isOpen, currentUser]);
+
   useEffect(() => {
     if (task) {
       setForm({
@@ -53,6 +61,7 @@ export default function TaskModal({ isOpen, onClose, onSaved, task, employees, o
         start_date: task.start_date || '',
         due_date: task.due_date || '',
         estimated_hours: task.estimated_hours ? String(task.estimated_hours) : '',
+        project_id: task.project_id ? String(task.project_id) : (projectId ? String(projectId) : ''),
       });
       if (task.group_assignee_ids && Array.isArray(task.group_assignee_ids)) {
         setSelectedAssigneeIds(task.group_assignee_ids.map(Number));
@@ -65,6 +74,7 @@ export default function TaskModal({ isOpen, onClose, onSaved, task, employees, o
       setForm({
         title: '', description: '', color: 'slate', status: 'todo', priority: 'medium',
         category: 'General', assignee_id: currentUser ? String(currentUser.id) : '', start_date: '', due_date: '', estimated_hours: '',
+        project_id: projectId ? String(projectId) : '',
       });
       if (currentUser && currentUser.role === 'employee') {
         setSelectedAssigneeIds([Number(currentUser.id)]);
@@ -73,7 +83,7 @@ export default function TaskModal({ isOpen, onClose, onSaved, task, employees, o
       }
     }
     setError('');
-  }, [task, isOpen, currentUser]);
+  }, [task, isOpen, currentUser, projectId]);
 
   if (!isOpen) return null;
 
@@ -100,14 +110,15 @@ export default function TaskModal({ isOpen, onClose, onSaved, task, employees, o
     setBusy(true);
     try {
       let result;
+      const targetProjectId = form.project_id ? Number(form.project_id) : null;
       if (isEdit) {
         const payload = {
           ...form,
           assignee_id: form.assignee_id ? Number(form.assignee_id) : null,
           assignee_ids: selectedAssigneeIds,
           estimated_hours: form.estimated_hours ? Number(form.estimated_hours) : 0,
+          project_id: targetProjectId,
         };
-        if (projectId) payload.project_id = projectId;
         result = await api.updateTask(task.id, payload);
       } else {
         const payload = {
@@ -115,8 +126,8 @@ export default function TaskModal({ isOpen, onClose, onSaved, task, employees, o
           assignee_id: form.assignee_id ? Number(form.assignee_id) : null,
           assignee_ids: selectedAssigneeIds,
           estimated_hours: form.estimated_hours ? Number(form.estimated_hours) : 0,
+          project_id: targetProjectId,
         };
-        if (projectId) payload.project_id = projectId;
         result = await api.createTask(payload);
       }
       onSaved();
@@ -234,6 +245,18 @@ export default function TaskModal({ isOpen, onClose, onSaved, task, employees, o
               </select>
             </div>
           </div>
+
+          {currentUser?.role === 'admin' && (
+            <div>
+              <label className="text-xs text-gray-500 uppercase tracking-wider block mb-1">Project</label>
+              <select value={form.project_id} onChange={handleChange('project_id')} className="input-field">
+                <option value="">None (General Work)</option>
+                {projectsList.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div className="grid grid-cols-3 gap-3">
             <div>

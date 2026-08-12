@@ -3,6 +3,9 @@ import { ArrowLeft, Plus, Users, UserPlus, X, Shield, User, FolderGit2, CheckCir
 import { api } from '../lib/api';
 import TaskCard from './TaskCard';
 import TaskModal from './TaskModal';
+import TaskDetailModal from './TaskDetailModal';
+import TaskVerificationModal from './TaskVerificationModal';
+import ConfirmDeleteModal from './ConfirmDeleteModal';
 
 export default function ProjectDetail({ project, user, onBack, onUpdate }) {
   const [tasks, setTasks] = useState([]);
@@ -12,6 +15,9 @@ export default function ProjectDetail({ project, user, onBack, onUpdate }) {
   
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [selectedTask, setSelectedTask] = useState(null);
+  const [detailTask, setDetailTask] = useState(null);
+  const [verificationTask, setVerificationTask] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
   
   const [showAddMember, setShowAddMember] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState('');
@@ -70,11 +76,22 @@ export default function ProjectDetail({ project, user, onBack, onUpdate }) {
   const handleTaskSaved = () => {
     loadProjectData();
     setShowTaskModal(false);
+    setDetailTask(null);
+    setVerificationTask(null);
   };
 
-  // Only project members (or all users if admin assigns freely) should be selectable for tasks
-  // Actually, let's pass members to TaskModal as the 'employees' list so admin can only assign project members.
-  
+  const handleDeleteTask = async () => {
+    if (deleteTarget) {
+      try {
+        await api.deleteTask(deleteTarget.id);
+        loadProjectData();
+      } catch (err) {
+        alert(err.message);
+      }
+      setDeleteTarget(null);
+    }
+  };
+
   const nonMembers = allEmployees.filter(emp => !members.find(m => m.id === emp.id));
 
   return (
@@ -122,7 +139,7 @@ export default function ProjectDetail({ project, user, onBack, onUpdate }) {
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         {/* Main Tasks Area */}
         <div className="lg:col-span-3 space-y-4">
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200">
             <div className="px-5 py-4 border-b border-gray-100 bg-gray-50/50 flex items-center justify-between">
               <h2 className="font-semibold text-gray-900 flex items-center gap-2">
                 <CheckCircle2 className="w-4 h-4 text-emerald-500" />
@@ -154,20 +171,21 @@ export default function ProjectDetail({ project, user, onBack, onUpdate }) {
                   )}
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
                   {tasks.map(task => (
                     <TaskCard
                       key={task.id}
                       task={task}
-                      user={user}
-                      onEdit={() => {
+                      onEdit={handleTaskSaved}
+                      onSelect={(t) => {
                         if (user.role === 'admin') {
-                          setSelectedTask(task);
+                          setSelectedTask(t);
                           setShowTaskModal(true);
                         }
                       }}
-                      onUpdate={handleTaskSaved}
-                      viewMode="compact"
+                      onDelete={user.role === 'admin' ? setDeleteTarget : undefined}
+                      onViewDetail={setDetailTask}
+                      onVerificationNeeded={setVerificationTask}
                     />
                   ))}
                 </div>
@@ -265,11 +283,32 @@ export default function ProjectDetail({ project, user, onBack, onUpdate }) {
           onClose={() => setShowTaskModal(false)}
           task={selectedTask}
           user={user}
-          employees={members} // Only project members can be assigned
-          onSave={handleTaskSaved}
+          employees={members}
+          onSaved={handleTaskSaved}
           projectId={project.id} // Custom prop to inject project_id
         />
       )}
+
+      <TaskDetailModal 
+        isOpen={!!detailTask} 
+        onClose={() => setDetailTask(null)} 
+        task={detailTask} 
+        onTaskUpdated={handleTaskSaved} 
+      />
+
+      <TaskVerificationModal 
+        isOpen={!!verificationTask} 
+        onClose={() => setVerificationTask(null)} 
+        task={verificationTask} 
+      />
+
+      <ConfirmDeleteModal
+        isOpen={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={handleDeleteTask}
+        title="Delete Task"
+        message={`Are you sure you want to delete "${deleteTarget?.title}"?`}
+      />
     </div>
   );
 }
