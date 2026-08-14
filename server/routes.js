@@ -1,10 +1,33 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import fs from 'fs';
+import path from 'path';
+import multer from 'multer';
 import db from './db.js';
 
 const router = Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'doneit-super-secret-key-2026';
+
+// Multer storage setup for site documents
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const dir = path.join(process.cwd(), 'uploads', 'site_documents');
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    cb(null, dir);
+  },
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname);
+    const uniqueName = `doc_${Date.now()}_${Math.round(Math.random() * 1e9)}${ext}`;
+    cb(null, uniqueName);
+  }
+});
+const upload = multer({
+  storage,
+  limits: { fileSize: 15 * 1024 * 1024 } // 15MB max
+});
 
 const getGroupAssignees = async (parentId, currentTaskId) => {
   const pid = parentId || currentTaskId;
@@ -213,8 +236,8 @@ router.put('/auth/change-password', auth, async (req, res) => {
 router.get('/employees', auth, async (req, res) => {
   try {
     const includeAll = req.query.all === 'true';
-    let roleFilter = "role = 'employee'";
-    if (includeAll) roleFilter = "role IN ('admin','manager','employee')";
+    let roleFilter = "role IN ('employee', 'site_manager')";
+    if (includeAll) roleFilter = "role IN ('admin','manager','site_manager','employee')";
 
     const { rows: users } = await db.query(`
       SELECT u.id, u.name, u.email, u.role, u.department, u.avatar_url, u.created_at,
@@ -247,6 +270,10 @@ router.post('/users', auth, adminOnly, async (req, res) => {
     if (!name || !email || !password || !role) {
       return res.status(400).json({ error: 'Name, email, password, and role required' });
     }
+    const allowedRoles = ['admin', 'manager', 'site_manager', 'employee'];
+    if (!allowedRoles.includes(role)) {
+      return res.status(400).json({ error: `Role must be one of: ${allowedRoles.join(', ')}` });
+    }
     const { rows: existingRows } = await db.query('SELECT id FROM users WHERE email = $1', [email]);
     if (existingRows[0]) {
       return res.status(409).json({ error: 'Email already exists' });
@@ -270,6 +297,10 @@ router.put('/users/:id', auth, adminOnly, async (req, res) => {
     const { name, email, password, role, department } = req.body;
     if (!name || !email || !role) {
       return res.status(400).json({ error: 'Name, email, and role are required' });
+    }
+    const allowedRoles = ['admin', 'manager', 'site_manager', 'employee'];
+    if (!allowedRoles.includes(role)) {
+      return res.status(400).json({ error: `Role must be one of: ${allowedRoles.join(', ')}` });
     }
 
     const { rows: conflictRows } = await db.query('SELECT id FROM users WHERE email = $1 AND id != $2', [email, id]);
@@ -1663,7 +1694,8 @@ router.get('/projects/:id/members', auth, async (req, res) => {
     }
 
     const { rows } = await db.query(`
-      SELECT u.id, u.name, u.email, u.role, u.department, u.avatar_url, pm.added_at
+      SELECT u.id, u.name, u.email, u.role, u.department, u.avatar_url, 
+             pm.can_access_inventory, pm.can_access_documents, pm.added_at
       FROM project_members pm
       JOIN users u ON pm.user_id = u.id
       WHERE pm.project_id = $1
@@ -1678,16 +1710,19 @@ router.get('/projects/:id/members', auth, async (req, res) => {
 router.post('/projects/:id/members', auth, adminOnly, async (req, res) => {
   try {
     const { id } = req.params;
-    const { user_id } = req.body;
+    const { user_id, can_access_inventory, can_access_documents } = req.body;
     if (!user_id) return res.status(400).json({ error: 'user_id required' });
     
     await db.query(`
-      INSERT INTO project_members (project_id, user_id)
-      VALUES ($1, $2) ON CONFLICT (project_id, user_id) DO NOTHING
-    `, [id, user_id]);
+      INSERT INTO project_members (project_id, user_id, can_access_inventory, can_access_documents)
+      VALUES ($1, $2, $3, $4) 
+      ON CONFLICT (project_id, user_id) 
+      DO UPDATE SET can_access_inventory = EXCLUDED.can_access_inventory, can_access_documents = EXCLUDED.can_access_documents
+    `, [id, user_id, can_access_inventory === true, can_access_documents === true]);
     
     const { rows } = await db.query(`
-      SELECT u.id, u.name, u.email, u.role, u.department, u.avatar_url, pm.added_at
+      SELECT u.id, u.name, u.email, u.role, u.department, u.avatar_url, 
+             pm.can_access_inventory, pm.can_access_documents, pm.added_at
       FROM project_members pm
       JOIN users u ON pm.user_id = u.id
       WHERE pm.project_id = $1 AND pm.user_id = $2
@@ -1699,10 +1734,460 @@ router.post('/projects/:id/members', auth, adminOnly, async (req, res) => {
   }
 });
 
+router.put('/projects/:id/members/:userId/permissions', auth, adminOnly, async (req, res) => {
+  try {
+    const { id, userId } = req.params;
+    const { can_access_inventory, can_access_documents } = req.body;
+    
+    const { rows } = await db.query(`
+      UPDATE project_members
+      SET can_access_inventory = $1, can_access_documents = $2
+      WHERE project_id = $3 AND user_id = $4
+      RETURNING *
+    `, [can_access_inventory === true, can_access_documents === true, id, userId]);
+    
+    if (rows.length === 0) return res.status(404).json({ error: 'Member not found in project' });
+    res.json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.delete('/projects/:id/members/:userId', auth, adminOnly, async (req, res) => {
   try {
     const { id, userId } = req.params;
     await db.query('DELETE FROM project_members WHERE project_id = $1 AND user_id = $2', [id, userId]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── SITE INVENTORY ENDPOINTS ───────────────────────────────────────
+router.get('/inventory/master', auth, async (req, res) => {
+  try {
+    const { rows } = await db.query('SELECT * FROM inventory_master ORDER BY category, name');
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/inventory/master', auth, adminOnly, async (req, res) => {
+  try {
+    const { name, category, unit, description } = req.body;
+    if (!name) return res.status(400).json({ error: 'Name required' });
+    const { rows } = await db.query(
+      'INSERT INTO inventory_master (name, category, unit, description) VALUES ($1, $2, $3, $4) RETURNING *',
+      [name, category || 'General', unit || 'pcs', description || '']
+    );
+    res.status(201).json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/projects/:id/inventory', auth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { rows: items } = await db.query('SELECT * FROM inventory_master ORDER BY category, name');
+    const { rows: receipts } = await db.query(`
+      SELECT r.*, im.name as item_name, im.unit as item_unit, 
+             u.name as receiver_name, m.name as manager_name, adm.name as admin_name
+      FROM project_material_receipts r
+      JOIN inventory_master im ON r.item_id = im.id
+      LEFT JOIN users u ON r.received_by = u.id
+      LEFT JOIN users m ON r.manager_user_id = m.id
+      LEFT JOIN users adm ON r.admin_user_id = adm.id
+      WHERE r.project_id = $1 ORDER BY r.created_at DESC
+    `, [id]);
+    const { rows: usage } = await db.query(`
+      SELECT u.*, im.name as item_name, im.unit as item_unit, t.title as task_title, usr.name as logger_name
+      FROM project_material_usage u
+      JOIN inventory_master im ON u.item_id = im.id
+      LEFT JOIN tasks t ON u.task_id = t.id
+      LEFT JOIN users usr ON u.logged_by = usr.id
+      WHERE u.project_id = $1 ORDER BY u.created_at DESC
+    `, [id]);
+    const { rows: scrap } = await db.query(`
+      SELECT s.*, im.name as item_name, im.unit as item_unit, u.name as logger_name
+      FROM project_material_scrap s
+      JOIN inventory_master im ON s.item_id = im.id
+      LEFT JOIN users u ON s.logged_by = u.id
+      WHERE s.project_id = $1 ORDER BY s.created_at DESC
+    `, [id]);
+    const { rows: audits } = await db.query(`
+      SELECT a.*, im.name as item_name, im.unit as item_unit, u.name as auditor_name
+      FROM project_physical_audits a
+      JOIN inventory_master im ON a.item_id = im.id
+      LEFT JOIN users u ON a.audited_by = u.id
+      WHERE a.project_id = $1 ORDER BY a.created_at DESC
+    `, [id]);
+
+    const summaryMap = {};
+    for (const item of items) {
+      summaryMap[item.id] = {
+        item_id: item.id,
+        name: item.name,
+        category: item.category,
+        unit: item.unit,
+        description: item.description,
+        total_received: 0,
+        total_used: 0,
+        total_scrapped: 0,
+        in_stock: 0,
+        latest_audit: null
+      };
+    }
+
+    // Only count APPROVED receipts into live store balance!
+    for (const r of receipts) {
+      if (summaryMap[r.item_id] && r.status === 'approved') {
+        summaryMap[r.item_id].total_received += Number(r.qty_received);
+      }
+    }
+    for (const u of usage) {
+      if (summaryMap[u.item_id]) {
+        summaryMap[u.item_id].total_used += Number(u.qty_used);
+      }
+    }
+    for (const s of scrap) {
+      if (summaryMap[s.item_id]) {
+        summaryMap[s.item_id].total_scrapped += Number(s.qty_scrapped);
+      }
+    }
+
+    // Attach latest audit per item
+    for (const a of audits) {
+      if (summaryMap[a.item_id] && !summaryMap[a.item_id].latest_audit) {
+        summaryMap[a.item_id].latest_audit = a;
+      }
+    }
+
+    const balances = Object.values(summaryMap).map(b => {
+      b.in_stock = Math.max(0, b.total_received - b.total_used - b.total_scrapped);
+      return b;
+    });
+
+    const pendingManagerReceipts = receipts.filter(r => r.status === 'pending_manager');
+    const pendingAdminReceipts = receipts.filter(r => r.status === 'pending_admin');
+    const mySubmissions = receipts.filter(r => r.received_by === req.user.id && ['pending_manager', 'pending_admin', 'rejected'].includes(r.status));
+
+    res.json({ balances, receipts, pendingManagerReceipts, pendingAdminReceipts, mySubmissions, usage, scrap, audits });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/projects/:id/inventory/inward', auth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { item_id, qty_received, challan_number, challan_photo, notes } = req.body;
+    if (!item_id || !qty_received || Number(qty_received) <= 0) {
+      return res.status(400).json({ error: 'Valid item_id and positive qty_received required' });
+    }
+
+    // STRICT DUPLICATE DC CHECK PER PROJECT
+    if (challan_number && challan_number.trim()) {
+      const existing = await db.query(
+        `SELECT id FROM project_material_receipts WHERE project_id = $1 AND LOWER(TRIM(challan_number)) = LOWER(TRIM($2)) AND status != 'rejected'`,
+        [id, challan_number.trim()]
+      );
+      if (existing.rows.length > 0) {
+        return res.status(409).json({ 
+          error: `Duplicate Delivery Challan! DC #${challan_number.trim()} has already been logged for this project.` 
+        });
+      }
+    }
+    
+    // Admin logs are auto-approved; Manager logs go to pending_admin; Site Manager & Employees go to pending_manager
+    const initialStatus = req.user.role === 'admin' ? 'approved' :
+                          req.user.role === 'manager' ? 'pending_admin' : 'pending_manager';
+
+    const { rows } = await db.query(`
+      INSERT INTO project_material_receipts 
+        (project_id, item_id, qty_received, challan_number, challan_photo, notes, status, received_by, manager_user_id, admin_user_id, verified_at, admin_verified_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *
+    `, [
+      id, 
+      item_id, 
+      Number(qty_received), 
+      challan_number || '', 
+      challan_photo || '', 
+      notes || '', 
+      initialStatus, 
+      req.user.id,
+      req.user.role === 'manager' ? req.user.id : null,
+      initialStatus === 'approved' ? req.user.id : null,
+      req.user.role === 'manager' ? new Date() : null,
+      initialStatus === 'approved' ? new Date() : null
+    ]);
+
+    res.status(201).json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Resubmit Rejected Material Receipt
+router.put('/projects/:id/inventory/receipts/:receiptId/resubmit', auth, async (req, res) => {
+  try {
+    const { id, receiptId } = req.params;
+    const { qty_received, challan_number, challan_photo, notes } = req.body;
+
+    const { rows } = await db.query(`
+      UPDATE project_material_receipts
+      SET qty_received = COALESCE($1, qty_received),
+          challan_number = COALESCE($2, challan_number),
+          challan_photo = COALESCE($3, challan_photo),
+          notes = COALESCE($4, notes),
+          status = 'pending_manager',
+          rejection_reason = ''
+      WHERE id = $5 AND project_id = $6 AND received_by = $7
+      RETURNING *
+    `, [qty_received ? Number(qty_received) : null, challan_number, challan_photo, notes, receiptId, id, req.user.id]);
+
+    if (rows.length === 0) return res.status(404).json({ error: 'Receipt not found or permission denied' });
+    res.json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 2-Tier Approval Verification Endpoint (Manager or Admin)
+router.put('/projects/:id/inventory/receipts/:receiptId/verify', auth, adminOrManager, async (req, res) => {
+  try {
+    const { id, receiptId } = req.params;
+    const { action, rejection_reason } = req.body; // 'manager_verify' | 'admin_approve' | 'reject'
+    if (!['manager_verify', 'admin_approve', 'reject'].includes(action)) {
+      return res.status(400).json({ error: 'Action must be manager_verify, admin_approve, or reject' });
+    }
+
+    let queryText = '';
+    let params = [];
+
+    if (action === 'manager_verify') {
+      if (req.user.role !== 'manager') {
+        return res.status(403).json({ error: 'Tier 1 Verification must be performed by a Manager first' });
+      }
+      queryText = `
+        UPDATE project_material_receipts
+        SET status = 'pending_admin', manager_user_id = $1, verified_at = CURRENT_TIMESTAMP
+        WHERE id = $2 AND project_id = $3
+        RETURNING *
+      `;
+      params = [req.user.id, receiptId, id];
+    } else if (action === 'admin_approve') {
+      if (req.user.role !== 'admin') {
+        return res.status(403).json({ error: 'Admin access required for final approval' });
+      }
+      queryText = `
+        UPDATE project_material_receipts
+        SET status = 'approved', admin_user_id = $1, admin_verified_at = CURRENT_TIMESTAMP
+        WHERE id = $2 AND project_id = $3
+        RETURNING *
+      `;
+      params = [req.user.id, receiptId, id];
+    } else if (action === 'reject') {
+      queryText = `
+        UPDATE project_material_receipts
+        SET status = 'rejected', rejection_reason = $1, manager_user_id = $2, verified_at = CURRENT_TIMESTAMP
+        WHERE id = $3 AND project_id = $4
+        RETURNING *
+      `;
+      params = [rejection_reason || 'Rejected by verifier', req.user.id, receiptId, id];
+    }
+
+    const { rows } = await db.query(queryText, params);
+    if (rows.length === 0) return res.status(404).json({ error: 'Receipt not found' });
+    res.json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/projects/:id/inventory/usage', auth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { item_id, task_id, qty_used, installed_location, notes } = req.body;
+    if (!item_id || !qty_used || Number(qty_used) <= 0) {
+      return res.status(400).json({ error: 'Valid item_id and positive qty_used required' });
+    }
+    const { rows } = await db.query(`
+      INSERT INTO project_material_usage (project_id, task_id, item_id, qty_used, installed_location, notes, logged_by)
+      VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *
+    `, [id, task_id || null, item_id, Number(qty_used), installed_location || '', notes || '', req.user.id]);
+
+    res.status(201).json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/projects/:id/inventory/scrap', auth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { item_id, qty_scrapped, reason, photo_url } = req.body;
+    if (!item_id || !qty_scrapped || Number(qty_scrapped) <= 0 || !reason) {
+      return res.status(400).json({ error: 'Item, positive quantity, and reason required' });
+    }
+    const { rows } = await db.query(`
+      INSERT INTO project_material_scrap (project_id, item_id, qty_scrapped, reason, photo_url, logged_by)
+      VALUES ($1, $2, $3, $4, $5, $6) RETURNING *
+    `, [id, item_id, Number(qty_scrapped), reason, photo_url || '', req.user.id]);
+
+    res.status(201).json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Physical Store Stock Audit Log Endpoint
+router.post('/projects/:id/inventory/physical-audit', auth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { item_id, system_expected_qty, physical_counted_qty, notes } = req.body;
+    if (!item_id || physical_counted_qty === undefined) {
+      return res.status(400).json({ error: 'Item ID and physical count required' });
+    }
+    const expected = Number(system_expected_qty || 0);
+    const counted = Number(physical_counted_qty);
+    const discrepancy = counted - expected;
+
+    const { rows } = await db.query(`
+      INSERT INTO project_physical_audits 
+        (project_id, item_id, system_expected_qty, physical_counted_qty, discrepancy_qty, audited_by, notes)
+      VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *
+    `, [id, item_id, expected, counted, discrepancy, req.user.id, notes || '']);
+
+    res.status(201).json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── PROJECT DOCUMENTS ENDPOINTS ───────────────────────────────────────
+router.get('/projects/:id/documents', auth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { rows: allDocs } = await db.query(`
+      SELECT d.*, u.name as uploader_name, m.name as manager_name, adm.name as admin_name
+      FROM project_documents d
+      LEFT JOIN users u ON d.uploaded_by = u.id
+      LEFT JOIN users m ON d.manager_user_id = m.id
+      LEFT JOIN users adm ON d.admin_user_id = adm.id
+      WHERE d.project_id = $1 AND d.status != 'archived'
+      ORDER BY d.created_at DESC
+    `, [id]);
+
+    const activeDocs = allDocs.filter(d => d.status === 'active');
+    const pendingManagerDocs = allDocs.filter(d => d.status === 'pending_manager');
+    const pendingAdminDocs = allDocs.filter(d => d.status === 'pending_admin');
+
+    res.json({ documents: activeDocs, pendingManagerDocs, pendingAdminDocs, allDocs });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/projects/:id/documents/upload', auth, upload.single('file'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { doc_type, title } = req.body;
+
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    const fileUrl = `/uploads/site_documents/${req.file.filename}`;
+    const fileName = req.file.originalname;
+    const fileSize = req.file.size;
+
+    // Admin uploads are auto-active; Manager uploads go to pending_admin; Site Manager & Employees go to pending_manager
+    const initialStatus = req.user.role === 'admin' ? 'active' :
+                          req.user.role === 'manager' ? 'pending_admin' : 'pending_manager';
+
+    const { rows } = await db.query(`
+      INSERT INTO project_documents 
+        (project_id, doc_type, title, file_url, file_name, file_size, uploaded_by, status, manager_user_id, admin_user_id, verified_at, admin_verified_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *
+    `, [
+      id, 
+      doc_type || 'general', 
+      title || fileName, 
+      fileUrl, 
+      fileName, 
+      fileSize, 
+      req.user.id,
+      initialStatus,
+      req.user.role === 'manager' ? req.user.id : null,
+      initialStatus === 'active' ? req.user.id : null,
+      req.user.role === 'manager' ? new Date() : null,
+      initialStatus === 'active' ? new Date() : null
+    ]);
+
+    res.status(201).json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Document 2-Tier Verification Endpoint (Manager / Admin)
+router.put('/projects/:id/documents/:docId/verify', auth, adminOrManager, async (req, res) => {
+  try {
+    const { id, docId } = req.params;
+    const { action } = req.body; // 'manager_verify' | 'admin_approve' | 'reject'
+    if (!['manager_verify', 'admin_approve', 'reject'].includes(action)) {
+      return res.status(400).json({ error: 'Action must be manager_verify, admin_approve, or reject' });
+    }
+
+    let queryText = '';
+    let params = [];
+
+    if (action === 'manager_verify') {
+      if (req.user.role !== 'manager') {
+        return res.status(403).json({ error: 'Tier 1 Verification must be performed by a Manager first' });
+      }
+      queryText = `
+        UPDATE project_documents
+        SET status = 'pending_admin', manager_user_id = $1, verified_at = CURRENT_TIMESTAMP
+        WHERE id = $2 AND project_id = $3
+        RETURNING *
+      `;
+      params = [req.user.id, docId, id];
+    } else if (action === 'admin_approve') {
+      if (req.user.role !== 'admin') {
+        return res.status(403).json({ error: 'Admin access required for final approval' });
+      }
+      queryText = `
+        UPDATE project_documents
+        SET status = 'active', admin_user_id = $1, admin_verified_at = CURRENT_TIMESTAMP
+        WHERE id = $2 AND project_id = $3
+        RETURNING *
+      `;
+      params = [req.user.id, docId, id];
+    } else if (action === 'reject') {
+      queryText = `
+        UPDATE project_documents
+        SET status = 'rejected', manager_user_id = $1, verified_at = CURRENT_TIMESTAMP
+        WHERE id = $2 AND project_id = $3
+        RETURNING *
+      `;
+      params = [req.user.id, docId, id];
+    }
+
+    const { rows } = await db.query(queryText, params);
+    if (rows.length === 0) return res.status(404).json({ error: 'Document not found' });
+    res.json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete('/projects/:id/documents/:docId', auth, adminOrManager, async (req, res) => {
+  try {
+    const { id, docId } = req.params;
+    await db.query(`UPDATE project_documents SET status = 'archived' WHERE id = $1 AND project_id = $2`, [docId, id]);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });

@@ -3,10 +3,10 @@ import { LogOut, User, Shield, Users, Key, Bell, X, Video, GitMerge } from 'luci
 import { api } from '../lib/api';
 import StandupModal from './StandupModal';
 
-const roleIcons = { admin: Shield, manager: Users, employee: User };
+const roleIcons = { admin: Shield, manager: Users, site_manager: Users, employee: User };
 
 export default function Header({ user, onLogout, onChangePassword, onViewTask }) {
-  const roleLabel = user.role === 'admin' ? 'Admin' : user.role === 'manager' ? 'Manager' : 'Employee';
+  const roleLabel = user.role === 'admin' ? 'Admin' : user.role === 'manager' ? 'Manager' : user.role === 'site_manager' ? 'Site Manager' : 'Employee';
   const RoleIcon = roleIcons[user.role] || User;
 
   const [showNotifications, setShowNotifications] = useState(false);

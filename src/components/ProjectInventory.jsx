@@ -1,0 +1,1238 @@
+import { useState, useEffect } from 'react';
+import { 
+  Package, Plus, TrendingUp, ArrowDownLeft, ArrowUpRight, AlertTriangle, 
+  CheckCircle2, FileText, Camera, MapPin, Search, Filter, ShieldAlert, Layers,
+  ShieldCheck, Eye, XCircle, X
+} from 'lucide-react';
+import { api } from '../lib/api';
+
+export default function ProjectInventory({ project, user, tasks }) {
+  const [data, setData] = useState({ balances: [], receipts: [], pendingManagerReceipts: [], pendingAdminReceipts: [], usage: [], scrap: [] });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [previewImage, setPreviewImage] = useState(null);
+  
+  const [activeSubTab, setActiveSubTab] = useState('balances'); // 'balances' | 'receipts' | 'usage' | 'scrap'
+  const [search, setSearch] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('');
+
+  // Modal States
+  const [showInwardModal, setShowInwardModal] = useState(false);
+  const [showUsageModal, setShowUsageModal] = useState(false);
+  const [showScrapModal, setShowScrapModal] = useState(false);
+  const [showAddItemModal, setShowAddItemModal] = useState(false);
+  const [showAuditModal, setShowAuditModal] = useState(false);
+
+  // Form States
+  const [inwardForm, setInwardForm] = useState({ item_id: '', qty_received: '', challan_number: '', challan_photo: '', notes: '' });
+  const [usageForm, setUsageForm] = useState({ item_id: '', task_id: '', qty_used: '', installed_location: '', notes: '' });
+  const [scrapForm, setScrapForm] = useState({ item_id: '', qty_scrapped: '', reason: '', photo_url: '' });
+  const [itemForm, setItemForm] = useState({ name: '', category: 'Panels', unit: 'pcs', description: '' });
+  const [auditForm, setAuditForm] = useState({ item_id: '', physical_counted_qty: '', notes: '' });
+  
+  const [resubmitItem, setResubmitItem] = useState(null);
+  const [resubmitForm, setResubmitForm] = useState({ qty_received: '', challan_number: '', challan_photo: '', notes: '' });
+  const [busy, setBusy] = useState(false);
+
+  const handleVerifyReceipt = async (receiptId, action) => {
+    let rejectionReason = '';
+    if (action === 'reject') {
+      rejectionReason = prompt('Please enter the reason for rejecting this Delivery Challan:');
+      if (!rejectionReason) return;
+    } else {
+      const label = action === 'manager_verify' ? 'Manager Verification (Pass to Admin)' : 'FINAL ADMIN APPROVAL & ADD STOCK';
+      if (!confirm(`Are you sure you want to proceed with: ${label}?`)) return;
+    }
+
+    try {
+      await api.verifyDeliveryChallan(project.id, receiptId, action, rejectionReason);
+      loadInventory();
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
+  const loadInventory = async () => {
+    try {
+      setLoading(true);
+      const res = await api.getProjectInventory(project.id);
+      setData(res);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadInventory();
+  }, [project.id]);
+
+  // Derived Totals
+  const totalReceivedCount = data.balances.reduce((acc, b) => acc + (b.total_received || 0), 0);
+  const totalUsedCount = data.balances.reduce((acc, b) => acc + (b.total_used || 0), 0);
+  const totalScrappedCount = data.balances.reduce((acc, b) => acc + (b.total_scrapped || 0), 0);
+  const totalInStockCount = data.balances.reduce((acc, b) => acc + (b.in_stock || 0), 0);
+
+  const categories = Array.from(new Set(data.balances.map(b => b.category))).filter(Boolean);
+
+  const filteredBalances = data.balances.filter(b => {
+    const matchesSearch = b.name.toLowerCase().includes(search.toLowerCase()) || 
+                          b.category.toLowerCase().includes(search.toLowerCase());
+    const matchesCategory = !categoryFilter || b.category === categoryFilter;
+    return matchesSearch && matchesCategory;
+  });
+
+  // Handlers
+  const handleInwardSubmit = async (e) => {
+    e.preventDefault();
+    if (!inwardForm.item_id || !inwardForm.qty_received) return;
+    setBusy(true);
+    try {
+      await api.logInwardMaterial(project.id, inwardForm);
+      setShowInwardModal(false);
+      setInwardForm({ item_id: '', qty_received: '', challan_number: '', challan_photo: '', notes: '' });
+      loadInventory();
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleUsageSubmit = async (e) => {
+    e.preventDefault();
+    if (!usageForm.item_id || !usageForm.qty_used) return;
+    setBusy(true);
+    try {
+      await api.logMaterialUsage(project.id, usageForm);
+      setShowUsageModal(false);
+      setUsageForm({ item_id: '', task_id: '', qty_used: '', installed_location: '', notes: '' });
+      loadInventory();
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleScrapSubmit = async (e) => {
+    e.preventDefault();
+    if (!scrapForm.item_id || !scrapForm.qty_scrapped || !scrapForm.reason) return;
+    setBusy(true);
+    try {
+      await api.logMaterialScrap(project.id, scrapForm);
+      setShowScrapModal(false);
+      setScrapForm({ item_id: '', qty_scrapped: '', reason: '', photo_url: '' });
+      loadInventory();
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleAddItemSubmit = async (e) => {
+    e.preventDefault();
+    if (!itemForm.name) return;
+    setBusy(true);
+    try {
+      await api.addInventoryMaster(itemForm);
+      setShowAddItemModal(false);
+      setItemForm({ name: '', category: 'Panels', unit: 'pcs', description: '' });
+      loadInventory();
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleAuditSubmit = async (e) => {
+    e.preventDefault();
+    if (!auditForm.item_id || auditForm.physical_counted_qty === '') return;
+    const selected = data.balances.find(b => Number(b.item_id) === Number(auditForm.item_id));
+    const expected = selected ? selected.in_stock : 0;
+    
+    setBusy(true);
+    try {
+      await api.logPhysicalAudit(project.id, {
+        ...auditForm,
+        system_expected_qty: expected
+      });
+      setShowAuditModal(false);
+      setAuditForm({ item_id: '', physical_counted_qty: '', notes: '' });
+      loadInventory();
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin w-8 h-8 border-2 border-gray-300 border-t-amber-600 rounded-full" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Metrics Bar */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 border border-emerald-100">
+            <ArrowDownLeft className="w-5 h-5" />
+          </div>
+          <div>
+            <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Total Received</p>
+            <h3 className="text-lg font-bold text-gray-900 mt-0.5">{totalReceivedCount} <span className="text-xs font-normal text-gray-400">units</span></h3>
+          </div>
+        </div>
+
+        <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 border border-blue-100">
+            <ArrowUpRight className="w-5 h-5" />
+          </div>
+          <div>
+            <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Installed / Used</p>
+            <h3 className="text-lg font-bold text-gray-900 mt-0.5">{totalUsedCount} <span className="text-xs font-normal text-gray-400">units</span></h3>
+          </div>
+        </div>
+
+        <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center shrink-0 border border-amber-100">
+            <Package className="w-5 h-5" />
+          </div>
+          <div>
+            <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">In Store Balance</p>
+            <h3 className="text-lg font-bold text-gray-900 mt-0.5">{totalInStockCount} <span className="text-xs font-normal text-gray-400">units</span></h3>
+          </div>
+        </div>
+
+        <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-red-50 text-red-600 flex items-center justify-center shrink-0 border border-red-100">
+            <AlertTriangle className="w-5 h-5" />
+          </div>
+          <div>
+            <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Damaged / Scrap</p>
+            <h3 className="text-lg font-bold text-gray-900 mt-0.5">{totalScrappedCount} <span className="text-xs font-normal text-gray-400">units</span></h3>
+          </div>
+        </div>
+      </div>
+
+      {/* TIER 1: Manager Inventory Verification Queue */}
+      {data.pendingManagerReceipts && data.pendingManagerReceipts.length > 0 && user.role === 'manager' && (
+        <div className="bg-amber-50/90 border-2 border-amber-300 rounded-xl p-5 shadow-sm space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-amber-900">
+              <ShieldCheck className="w-5 h-5 text-amber-600 animate-pulse" />
+              <h3 className="font-bold text-sm sm:text-base">
+                Tier 1: Manager Inventory Verification Queue ({data.pendingManagerReceipts.length} Pending)
+              </h3>
+            </div>
+            <span className="text-xs bg-amber-200 text-amber-950 font-bold px-2.5 py-0.5 rounded-full">
+              Manager Verification Step
+            </span>
+          </div>
+          <p className="text-xs text-amber-800">
+            Site Managers / QS uploaded these Inward Stock Arrivals with QS Mohar stamps. Verify quantities & stamp before sending to Admin for final sign-off.
+          </p>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {data.pendingManagerReceipts.map(r => (
+              <div key={r.id} className="bg-white rounded-lg border border-amber-200 p-4 space-y-3 shadow-xs">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <h4 className="font-bold text-gray-900 text-sm">{r.item_name}</h4>
+                    <p className="text-xs text-emerald-700 font-bold mt-0.5">
+                      Quantity: +{r.qty_received} {r.item_unit}
+                    </p>
+                    <p className="text-[11px] text-gray-500 mt-1">
+                      Logged by: <span className="font-semibold text-gray-700">{r.receiver_name}</span> · {new Date(r.created_at).toLocaleDateString()}
+                    </p>
+                  </div>
+                  {r.challan_number && (
+                    <span className="font-mono text-xs bg-amber-100 text-amber-900 font-bold px-2 py-1 rounded">
+                      DC #{r.challan_number}
+                    </span>
+                  )}
+                </div>
+
+                {r.challan_photo ? (
+                  <div 
+                    onClick={() => setPreviewImage(r.challan_photo)}
+                    className="relative group cursor-pointer bg-gray-100 rounded-lg overflow-hidden h-32 border border-gray-200 flex items-center justify-center"
+                  >
+                    <img 
+                      src={r.challan_photo} 
+                      alt="QS Mohar Stamped DC" 
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform" 
+                    />
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white gap-1.5 text-xs font-semibold">
+                      <Eye className="w-4 h-4" /> Inspect QS Stamp
+                    </div>
+                  </div>
+                ) : (
+                  <div className="bg-gray-50 border border-dashed border-gray-300 rounded-lg p-3 text-center text-xs text-gray-400">
+                    No photo attached
+                  </div>
+                )}
+
+                <div className="flex gap-2 pt-2 border-t border-gray-100">
+                  <button
+                    onClick={() => handleVerifyReceipt(r.id, 'manager_verify')}
+                    className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-semibold hover:bg-blue-700 transition-colors shadow-xs"
+                  >
+                    <CheckCircle2 className="w-4 h-4" /> Manager Verify ➔ Send to Admin
+                  </button>
+                  <button
+                    onClick={() => handleVerifyReceipt(r.id, 'reject')}
+                    className="px-3 py-1.5 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg text-xs font-semibold border border-red-200 transition-colors"
+                  >
+                    <XCircle className="w-4 h-4" /> Reject
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* TIER 2: Admin Final Inventory Approval Queue */}
+      {data.pendingAdminReceipts && data.pendingAdminReceipts.length > 0 && user.role === 'admin' && (
+        <div className="bg-blue-50/90 border-2 border-blue-300 rounded-xl p-5 shadow-sm space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-blue-900">
+              <ShieldCheck className="w-5 h-5 text-blue-600 animate-pulse" />
+              <h3 className="font-bold text-sm sm:text-base">
+                Tier 2: Admin Final Inventory Approval Queue ({data.pendingAdminReceipts.length} Pending)
+              </h3>
+            </div>
+            <span className="text-xs bg-blue-200 text-blue-950 font-bold px-2.5 py-0.5 rounded-full">
+              Final Admin Authorization
+            </span>
+          </div>
+          <p className="text-xs text-blue-800">
+            These Inward Stock Arrivals have been verified by Manager ({data.pendingAdminReceipts[0]?.manager_name || 'Manager'}). Click Final Approve to credit stock to live site inventory.
+          </p>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {data.pendingAdminReceipts.map(r => (
+              <div key={r.id} className="bg-white rounded-lg border border-blue-200 p-4 space-y-3 shadow-xs">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <h4 className="font-bold text-gray-900 text-sm">{r.item_name}</h4>
+                    <p className="text-xs text-emerald-700 font-bold mt-0.5">
+                      Quantity: +{r.qty_received} {r.item_unit}
+                    </p>
+                    <p className="text-[11px] text-gray-500 mt-1">
+                      Manager Verified by: <span className="font-semibold text-blue-700">{r.manager_name}</span> · {new Date(r.created_at).toLocaleDateString()}
+                    </p>
+                  </div>
+                  {r.challan_number && (
+                    <span className="font-mono text-xs bg-blue-100 text-blue-900 font-bold px-2 py-1 rounded">
+                      DC #{r.challan_number}
+                    </span>
+                  )}
+                </div>
+
+                {r.challan_photo && (
+                  <div 
+                    onClick={() => setPreviewImage(r.challan_photo)}
+                    className="relative group cursor-pointer bg-gray-100 rounded-lg overflow-hidden h-32 border border-gray-200 flex items-center justify-center"
+                  >
+                    <img 
+                      src={r.challan_photo} 
+                      alt="QS Mohar Stamped DC" 
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform" 
+                    />
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white gap-1.5 text-xs font-semibold">
+                      <Eye className="w-4 h-4" /> Inspect QS Stamp
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex gap-2 pt-2 border-t border-gray-100">
+                  <button
+                    onClick={() => handleVerifyReceipt(r.id, 'admin_approve')}
+                    className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-semibold hover:bg-emerald-700 transition-colors shadow-xs"
+                  >
+                    <CheckCircle2 className="w-4 h-4" /> Final Approve & Add Stock
+                  </button>
+                  <button
+                    onClick={() => handleVerifyReceipt(r.id, 'reject')}
+                    className="px-3 py-1.5 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg text-xs font-semibold border border-red-200 transition-colors"
+                  >
+                    <XCircle className="w-4 h-4" /> Reject
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Main Header & Actions */}
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 sm:p-5 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-gray-100">
+          <div className="flex items-center gap-2">
+            <Layers className="w-5 h-5 text-amber-600" />
+            <h2 className="text-base font-bold text-gray-900">Site Material Ledger & Stock Audit Log</h2>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => setShowInwardModal(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors text-xs font-semibold shadow-sm"
+            >
+              <Plus className="w-3.5 h-3.5" /> + Log Arrival (Inward)
+            </button>
+
+            <button
+              onClick={() => setShowUsageModal(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-xs font-semibold shadow-sm"
+            >
+              <Plus className="w-3.5 h-3.5" /> - Log Installed
+            </button>
+
+            <button
+              onClick={() => setShowScrapModal(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 text-red-600 hover:bg-red-50 rounded-lg transition-colors text-xs font-semibold border border-red-200/60"
+            >
+              <AlertTriangle className="w-3.5 h-3.5" /> Log Damage/Scrap
+            </button>
+
+            <button
+              onClick={() => setShowAuditModal(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-50 text-purple-700 hover:bg-purple-100 rounded-lg transition-colors text-xs font-semibold border border-purple-200"
+            >
+              <ShieldAlert className="w-3.5 h-3.5" /> Store Stock Audit
+            </button>
+
+            {user.role === 'admin' && (
+              <button
+                onClick={() => setShowAddItemModal(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 text-amber-700 hover:bg-amber-100 rounded-lg transition-colors text-xs font-semibold border border-amber-200"
+              >
+                <Plus className="w-3.5 h-3.5" /> Master Item
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Sub Navigation & Search */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex flex-wrap gap-1 bg-gray-100 p-1 rounded-lg self-start">
+            <button
+              onClick={() => setActiveSubTab('my_submissions')}
+              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                activeSubTab === 'my_submissions' ? 'bg-amber-600 text-white shadow-sm' : 'text-amber-800 bg-amber-50 hover:bg-amber-100'
+              }`}
+            >
+              📋 My Submissions Tracker ({data.mySubmissions ? data.mySubmissions.length : 0})
+            </button>
+            <button
+              onClick={() => setActiveSubTab('balances')}
+              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                activeSubTab === 'balances' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-900'
+              }`}
+            >
+              Live Stock Balance
+            </button>
+            <button
+              onClick={() => setActiveSubTab('anti_theft')}
+              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                activeSubTab === 'anti_theft' ? 'bg-purple-600 text-white shadow-sm' : 'text-purple-700 hover:bg-purple-50'
+              }`}
+            >
+              🛡️ Physical Stock Audit
+            </button>
+            <button
+              onClick={() => setActiveSubTab('receipts')}
+              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                activeSubTab === 'receipts' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-900'
+              }`}
+            >
+              Inward History ({data.receipts.length})
+            </button>
+            <button
+              onClick={() => setActiveSubTab('usage')}
+              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                activeSubTab === 'usage' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-900'
+              }`}
+            >
+              Installation History ({data.usage.length})
+            </button>
+            <button
+              onClick={() => setActiveSubTab('scrap')}
+              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                activeSubTab === 'scrap' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-900'
+              }`}
+            >
+              Scrap History ({data.scrap.length})
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1 sm:w-48">
+              <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-2.5" />
+              <input
+                type="text"
+                placeholder="Search material..."
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                className="w-full pl-8 pr-3 py-1.5 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500"
+              />
+            </div>
+            {categories.length > 0 && (
+              <select
+                value={categoryFilter}
+                onChange={e => setCategoryFilter(e.target.value)}
+                className="px-2.5 py-1.5 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500"
+              >
+                <option value="">All Categories</option>
+                {categories.map(cat => (
+                  <option key={cat} value={cat}>{cat}</option>
+                ))}
+              </select>
+            )}
+          </div>
+        </div>
+
+        {/* Tab 0: My Submissions Tracker */}
+        {activeSubTab === 'my_submissions' && (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="bg-amber-50/50 border-b border-amber-200 text-amber-900 font-semibold uppercase tracking-wider">
+                  <th className="p-3">Material</th>
+                  <th className="p-3">Qty Received</th>
+                  <th className="p-3">Challan #</th>
+                  <th className="p-3">Date Logged</th>
+                  <th className="p-3 text-center">Status</th>
+                  <th className="p-3">Verification / Rejection Details</th>
+                  <th className="p-3 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {(!data.mySubmissions || data.mySubmissions.length === 0) ? (
+                  <tr>
+                    <td colSpan={7} className="p-8 text-center text-gray-400 italic">
+                      You have no pending or rejected material submissions for this project.
+                    </td>
+                  </tr>
+                ) : (
+                  data.mySubmissions.map(r => (
+                    <tr key={r.id} className="hover:bg-gray-50/80 transition-colors">
+                      <td className="p-3 font-bold text-gray-900">{r.item_name}</td>
+                      <td className="p-3 text-emerald-700 font-bold">+{r.qty_received} {r.item_unit}</td>
+                      <td className="p-3 font-mono font-bold text-amber-900">{r.challan_number || 'N/A'}</td>
+                      <td className="p-3 text-gray-500">{new Date(r.created_at).toLocaleDateString()}</td>
+                      <td className="p-3 text-center">
+                        {r.status === 'pending_manager' && (
+                          <span className="px-2 py-1 rounded-full bg-amber-100 text-amber-900 font-bold text-[10px]">
+                            🟡 Pending Manager Verification
+                          </span>
+                        )}
+                        {r.status === 'pending_admin' && (
+                          <span className="px-2 py-1 rounded-full bg-blue-100 text-blue-900 font-bold text-[10px]">
+                            🔵 Pending Admin Approval
+                          </span>
+                        )}
+                        {r.status === 'rejected' && (
+                          <span className="px-2 py-1 rounded-full bg-red-100 text-red-900 font-bold text-[10px]">
+                            🔴 Rejected by Verifier
+                          </span>
+                        )}
+                      </td>
+                      <td className="p-3">
+                        {r.status === 'rejected' ? (
+                          <div className="bg-red-50 border border-red-200 rounded p-2 text-red-800 text-[11px]">
+                            <span className="font-bold block">Rejection Reason:</span>
+                            {r.rejection_reason || 'Incomplete details or illegible stamp'}
+                          </div>
+                        ) : r.status === 'pending_admin' ? (
+                          <span className="text-gray-600 text-[11px]">Verified by Manager. Awaiting Admin sign-off.</span>
+                        ) : (
+                          <span className="text-gray-500 text-[11px]">Sent to Manager queue for inspection.</span>
+                        )}
+                      </td>
+                      <td className="p-3 text-right">
+                        {r.status === 'rejected' && (
+                          <button
+                            onClick={() => {
+                              setResubmitItem(r);
+                              setResubmitForm({
+                                qty_received: r.qty_received,
+                                challan_number: r.challan_number || '',
+                                challan_photo: r.challan_photo || '',
+                                notes: r.notes || ''
+                              });
+                            }}
+                            className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded text-[11px] transition-colors"
+                          >
+                            Fix & Resubmit
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* Tab 1: Live Stock Balance */}
+        {activeSubTab === 'balances' && (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-200 text-gray-500 font-semibold uppercase tracking-wider">
+                  <th className="p-3">Material / Item</th>
+                  <th className="p-3">Category</th>
+                  <th className="p-3 text-right">Received (Inward)</th>
+                  <th className="p-3 text-right">Installed (Used)</th>
+                  <th className="p-3 text-right">Scrapped</th>
+                  <th className="p-3 text-right">Store Balance</th>
+                  <th className="p-3 text-center">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {filteredBalances.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="p-8 text-center text-gray-400 italic">
+                      No materials found matching criteria.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredBalances.map(b => (
+                    <tr key={b.item_id} className="hover:bg-gray-50/80 transition-colors">
+                      <td className="p-3">
+                        <p className="font-bold text-gray-900">{b.name}</p>
+                        {b.description && <p className="text-[10px] text-gray-400 mt-0.5">{b.description}</p>}
+                      </td>
+                      <td className="p-3">
+                        <span className="px-2 py-0.5 rounded bg-gray-100 text-gray-600 font-medium text-[10px]">
+                          {b.category}
+                        </span>
+                      </td>
+                      <td className="p-3 text-right font-medium text-emerald-700 bg-emerald-50/30">{b.total_received} {b.unit}</td>
+                      <td className="p-3 text-right font-medium text-blue-700 bg-blue-50/30">{b.total_used} {b.unit}</td>
+                      <td className="p-3 text-right font-medium text-red-600">{b.total_scrapped} {b.unit}</td>
+                      <td className="p-3 text-right font-bold text-gray-900 text-sm bg-amber-50/30">{b.in_stock} {b.unit}</td>
+                      <td className="p-3 text-center">
+                        {b.in_stock === 0 && b.total_received === 0 ? (
+                          <span className="text-[10px] px-2 py-0.5 rounded font-semibold bg-gray-100 text-gray-500">Not Delivered</span>
+                        ) : b.in_stock === 0 ? (
+                          <span className="text-[10px] px-2 py-0.5 rounded font-semibold bg-red-100 text-red-700">Depleted</span>
+                        ) : b.in_stock <= 5 ? (
+                          <span className="text-[10px] px-2 py-0.5 rounded font-semibold bg-amber-100 text-amber-800">Low Stock</span>
+                        ) : (
+                          <span className="text-[10px] px-2 py-0.5 rounded font-semibold bg-emerald-100 text-emerald-800">Healthy</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* Tab 2: Inward Receipts History */}
+        {activeSubTab === 'receipts' && (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-200 text-gray-500 font-semibold uppercase tracking-wider">
+                  <th className="p-3">Date</th>
+                  <th className="p-3">Material</th>
+                  <th className="p-3 text-right">Qty Received</th>
+                  <th className="p-3">Challan / Invoice #</th>
+                  <th className="p-3">Received By</th>
+                  <th className="p-3">Notes</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {data.receipts.length === 0 ? (
+                  <tr><td colSpan={6} className="p-6 text-center text-gray-400 italic">No inward shipments logged yet.</td></tr>
+                ) : (
+                  data.receipts.map(r => (
+                    <tr key={r.id} className="hover:bg-gray-50">
+                      <td className="p-3 text-gray-500">{new Date(r.created_at).toLocaleDateString()}</td>
+                      <td className="p-3 font-semibold text-gray-900">{r.item_name}</td>
+                      <td className="p-3 text-right font-bold text-emerald-600">+{r.qty_received} {r.item_unit}</td>
+                      <td className="p-3 font-mono text-gray-700">{r.challan_number || '-'}</td>
+                      <td className="p-3 text-gray-600">{r.receiver_name || 'System'}</td>
+                      <td className="p-3 text-gray-500">{r.notes || '-'}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* Tab 3: Installation History */}
+        {activeSubTab === 'usage' && (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-200 text-gray-500 font-semibold uppercase tracking-wider">
+                  <th className="p-3">Date</th>
+                  <th className="p-3">Material</th>
+                  <th className="p-3 text-right">Qty Used</th>
+                  <th className="p-3">Location / Floor</th>
+                  <th className="p-3">Linked Task</th>
+                  <th className="p-3">Logged By</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {data.usage.length === 0 ? (
+                  <tr><td colSpan={6} className="p-6 text-center text-gray-400 italic">No installation usage logged yet.</td></tr>
+                ) : (
+                  data.usage.map(u => (
+                    <tr key={u.id} className="hover:bg-gray-50">
+                      <td className="p-3 text-gray-500">{new Date(u.created_at).toLocaleDateString()}</td>
+                      <td className="p-3 font-semibold text-gray-900">{u.item_name}</td>
+                      <td className="p-3 text-right font-bold text-blue-600">-{u.qty_used} {u.item_unit}</td>
+                      <td className="p-3 text-gray-800 font-medium">{u.installed_location || '-'}</td>
+                      <td className="p-3 text-gray-600">{u.task_title || '-'}</td>
+                      <td className="p-3 text-gray-600">{u.logger_name || 'System'}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* Tab 4: Scrap History */}
+        {activeSubTab === 'scrap' && (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-200 text-gray-500 font-semibold uppercase tracking-wider">
+                  <th className="p-3">Date</th>
+                  <th className="p-3">Material</th>
+                  <th className="p-3 text-right">Qty Scrapped</th>
+                  <th className="p-3">Reason</th>
+                  <th className="p-3">Logged By</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {data.scrap.length === 0 ? (
+                  <tr><td colSpan={5} className="p-6 text-center text-gray-400 italic">No damaged or scrapped material logged.</td></tr>
+                ) : (
+                  data.scrap.map(s => (
+                    <tr key={s.id} className="hover:bg-gray-50">
+                      <td className="p-3 text-gray-500">{new Date(s.created_at).toLocaleDateString()}</td>
+                      <td className="p-3 font-semibold text-gray-900">{s.item_name}</td>
+                      <td className="p-3 text-right font-bold text-red-600">-{s.qty_scrapped} {s.item_unit}</td>
+                      <td className="p-3 text-gray-700 italic">{s.reason}</td>
+                      <td className="p-3 text-gray-600">{s.logger_name || 'System'}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* 4-Way Reconciliation Audit Sub-Tab */}
+        {activeSubTab === 'anti_theft' && (
+          <div className="space-y-4">
+            <div className="p-4 bg-purple-50 border border-purple-200 rounded-xl space-y-1">
+              <h4 className="text-xs font-bold text-purple-900 flex items-center gap-1.5">
+                <ShieldAlert className="w-4 h-4 text-purple-600" />
+                4-Way Stock Reconciliation Engine
+              </h4>
+              <p className="text-[11px] text-purple-800">
+                Formula: <span className="font-mono font-bold">Expected Store Balance = Approved DC Received - Installed - Scrapped</span>. 
+                Compares system store balance against physical store counts to spot shortages & shrinkage instantly.
+              </p>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-gray-200 text-gray-500 font-semibold uppercase tracking-wider">
+                    <th className="p-3">Material</th>
+                    <th className="p-3 text-right text-emerald-700 bg-emerald-50/50">Approved Inward (A)</th>
+                    <th className="p-3 text-right text-blue-700 bg-blue-50/50">Installed (B)</th>
+                    <th className="p-3 text-right text-red-600 bg-red-50/50">Scrapped (C)</th>
+                    <th className="p-3 text-right text-amber-900 bg-amber-50">Expected Store (A-B-C)</th>
+                    <th className="p-3 text-right text-purple-900 bg-purple-50">Physical Audit (D)</th>
+                    <th className="p-3 text-center">Audit Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {filteredBalances.map(b => {
+                    const latest = b.latest_audit;
+                    const physicalCount = latest ? latest.physical_counted_qty : null;
+                    const discrepancy = physicalCount !== null ? (physicalCount - b.in_stock) : 0;
+
+                    return (
+                      <tr key={b.item_id} className="hover:bg-gray-50/80">
+                        <td className="p-3 font-bold text-gray-900">{b.name}</td>
+                        <td className="p-3 text-right font-medium text-emerald-700 bg-emerald-50/20">{b.total_received} {b.unit}</td>
+                        <td className="p-3 text-right font-medium text-blue-700 bg-blue-50/20">{b.total_used} {b.unit}</td>
+                        <td className="p-3 text-right font-medium text-red-600 bg-red-50/20">{b.total_scrapped} {b.unit}</td>
+                        <td className="p-3 text-right font-bold text-amber-950 bg-amber-50/40">{b.in_stock} {b.unit}</td>
+                        <td className="p-3 text-right font-bold text-purple-900 bg-purple-50/40">
+                          {physicalCount !== null ? `${physicalCount} ${b.unit}` : <span className="text-gray-400 font-normal">Not Audited</span>}
+                        </td>
+                        <td className="p-3 text-center">
+                          {physicalCount === null ? (
+                            <span className="text-[10px] px-2 py-0.5 rounded font-medium bg-gray-100 text-gray-600">Pending Audit</span>
+                          ) : discrepancy === 0 ? (
+                            <span className="text-[10px] px-2 py-0.5 rounded font-bold bg-emerald-100 text-emerald-800">🟢 100% Matched</span>
+                          ) : discrepancy < 0 ? (
+                            <span className="text-[10px] px-2 py-0.5 rounded font-bold bg-red-100 text-red-700 animate-pulse">
+                              🔴 {Math.abs(discrepancy)} {b.unit} Shortage / Missing
+                            </span>
+                          ) : (
+                            <span className="text-[10px] px-2 py-0.5 rounded font-bold bg-blue-100 text-blue-800">
+                              🔵 +{discrepancy} {b.unit} Surplus
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Modal: Log Inward Material */}
+      {showInwardModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/30 backdrop-blur-sm" onClick={() => setShowInwardModal(false)}>
+          <div className="bg-white rounded-xl shadow-xl border border-gray-200 max-w-md w-full p-5 space-y-4" onClick={e => e.stopPropagation()}>
+            <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
+              <ArrowDownLeft className="w-5 h-5 text-emerald-600" />
+              Log Inward Material (Arrival)
+            </h3>
+
+            <form onSubmit={handleInwardSubmit} className="space-y-3 text-xs">
+              <div>
+                <label className="block font-semibold text-gray-700 mb-1">Select Material *</label>
+                <select
+                  value={inwardForm.item_id}
+                  onChange={e => setInwardForm({ ...inwardForm, item_id: e.target.value })}
+                  className="w-full p-2 border border-gray-300 rounded-lg"
+                  required
+                >
+                  <option value="">Choose item from catalog...</option>
+                  {data.balances.map(b => (
+                    <option key={b.item_id} value={b.item_id}>{b.name} ({b.category})</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold text-gray-700 mb-1">Quantity Received *</label>
+                  <input
+                    type="number"
+                    step="any"
+                    min="0.1"
+                    placeholder="e.g. 50"
+                    value={inwardForm.qty_received}
+                    onChange={e => setInwardForm({ ...inwardForm, qty_received: e.target.value })}
+                    className="w-full p-2 border border-gray-300 rounded-lg"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-gray-700 mb-1">Challan / Invoice #</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. CH-9042"
+                    value={inwardForm.challan_number}
+                    onChange={e => setInwardForm({ ...inwardForm, challan_number: e.target.value })}
+                    className="w-full p-2 border border-gray-300 rounded-lg"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-gray-700 mb-1">Notes / Supplier</label>
+                <input
+                  type="text"
+                  placeholder="Optional delivery details"
+                  value={inwardForm.notes}
+                  onChange={e => setInwardForm({ ...inwardForm, notes: e.target.value })}
+                  className="w-full p-2 border border-gray-300 rounded-lg"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3">
+                <button type="button" onClick={() => setShowInwardModal(false)} className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg">Cancel</button>
+                <button type="submit" disabled={busy} className="px-4 py-1.5 bg-emerald-600 text-white rounded-lg font-semibold hover:bg-emerald-700">
+                  {busy ? 'Saving...' : 'Add Stock'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Log Installation / Usage */}
+      {showUsageModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/30 backdrop-blur-sm" onClick={() => setShowUsageModal(false)}>
+          <div className="bg-white rounded-xl shadow-xl border border-gray-200 max-w-md w-full p-5 space-y-4" onClick={e => e.stopPropagation()}>
+            <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
+              <ArrowUpRight className="w-5 h-5 text-blue-600" />
+              Record Material Installed / Used
+            </h3>
+
+            <form onSubmit={handleUsageSubmit} className="space-y-3 text-xs">
+              <div>
+                <label className="block font-semibold text-gray-700 mb-1">Select Material *</label>
+                <select
+                  value={usageForm.item_id}
+                  onChange={e => setUsageForm({ ...usageForm, item_id: e.target.value })}
+                  className="w-full p-2 border border-gray-300 rounded-lg"
+                  required
+                >
+                  <option value="">Choose item...</option>
+                  {data.balances.map(b => (
+                    <option key={b.item_id} value={b.item_id}>
+                      {b.name} (Available: {b.in_stock} {b.unit})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold text-gray-700 mb-1">Quantity Used *</label>
+                  <input
+                    type="number"
+                    step="any"
+                    min="0.1"
+                    placeholder="e.g. 10"
+                    value={usageForm.qty_used}
+                    onChange={e => setUsageForm({ ...usageForm, qty_used: e.target.value })}
+                    className="w-full p-2 border border-gray-300 rounded-lg"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-gray-700 mb-1">Location / Floor</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Floor 3, Flat 302"
+                    value={usageForm.installed_location}
+                    onChange={e => setUsageForm({ ...usageForm, installed_location: e.target.value })}
+                    className="w-full p-2 border border-gray-300 rounded-lg"
+                  />
+                </div>
+              </div>
+
+              {tasks && tasks.length > 0 && (
+                <div>
+                  <label className="block font-semibold text-gray-700 mb-1">Link to Task</label>
+                  <select
+                    value={usageForm.task_id}
+                    onChange={e => setUsageForm({ ...usageForm, task_id: e.target.value })}
+                    className="w-full p-2 border border-gray-300 rounded-lg"
+                  >
+                    <option value="">General Project Use (No Task)</option>
+                    {tasks.map(t => (
+                      <option key={t.id} value={t.id}>{t.title}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div className="flex justify-end gap-2 pt-3">
+                <button type="button" onClick={() => setShowUsageModal(false)} className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg">Cancel</button>
+                <button type="submit" disabled={busy} className="px-4 py-1.5 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700">
+                  {busy ? 'Deducting...' : 'Record Usage'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Log Scrap/Damage */}
+      {showScrapModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/30 backdrop-blur-sm" onClick={() => setShowScrapModal(false)}>
+          <div className="bg-white rounded-xl shadow-xl border border-gray-200 max-w-md w-full p-5 space-y-4" onClick={e => e.stopPropagation()}>
+            <h3 className="text-base font-bold text-red-600 flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-red-600" />
+              Report Material Scrap / Damage
+            </h3>
+
+            <form onSubmit={handleScrapSubmit} className="space-y-3 text-xs">
+              <div>
+                <label className="block font-semibold text-gray-700 mb-1">Select Damaged Item *</label>
+                <select
+                  value={scrapForm.item_id}
+                  onChange={e => setScrapForm({ ...scrapForm, item_id: e.target.value })}
+                  className="w-full p-2 border border-gray-300 rounded-lg"
+                  required
+                >
+                  <option value="">Choose item...</option>
+                  {data.balances.map(b => (
+                    <option key={b.item_id} value={b.item_id}>{b.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-gray-700 mb-1">Quantity Scrapped *</label>
+                <input
+                  type="number"
+                  step="any"
+                  min="0.1"
+                  placeholder="e.g. 2"
+                  value={scrapForm.qty_scrapped}
+                  onChange={e => setScrapForm({ ...scrapForm, qty_scrapped: e.target.value })}
+                  className="w-full p-2 border border-gray-300 rounded-lg"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-gray-700 mb-1">Reason for Damage / Scrap *</label>
+                <textarea
+                  rows={2}
+                  placeholder="e.g. Broken base during installation on Floor 2"
+                  value={scrapForm.reason}
+                  onChange={e => setScrapForm({ ...scrapForm, reason: e.target.value })}
+                  className="w-full p-2 border border-gray-300 rounded-lg"
+                  required
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3">
+                <button type="button" onClick={() => setShowScrapModal(false)} className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg">Cancel</button>
+                <button type="submit" disabled={busy} className="px-4 py-1.5 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700">
+                  {busy ? 'Reporting...' : 'Log Damage'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Log Store Physical Audit */}
+      {showAuditModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/30 backdrop-blur-sm" onClick={() => setShowAuditModal(false)}>
+          <div className="bg-white rounded-xl shadow-xl border border-gray-200 max-w-md w-full p-5 space-y-4" onClick={e => e.stopPropagation()}>
+            <h3 className="text-base font-bold text-purple-900 flex items-center gap-2">
+              <ShieldAlert className="w-5 h-5 text-purple-600" />
+              Perform Physical Store Stock Audit
+            </h3>
+
+            <form onSubmit={handleAuditSubmit} className="space-y-3 text-xs">
+              <div>
+                <label className="block font-semibold text-gray-700 mb-1">Select Material to Audit *</label>
+                <select
+                  value={auditForm.item_id}
+                  onChange={e => setAuditForm({ ...auditForm, item_id: e.target.value })}
+                  className="w-full p-2 border border-gray-300 rounded-lg"
+                  required
+                >
+                  <option value="">Choose item...</option>
+                  {data.balances.map(b => (
+                    <option key={b.item_id} value={b.item_id}>
+                      {b.name} (Expected Store Balance: {b.in_stock} {b.unit})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-gray-700 mb-1">Actual Physical Counted Quantity *</label>
+                <input
+                  type="number"
+                  step="any"
+                  min="0"
+                  placeholder="e.g. 15"
+                  value={auditForm.physical_counted_qty}
+                  onChange={e => setAuditForm({ ...auditForm, physical_counted_qty: e.target.value })}
+                  className="w-full p-2 border border-gray-300 rounded-lg font-bold text-gray-900"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-gray-700 mb-1">Audit Notes / Location Checked</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Verified by Storekeeper in Shelf B2"
+                  value={auditForm.notes}
+                  onChange={e => setAuditForm({ ...auditForm, notes: e.target.value })}
+                  className="w-full p-2 border border-gray-300 rounded-lg"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3">
+                <button type="button" onClick={() => setShowAuditModal(false)} className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg">Cancel</button>
+                <button type="submit" disabled={busy} className="px-4 py-1.5 bg-purple-600 text-white rounded-lg font-semibold hover:bg-purple-700">
+                  {busy ? 'Saving...' : 'Record Stock Audit'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Add Master Catalog Item (Admin Only) */}
+      {showAddItemModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/30 backdrop-blur-sm" onClick={() => setShowAddItemModal(false)}>
+          <div className="bg-white rounded-xl shadow-xl border border-gray-200 max-w-md w-full p-5 space-y-4" onClick={e => e.stopPropagation()}>
+            <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
+              <Plus className="w-5 h-5 text-amber-600" />
+              Add Item to Master Catalog
+            </h3>
+
+            <form onSubmit={handleAddItemSubmit} className="space-y-3 text-xs">
+              <div>
+                <label className="block font-semibold text-gray-700 mb-1">Material Name *</label>
+                <input
+                  type="text"
+                  placeholder="e.g. 4-Core FRLS Cable"
+                  value={itemForm.name}
+                  onChange={e => setItemForm({ ...itemForm, name: e.target.value })}
+                  className="w-full p-2 border border-gray-300 rounded-lg"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold text-gray-700 mb-1">Category</label>
+                  <select
+                    value={itemForm.category}
+                    onChange={e => setItemForm({ ...itemForm, category: e.target.value })}
+                    className="w-full p-2 border border-gray-300 rounded-lg"
+                  >
+                    <option value="Panels">Panels</option>
+                    <option value="Detectors">Detectors</option>
+                    <option value="Modules">Modules</option>
+                    <option value="Notifiers">Notifiers</option>
+                    <option value="Cabling">Cabling</option>
+                    <option value="Accessories">Accessories</option>
+                    <option value="General">General</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block font-semibold text-gray-700 mb-1">Unit of Measurement</label>
+                  <input
+                    type="text"
+                    placeholder="pcs, meters, sets, boxes"
+                    value={itemForm.unit}
+                    onChange={e => setItemForm({ ...itemForm, unit: e.target.value })}
+                    className="w-full p-2 border border-gray-300 rounded-lg"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-gray-700 mb-1">Description</label>
+                <input
+                  type="text"
+                  placeholder="Technical specification or details"
+                  value={itemForm.description}
+                  onChange={e => setItemForm({ ...itemForm, description: e.target.value })}
+                  className="w-full p-2 border border-gray-300 rounded-lg"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3">
+                <button type="button" onClick={() => setShowAddItemModal(false)} className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg">Cancel</button>
+                <button type="submit" disabled={busy} className="px-4 py-1.5 bg-amber-600 text-white rounded-lg font-semibold hover:bg-amber-700">
+                  {busy ? 'Saving...' : 'Add to Catalog'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: Fix & Resubmit Rejected Submission */}
+      {resubmitItem && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl max-w-md w-full p-5 space-y-4 shadow-xl border border-amber-200">
+            <div className="flex items-center justify-between border-b pb-3 border-gray-100">
+              <h3 className="font-bold text-gray-900 text-sm">Fix & Resubmit: {resubmitItem.item_name}</h3>
+              <button onClick={() => setResubmitItem(null)} className="text-gray-400 hover:text-gray-600">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="bg-red-50 border border-red-200 rounded p-3 text-xs text-red-900">
+              <p className="font-bold">Original Rejection Reason:</p>
+              <p className="mt-0.5">{resubmitItem.rejection_reason || 'Incomplete stamp or invalid entry'}</p>
+            </div>
+
+            <form onSubmit={handleResubmitSubmit} className="space-y-3 text-xs">
+              <div>
+                <label className="block font-semibold text-gray-700 mb-1">Quantity Received</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={resubmitForm.qty_received}
+                  onChange={e => setResubmitForm({ ...resubmitForm, qty_received: e.target.value })}
+                  className="w-full p-2 border border-gray-300 rounded-lg"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-gray-700 mb-1">Delivery Challan (DC) #</label>
+                <input
+                  type="text"
+                  value={resubmitForm.challan_number}
+                  onChange={e => setResubmitForm({ ...resubmitForm, challan_number: e.target.value })}
+                  className="w-full p-2 border border-gray-300 rounded-lg"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-gray-700 mb-1">Updated Photo URL / QS Stamp Image</label>
+                <input
+                  type="text"
+                  placeholder="https://..."
+                  value={resubmitForm.challan_photo}
+                  onChange={e => setResubmitForm({ ...resubmitForm, challan_photo: e.target.value })}
+                  className="w-full p-2 border border-gray-300 rounded-lg"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-gray-700 mb-1">Notes / Clarifications</label>
+                <textarea
+                  value={resubmitForm.notes}
+                  onChange={e => setResubmitForm({ ...resubmitForm, notes: e.target.value })}
+                  className="w-full p-2 border border-gray-300 rounded-lg"
+                  rows={2}
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-gray-100">
+                <button type="button" onClick={() => setResubmitItem(null)} className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg font-medium">Cancel</button>
+                <button type="submit" disabled={busy} className="px-4 py-1.5 bg-amber-600 text-white rounded-lg font-semibold hover:bg-amber-700">
+                  {busy ? 'Resubmitting...' : 'Resubmit for Verification'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

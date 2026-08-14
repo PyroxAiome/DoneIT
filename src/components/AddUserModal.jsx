@@ -89,6 +89,7 @@ export default function AddUserModal({ isOpen, onClose, onCreated, onUpdated, ed
               <label className="text-xs text-gray-500 uppercase tracking-wider block mb-1">Role</label>
               <select value={form.role} onChange={handleChange('role')} className="input-field">
                 <option value="employee">Employee</option>
+                <option value="site_manager">Site Manager / QS</option>
                 <option value="manager">Manager</option>
                 <option value="admin">Admin</option>
               </select>

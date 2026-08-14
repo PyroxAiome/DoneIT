@@ -207,10 +207,16 @@ export const api = {
   getProjectMembers: (id) =>
     request(`/projects/${id}/members`),
 
-  addProjectMember: (id, user_id) =>
+  addProjectMember: (id, payload) =>
     request(`/projects/${id}/members`, {
       method: 'POST',
-      body: JSON.stringify({ user_id }),
+      body: JSON.stringify(typeof payload === 'object' ? payload : { user_id: payload }),
+    }),
+
+  updateProjectMemberPermissions: (id, userId, permissions) =>
+    request(`/projects/${id}/members/${userId}/permissions`, {
+      method: 'PUT',
+      body: JSON.stringify(permissions),
     }),
 
   removeProjectMember: (id, userId) =>
@@ -229,4 +235,77 @@ export const api = {
   },
 
   getTaskQuota: () => request('/tasks/quota'),
+
+  // Site Inventory APIs
+  getInventoryMaster: () => request('/inventory/master'),
+
+  addInventoryMaster: (data) =>
+    request('/inventory/master', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  getProjectInventory: (id) => request(`/projects/${id}/inventory`),
+
+  logInwardMaterial: (id, data) =>
+    request(`/projects/${id}/inventory/inward`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  logMaterialUsage: (id, data) =>
+    request(`/projects/${id}/inventory/usage`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  logMaterialScrap: (id, data) =>
+    request(`/projects/${id}/inventory/scrap`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  verifyDeliveryChallan: (projectId, receiptId, action, rejection_reason = '') =>
+    request(`/projects/${projectId}/inventory/receipts/${receiptId}/verify`, {
+      method: 'PUT',
+      body: JSON.stringify({ action, rejection_reason }),
+    }),
+
+  resubmitMaterialReceipt: (projectId, receiptId, data) =>
+    request(`/projects/${projectId}/inventory/receipts/${receiptId}/resubmit`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+
+  logPhysicalAudit: (projectId, data) =>
+    request(`/projects/${projectId}/inventory/physical-audit`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  // Document Vault APIs
+  getProjectDocuments: (id) => request(`/projects/${id}/documents`),
+
+  uploadProjectDocument: async (projectId, formData) => {
+    const token = getToken();
+    const res = await fetch(`/api/projects/${projectId}/documents/upload`, {
+      method: 'POST',
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: formData,
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Upload failed');
+    return data;
+  },
+
+  verifyProjectDocument: (projectId, docId, action, rejection_reason = '') =>
+    request(`/projects/${projectId}/documents/${docId}/verify`, {
+      method: 'PUT',
+      body: JSON.stringify({ action, rejection_reason }),
+    }),
+
+  deleteProjectDocument: (projectId, docId) =>
+    request(`/projects/${projectId}/documents/${docId}`, { method: 'DELETE' }),
 };

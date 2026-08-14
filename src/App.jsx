@@ -63,7 +63,7 @@ export default function App() {
         <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           {user.role === 'admin' && <AdminDashboard user={user} />}
           {user.role === 'manager' && <ManagerDashboard user={user} />}
-          {user.role === 'employee' && <EmployeeDashboard user={user} />}
+          {(user.role === 'employee' || user.role === 'site_manager') && <EmployeeDashboard user={user} />}
         </main>
       </div>
       <ChangePasswordModal isOpen={showChangePassword} onClose={() => setShowChangePassword(false)} />

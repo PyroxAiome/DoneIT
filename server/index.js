@@ -17,6 +17,9 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
+const uploadsPath = join(__dirname, '..', 'uploads');
+app.use('/uploads', express.static(uploadsPath));
+
 app.use('/api', router);
 
 const distPath = join(__dirname, '..', 'dist');

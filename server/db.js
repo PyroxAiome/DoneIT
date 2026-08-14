@@ -40,7 +40,7 @@ const initDatabase = async () => {
       name TEXT NOT NULL,
       email TEXT UNIQUE NOT NULL,
       password_hash TEXT NOT NULL,
-      role TEXT NOT NULL DEFAULT 'employee' CHECK(role IN ('admin','manager','employee')),
+      role TEXT NOT NULL DEFAULT 'employee' CHECK(role IN ('admin','manager','site_manager','employee')),
       department TEXT DEFAULT 'Engineering',
       avatar_url TEXT DEFAULT '',
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -152,6 +152,109 @@ const initDatabase = async () => {
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       resolved_at TIMESTAMP DEFAULT NULL
     );
+
+    -- ── Site Inventory Tables ──────────────────────────────────────
+    CREATE TABLE IF NOT EXISTS inventory_master (
+      id SERIAL PRIMARY KEY,
+      name TEXT NOT NULL,
+      category TEXT NOT NULL DEFAULT 'General',
+      unit TEXT NOT NULL DEFAULT 'pcs',
+      description TEXT DEFAULT '',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS project_material_receipts (
+      id SERIAL PRIMARY KEY,
+      project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      item_id INTEGER NOT NULL REFERENCES inventory_master(id) ON DELETE CASCADE,
+      qty_received REAL NOT NULL CHECK(qty_received > 0),
+      challan_number TEXT DEFAULT '',
+      challan_photo TEXT DEFAULT '',
+      notes TEXT DEFAULT '',
+      status TEXT CHECK(status IN ('pending_manager', 'pending_admin', 'approved', 'rejected')) DEFAULT 'approved',
+      received_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      qs_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      manager_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      admin_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      verified_at TIMESTAMP DEFAULT NULL,
+      admin_verified_at TIMESTAMP DEFAULT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS project_material_usage (
+      id SERIAL PRIMARY KEY,
+      project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      task_id INTEGER REFERENCES tasks(id) ON DELETE SET NULL,
+      item_id INTEGER NOT NULL REFERENCES inventory_master(id) ON DELETE CASCADE,
+      qty_used REAL NOT NULL CHECK(qty_used > 0),
+      installed_location TEXT DEFAULT '',
+      notes TEXT DEFAULT '',
+      logged_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS project_material_scrap (
+      id SERIAL PRIMARY KEY,
+      project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      item_id INTEGER NOT NULL REFERENCES inventory_master(id) ON DELETE CASCADE,
+      qty_scrapped REAL NOT NULL CHECK(qty_scrapped > 0),
+      reason TEXT NOT NULL,
+      photo_url TEXT DEFAULT '',
+      logged_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS project_documents (
+      id SERIAL PRIMARY KEY,
+      project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      doc_type TEXT NOT NULL CHECK(doc_type IN ('dc_stamped', 'quality_report', 'safety_permit', 'handover_sheet', 'general')),
+      title TEXT NOT NULL,
+      file_url TEXT NOT NULL,
+      file_name TEXT DEFAULT '',
+      file_size INTEGER DEFAULT 0,
+      uploaded_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      status TEXT DEFAULT 'active',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS project_physical_audits (
+      id SERIAL PRIMARY KEY,
+      project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      item_id INTEGER NOT NULL REFERENCES inventory_master(id) ON DELETE CASCADE,
+      system_expected_qty REAL NOT NULL,
+      physical_counted_qty REAL NOT NULL,
+      discrepancy_qty REAL NOT NULL,
+      audited_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      notes TEXT DEFAULT '',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+    -- Migration alter for existing receipts table and role checks
+    ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
+    ALTER TABLE users ADD CONSTRAINT users_role_check CHECK(role IN ('admin','manager','site_manager','employee'));
+
+    ALTER TABLE project_members ADD COLUMN IF NOT EXISTS can_access_inventory BOOLEAN DEFAULT false;
+    ALTER TABLE project_members ADD COLUMN IF NOT EXISTS can_access_documents BOOLEAN DEFAULT false;
+
+    ALTER TABLE project_material_receipts ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'approved';
+    ALTER TABLE project_material_receipts ADD COLUMN IF NOT EXISTS qs_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL;
+    ALTER TABLE project_material_receipts ADD COLUMN IF NOT EXISTS manager_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL;
+    ALTER TABLE project_material_receipts ADD COLUMN IF NOT EXISTS admin_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL;
+    ALTER TABLE project_material_receipts ADD COLUMN IF NOT EXISTS verified_at TIMESTAMP DEFAULT NULL;
+    ALTER TABLE project_material_receipts ADD COLUMN IF NOT EXISTS admin_verified_at TIMESTAMP DEFAULT NULL;
+    
+    ALTER TABLE project_material_receipts ADD COLUMN IF NOT EXISTS rejection_reason TEXT DEFAULT '';
+    ALTER TABLE project_material_receipts DROP CONSTRAINT IF EXISTS project_material_receipts_status_check;
+    ALTER TABLE project_material_receipts ADD CONSTRAINT project_material_receipts_status_check CHECK(status IN ('pending_manager', 'pending_admin', 'approved', 'rejected'));
+
+    ALTER TABLE project_documents ADD COLUMN IF NOT EXISTS manager_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL;
+    ALTER TABLE project_documents ADD COLUMN IF NOT EXISTS admin_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL;
+    ALTER TABLE project_documents ADD COLUMN IF NOT EXISTS verified_at TIMESTAMP DEFAULT NULL;
+    ALTER TABLE project_documents ADD COLUMN IF NOT EXISTS admin_verified_at TIMESTAMP DEFAULT NULL;
+    ALTER TABLE project_documents ADD COLUMN IF NOT EXISTS rejection_reason TEXT DEFAULT '';
+    
+    ALTER TABLE project_documents DROP CONSTRAINT IF EXISTS project_documents_status_check;
+    ALTER TABLE project_documents ADD CONSTRAINT project_documents_status_check CHECK(status IN ('pending_manager', 'pending_admin', 'active', 'rejected', 'archived'));
   `);
 
   // ── Create Indexes ─────────────────────────────────────────────
@@ -163,7 +266,37 @@ const initDatabase = async () => {
     CREATE INDEX IF NOT EXISTS idx_tasks_category ON tasks(category);
     CREATE INDEX IF NOT EXISTS idx_tasks_created_at ON tasks(created_at);
     CREATE INDEX IF NOT EXISTS idx_tasks_project_id ON tasks(project_id);
+    CREATE INDEX IF NOT EXISTS idx_inv_receipts_proj ON project_material_receipts(project_id);
+    CREATE INDEX IF NOT EXISTS idx_inv_usage_proj ON project_material_usage(project_id);
+    CREATE INDEX IF NOT EXISTS idx_inv_scrap_proj ON project_material_scrap(project_id);
+    CREATE INDEX IF NOT EXISTS idx_proj_docs ON project_documents(project_id);
+    CREATE INDEX IF NOT EXISTS idx_proj_audits ON project_physical_audits(project_id);
   `);
+
+  // ── Seed Default Master Items ──────────────────────────────────
+  const { rows: invRows } = await pool.query("SELECT COUNT(*) as count FROM inventory_master");
+  if (parseInt(invRows[0].count, 10) === 0) {
+    const defaultItems = [
+      ['VictoFire 7000 Control Panel', 'Panels', 'sets', 'High-capacity addressable fire cum PA panel'],
+      ['VictoFire 300 Addressable Panel', 'Panels', 'sets', 'Addressable fire alarm panel'],
+      ['VictoFire 2508 Smoke Detector', 'Detectors', 'pcs', 'False-alarm immune optical smoke detector'],
+      ['Thermal / Heat Detector', 'Detectors', 'pcs', 'Fixed temperature thermal detector'],
+      ['VictoFire Flat Module', 'Modules', 'pcs', 'Residential unit interface module'],
+      ['VictoFire Lobby Module', 'Modules', 'pcs', 'Floor/corridor interface module'],
+      ['VictoFire Area Module', 'Modules', 'pcs', 'Commercial zone interface module'],
+      ['Manual Call Point (MCP)', 'Notifiers', 'pcs', 'Break-glass manual call point'],
+      ['PA Speaker & Sounder', 'Notifiers', 'pcs', 'Public address speaker cum hooter'],
+      ['2-Core FRLS Armoured Cable', 'Cabling', 'meters', 'Fire resistant low smoke cable'],
+      ['PVC Conduit Pipe 25mm', 'Accessories', 'meters', 'Heavy duty rigid PVC conduit']
+    ];
+    for (const item of defaultItems) {
+      await pool.query(
+        'INSERT INTO inventory_master (name, category, unit, description) VALUES ($1, $2, $3, $4)',
+        item
+      );
+    }
+    console.log('Default VictoFire inventory master catalog seeded.');
+  }
 
   // ── Seed Admin User ────────────────────────────────────────────
   const { rows } = await pool.query("SELECT id FROM users WHERE email = 'admin@admin.com'");

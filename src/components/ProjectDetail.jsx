@@ -1,16 +1,21 @@
 import { useState, useEffect } from 'react';
-import { ArrowLeft, Plus, Users, UserPlus, X, Shield, User, FolderGit2, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, Plus, Users, UserPlus, X, Shield, User, FolderGit2, CheckCircle2, Package, ListTodo, FileCheck } from 'lucide-react';
 import { api } from '../lib/api';
 import TaskCard from './TaskCard';
 import TaskModal from './TaskModal';
 import TaskDetailModal from './TaskDetailModal';
 import TaskVerificationModal from './TaskVerificationModal';
 import ConfirmDeleteModal from './ConfirmDeleteModal';
+import ProjectInventory from './ProjectInventory';
+import ProjectSiteDocuments from './ProjectSiteDocuments';
 
 export default function ProjectDetail({ project, user, onBack, onUpdate }) {
+  const [projectTab, setProjectTab] = useState('tasks'); // 'tasks' | 'inventory' | 'documents'
   const [tasks, setTasks] = useState([]);
   const [members, setMembers] = useState([]);
   const [allEmployees, setAllEmployees] = useState([]);
+  const [pendingManagerReceipts, setPendingManagerReceipts] = useState([]);
+  const [pendingAdminReceipts, setPendingAdminReceipts] = useState([]);
   const [loading, setLoading] = useState(true);
   
   const [showTaskModal, setShowTaskModal] = useState(false);
@@ -21,16 +26,30 @@ export default function ProjectDetail({ project, user, onBack, onUpdate }) {
   
   const [showAddMember, setShowAddMember] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState('');
+  const [addMemberPermissions, setAddMemberPermissions] = useState({ can_access_inventory: false, can_access_documents: false });
+
+  const [pendingManagerDocs, setPendingManagerDocs] = useState([]);
+  const [pendingAdminDocs, setPendingAdminDocs] = useState([]);
 
   const loadProjectData = async () => {
     try {
       setLoading(true);
-      const [tasksData, membersData] = await Promise.all([
+      const [tasksData, membersData, invData, docsData] = await Promise.all([
         api.getProjectTasks(project.id),
-        api.getProjectMembers(project.id)
+        api.getProjectMembers(project.id),
+        api.getProjectInventory(project.id),
+        api.getProjectDocuments(project.id)
       ]);
       setTasks(tasksData);
       setMembers(membersData);
+      if (invData) {
+        setPendingManagerReceipts(invData.pendingManagerReceipts || []);
+        setPendingAdminReceipts(invData.pendingAdminReceipts || []);
+      }
+      if (docsData) {
+        setPendingManagerDocs(docsData.pendingManagerDocs || []);
+        setPendingAdminDocs(docsData.pendingAdminDocs || []);
+      }
       
       if (user.role === 'admin') {
         const empData = await api.getEmployees(true); // all users
@@ -45,18 +64,33 @@ export default function ProjectDetail({ project, user, onBack, onUpdate }) {
 
   useEffect(() => {
     loadProjectData();
-    const handleUpdate = () => loadProjectData();
-    window.addEventListener('task-updated', handleUpdate);
-    return () => window.removeEventListener('task-updated', handleUpdate);
   }, [project.id]);
 
   const handleAddMember = async (e) => {
     e.preventDefault();
     if (!selectedUserId) return;
     try {
-      await api.addProjectMember(project.id, selectedUserId);
-      setShowAddMember(false);
+      await api.addProjectMember(project.id, {
+        user_id: selectedUserId,
+        can_access_inventory: addMemberPermissions.can_access_inventory,
+        can_access_documents: addMemberPermissions.can_access_documents
+      });
       setSelectedUserId('');
+      setAddMemberPermissions({ can_access_inventory: false, can_access_documents: false });
+      setShowAddMember(false);
+      loadProjectData();
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
+  const handleToggleMemberPermission = async (member, field) => {
+    try {
+      const updated = {
+        can_access_inventory: field === 'inventory' ? !member.can_access_inventory : member.can_access_inventory,
+        can_access_documents: field === 'documents' ? !member.can_access_documents : member.can_access_documents,
+      };
+      await api.updateProjectMemberPermissions(project.id, member.id, updated);
       loadProjectData();
     } catch (err) {
       alert(err.message);
@@ -64,7 +98,7 @@ export default function ProjectDetail({ project, user, onBack, onUpdate }) {
   };
 
   const handleRemoveMember = async (userId) => {
-    if (!confirm('Remove this member from the project?')) return;
+    if (!confirm('Remove member from project?')) return;
     try {
       await api.removeProjectMember(project.id, userId);
       loadProjectData();
@@ -92,32 +126,36 @@ export default function ProjectDetail({ project, user, onBack, onUpdate }) {
     }
   };
 
-  const nonMembers = allEmployees.filter(emp => !members.find(m => m.id === emp.id));
+  const nonMembers = allEmployees.filter(emp => !members.some(m => m.id === emp.id));
+  const currentMember = members.find(m => Number(m.id) === Number(user.id));
+  
+  // Tab visibility permissions
+  const canSeeInventory = ['admin', 'manager'].includes(user.role) || Boolean(currentMember?.can_access_inventory);
+  const canSeeDocuments = ['admin', 'manager'].includes(user.role) || Boolean(currentMember?.can_access_documents);
 
   return (
     <div className="space-y-6">
+      {/* Top Bar: Title & Actions */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <button
             onClick={onBack}
-            className="p-2 hover:bg-white rounded-lg transition-colors shadow-sm bg-gray-50 border border-gray-200"
+            className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
           >
-            <ArrowLeft className="w-5 h-5 text-gray-600" />
+            <ArrowLeft className="w-5 h-5" />
           </button>
           <div>
             <div className="flex items-center gap-2">
               <FolderGit2 className="w-5 h-5 text-amber-600" />
               <h1 className="text-xl font-bold text-gray-900">{project.name}</h1>
-              <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
-                project.status === 'active' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
-                project.status === 'completed' ? 'bg-purple-50 text-purple-700 border border-purple-200' :
-                'bg-gray-100 text-gray-600 border border-gray-200'
+              <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${
+                project.status === 'active' ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-100 text-gray-700'
               }`}>
                 {project.status}
               </span>
             </div>
             {project.description && (
-              <p className="text-sm text-gray-500 mt-1">{project.description}</p>
+              <p className="text-xs text-gray-500 mt-0.5">{project.description}</p>
             )}
           </div>
         </div>
@@ -128,7 +166,7 @@ export default function ProjectDetail({ project, user, onBack, onUpdate }) {
               setSelectedTask(null);
               setShowTaskModal(true);
             }}
-            className="flex items-center justify-center gap-2 px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors shadow-sm text-sm font-medium"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-lg transition-colors shadow-xs"
           >
             <Plus className="w-4 h-4" />
             New Project Task
@@ -136,9 +174,73 @@ export default function ProjectDetail({ project, user, onBack, onUpdate }) {
         )}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        {/* Main Tasks Area */}
-        <div className="lg:col-span-3 space-y-4">
+      {/* Main Tab Navigation Bar */}
+      <div className="flex flex-wrap gap-1 bg-gray-200/80 p-1.5 rounded-xl w-fit">
+        <button
+          onClick={() => setProjectTab('tasks')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all ${
+            projectTab === 'tasks' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+          }`}
+        >
+          <ListTodo className="w-4 h-4 text-emerald-600" />
+          Project Tasks ({tasks.length})
+        </button>
+        {canSeeInventory && (
+          <button
+            onClick={() => setProjectTab('inventory')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all ${
+              projectTab === 'inventory' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            <Package className="w-4 h-4 text-amber-600" />
+            Site Inventory & Audit {user.role === 'manager' && pendingManagerReceipts.length > 0 && (
+              <span className="bg-amber-500 text-white text-[10px] px-1.5 py-0.2 rounded-full font-bold animate-pulse">
+                {pendingManagerReceipts.length}
+              </span>
+            )}
+            {user.role === 'admin' && pendingAdminReceipts.length > 0 && (
+              <span className="bg-blue-600 text-white text-[10px] px-1.5 py-0.2 rounded-full font-bold animate-pulse">
+                {pendingAdminReceipts.length}
+              </span>
+            )}
+          </button>
+        )}
+        {canSeeDocuments && (
+          <button
+            onClick={() => setProjectTab('documents')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all ${
+              projectTab === 'documents' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            <FileCheck className="w-4 h-4 text-blue-600" />
+            Site Documents & DC {user.role === 'manager' && pendingManagerDocs.length > 0 && (
+              <span className="bg-amber-500 text-white text-[10px] px-1.5 py-0.2 rounded-full font-bold animate-pulse">
+                {pendingManagerDocs.length}
+              </span>
+            )}
+            {user.role === 'admin' && pendingAdminDocs.length > 0 && (
+              <span className="bg-blue-600 text-white text-[10px] px-1.5 py-0.2 rounded-full font-bold animate-pulse">
+                {pendingAdminDocs.length}
+              </span>
+            )}
+          </button>
+        )}
+      </div>
+
+      {projectTab === 'inventory' ? (
+        <ProjectInventory project={project} user={user} tasks={tasks} />
+      ) : projectTab === 'documents' ? (
+        <ProjectSiteDocuments 
+          project={project} 
+          user={user} 
+          pendingManagerReceipts={pendingManagerReceipts}
+          pendingAdminReceipts={pendingAdminReceipts}
+          onVerificationDone={loadProjectData} 
+        />
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+          {/* Main Tasks Area */}
+          <div className="lg:col-span-3 space-y-4">
           <div className="bg-white rounded-xl shadow-sm border border-gray-200">
             <div className="px-5 py-4 border-b border-gray-100 bg-gray-50/50 flex items-center justify-between">
               <h2 className="font-semibold text-gray-900 flex items-center gap-2">
@@ -208,21 +310,44 @@ export default function ProjectDetail({ project, user, onBack, onUpdate }) {
             </div>
 
             {showAddMember && user.role === 'admin' ? (
-              <form onSubmit={handleAddMember} className="p-4 bg-blue-50/50 border-b border-gray-100">
-                <label className="block text-xs font-medium text-gray-700 mb-1">Add Member</label>
+              <form onSubmit={handleAddMember} className="p-4 bg-blue-50/50 border-b border-gray-100 space-y-2">
+                <label className="block text-xs font-medium text-gray-700">Add Member</label>
                 <select
                   value={selectedUserId}
                   onChange={e => setSelectedUserId(e.target.value)}
-                  className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 mb-2"
+                  className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="">Select user...</option>
                   {nonMembers.map(emp => (
                     <option key={emp.id} value={emp.id}>{emp.name} ({emp.role})</option>
                   ))}
                 </select>
-                <div className="flex gap-2">
+
+                <div className="space-y-1 pt-1 text-[11px] text-gray-700 bg-white p-2 rounded border border-gray-200">
+                  <p className="font-bold text-gray-900 mb-1">Grant Tab Access:</p>
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input 
+                      type="checkbox" 
+                      checked={addMemberPermissions.can_access_inventory}
+                      onChange={e => setAddMemberPermissions({ ...addMemberPermissions, can_access_inventory: e.target.checked })}
+                      className="rounded border-gray-300 text-amber-600 focus:ring-amber-500"
+                    />
+                    <span>📦 Site Inventory & Anti-Theft</span>
+                  </label>
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input 
+                      type="checkbox" 
+                      checked={addMemberPermissions.can_access_documents}
+                      onChange={e => setAddMemberPermissions({ ...addMemberPermissions, can_access_documents: e.target.checked })}
+                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    <span>📜 Site Documents & DC</span>
+                  </label>
+                </div>
+
+                <div className="flex gap-2 pt-1">
                   <button type="submit" disabled={!selectedUserId} className="flex-1 bg-blue-600 text-white text-xs py-1.5 rounded font-medium hover:bg-blue-700 disabled:opacity-50">
-                    Add
+                    Add Member
                   </button>
                   <button type="button" onClick={() => setShowAddMember(false)} className="flex-1 bg-white border border-gray-300 text-gray-700 text-xs py-1.5 rounded font-medium hover:bg-gray-50">
                     Cancel
@@ -250,24 +375,48 @@ export default function ProjectDetail({ project, user, onBack, onUpdate }) {
                 </div>
               ) : (
                 members.map(member => (
-                  <div key={member.id} className="p-3 flex items-center justify-between group hover:bg-gray-50 transition-colors">
-                    <div className="flex items-center gap-2">
-                      <div className="w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center border border-gray-200">
-                        {member.role === 'admin' ? <Shield className="w-3.5 h-3.5 text-amber-600" /> : <User className="w-3.5 h-3.5 text-gray-500" />}
+                  <div key={member.id} className="p-3 space-y-1.5 group hover:bg-gray-50 transition-colors">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center border border-gray-200">
+                          {member.role === 'admin' ? <Shield className="w-3.5 h-3.5 text-amber-600" /> : <User className="w-3.5 h-3.5 text-gray-500" />}
+                        </div>
+                        <div>
+                          <p className="text-xs font-semibold text-gray-900 leading-tight">{member.name}</p>
+                          <p className="text-[10px] text-gray-500 uppercase tracking-wider">{member.role}</p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-xs font-semibold text-gray-900 leading-tight">{member.name}</p>
-                        <p className="text-[10px] text-gray-500 uppercase tracking-wider">{member.role}</p>
-                      </div>
+                      {user.role === 'admin' && (
+                        <button
+                          onClick={() => handleRemoveMember(member.id)}
+                          className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded opacity-0 group-hover:opacity-100 transition-all"
+                          title="Remove member"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                     </div>
-                    {user.role === 'admin' && (
-                      <button
-                        onClick={() => handleRemoveMember(member.id)}
-                        className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded opacity-0 group-hover:opacity-100 transition-all"
-                        title="Remove member"
-                      >
-                        <X className="w-3.5 h-3.5" />
-                      </button>
+
+                    {/* Admin Permission Toggles for non-admin/non-manager members */}
+                    {user.role === 'admin' && !['admin', 'manager'].includes(member.role) && (
+                      <div className="flex items-center gap-2 pt-1 text-[10px] text-gray-600">
+                        <button
+                          onClick={() => handleToggleMemberPermission(member, 'inventory')}
+                          className={`px-1.5 py-0.5 rounded font-medium border transition-colors ${
+                            member.can_access_inventory ? 'bg-amber-100 text-amber-900 border-amber-300' : 'bg-gray-100 text-gray-500 border-gray-200'
+                          }`}
+                        >
+                          📦 Inventory: {member.can_access_inventory ? 'ON' : 'OFF'}
+                        </button>
+                        <button
+                          onClick={() => handleToggleMemberPermission(member, 'documents')}
+                          className={`px-1.5 py-0.5 rounded font-medium border transition-colors ${
+                            member.can_access_documents ? 'bg-blue-100 text-blue-900 border-blue-300' : 'bg-gray-100 text-gray-500 border-gray-200'
+                          }`}
+                        >
+                          📜 Docs: {member.can_access_documents ? 'ON' : 'OFF'}
+                        </button>
+                      </div>
                     )}
                   </div>
                 ))
@@ -276,6 +425,7 @@ export default function ProjectDetail({ project, user, onBack, onUpdate }) {
           </div>
         </div>
       </div>
+      )}
 
       {showTaskModal && (
         <TaskModal
