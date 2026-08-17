@@ -384,41 +384,71 @@ export default function ProjectInventory({ project, user, tasks }) {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <button
-              onClick={() => setShowInwardModal(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors text-xs font-semibold shadow-sm"
-            >
-              <Plus className="w-3.5 h-3.5" /> + Log Arrival (Inward)
-            </button>
+            <div className="relative group/tip">
+              <button
+                onClick={() => setShowInwardModal(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors text-xs font-semibold shadow-sm"
+              >
+                <Plus className="w-3.5 h-3.5" /> + Log Arrival (Inward)
+              </button>
+              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover/tip:block w-64 p-2 bg-gray-900 text-white text-[11px] leading-snug rounded-lg shadow-xl z-50 pointer-events-none text-center">
+                Log new incoming material arrivals with Delivery Challan (DC) number & QS Mohar photo.
+                <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-4 border-transparent border-t-gray-900" />
+              </div>
+            </div>
 
-            <button
-              onClick={() => setShowUsageModal(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-xs font-semibold shadow-sm"
-            >
-              <Plus className="w-3.5 h-3.5" /> - Log Installed
-            </button>
+            <div className="relative group/tip">
+              <button
+                onClick={() => setShowUsageModal(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-xs font-semibold shadow-sm"
+              >
+                <Plus className="w-3.5 h-3.5" /> - Log Installed
+              </button>
+              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover/tip:block w-64 p-2 bg-gray-900 text-white text-[11px] leading-snug rounded-lg shadow-xl z-50 pointer-events-none text-center">
+                Record materials installed or consumed on-site linked to specific tasks and locations.
+                <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-4 border-transparent border-t-gray-900" />
+              </div>
+            </div>
 
-            <button
-              onClick={() => setShowScrapModal(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 text-red-600 hover:bg-red-50 rounded-lg transition-colors text-xs font-semibold border border-red-200/60"
-            >
-              <AlertTriangle className="w-3.5 h-3.5" /> Log Damage/Scrap
-            </button>
+            <div className="relative group/tip">
+              <button
+                onClick={() => setShowScrapModal(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 text-red-600 hover:bg-red-50 rounded-lg transition-colors text-xs font-semibold border border-red-200/60"
+              >
+                <AlertTriangle className="w-3.5 h-3.5" /> Log Damage/Scrap
+              </button>
+              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover/tip:block w-64 p-2 bg-gray-900 text-white text-[11px] leading-snug rounded-lg shadow-xl z-50 pointer-events-none text-center">
+                Log damaged, defective, or scrapped items with damage photo and rejection reason.
+                <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-4 border-transparent border-t-gray-900" />
+              </div>
+            </div>
 
-            <button
-              onClick={() => setShowAuditModal(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-50 text-purple-700 hover:bg-purple-100 rounded-lg transition-colors text-xs font-semibold border border-purple-200"
-            >
-              <ShieldAlert className="w-3.5 h-3.5" /> Store Stock Audit
-            </button>
+            <div className="relative group/tip">
+              <button
+                onClick={() => setShowAuditModal(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-50 text-purple-700 hover:bg-purple-100 rounded-lg transition-colors text-xs font-semibold border border-purple-200"
+              >
+                <ShieldAlert className="w-3.5 h-3.5" /> Store Stock Audit
+              </button>
+              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover/tip:block w-64 p-2 bg-gray-900 text-white text-[11px] leading-snug rounded-lg shadow-xl z-50 pointer-events-none text-center">
+                Perform physical store room count to reconcile actual shelf stock against system balance.
+                <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-4 border-transparent border-t-gray-900" />
+              </div>
+            </div>
 
             {user.role === 'admin' && (
-              <button
-                onClick={() => setShowAddItemModal(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 text-amber-700 hover:bg-amber-100 rounded-lg transition-colors text-xs font-semibold border border-amber-200"
-              >
-                <Plus className="w-3.5 h-3.5" /> Master Item
-              </button>
+              <div className="relative group/tip">
+                <button
+                  onClick={() => setShowAddItemModal(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 text-amber-700 hover:bg-amber-100 rounded-lg transition-colors text-xs font-semibold border border-amber-200"
+                >
+                  <Plus className="w-3.5 h-3.5" /> Master Item
+                </button>
+                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover/tip:block w-60 p-2 bg-gray-900 text-white text-[11px] leading-snug rounded-lg shadow-xl z-50 pointer-events-none text-center">
+                  Add a new material category item to company-wide master inventory catalog.
+                  <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-4 border-transparent border-t-gray-900" />
+                </div>
+              </div>
             )}
           </div>
         </div>
@@ -426,54 +456,95 @@ export default function ProjectInventory({ project, user, tasks }) {
         {/* Sub Navigation & Search */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex flex-wrap gap-1 bg-gray-100 p-1 rounded-lg self-start">
-            <button
-              onClick={() => setActiveSubTab('my_submissions')}
-              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
-                activeSubTab === 'my_submissions' ? 'bg-amber-600 text-white shadow-sm' : 'text-amber-800 bg-amber-50 hover:bg-amber-100'
-              }`}
-            >
-              📋 My Submissions Tracker ({data.mySubmissions ? data.mySubmissions.length : 0})
-            </button>
-            <button
-              onClick={() => setActiveSubTab('balances')}
-              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
-                activeSubTab === 'balances' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-900'
-              }`}
-            >
-              Live Stock Balance
-            </button>
-            <button
-              onClick={() => setActiveSubTab('anti_theft')}
-              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
-                activeSubTab === 'anti_theft' ? 'bg-purple-600 text-white shadow-sm' : 'text-purple-700 hover:bg-purple-50'
-              }`}
-            >
-              🛡️ Physical Stock Audit
-            </button>
-            <button
-              onClick={() => setActiveSubTab('receipts')}
-              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
-                activeSubTab === 'receipts' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-900'
-              }`}
-            >
-              Inward History ({data.receipts.length})
-            </button>
-            <button
-              onClick={() => setActiveSubTab('usage')}
-              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
-                activeSubTab === 'usage' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-900'
-              }`}
-            >
-              Installation History ({data.usage.length})
-            </button>
-            <button
-              onClick={() => setActiveSubTab('scrap')}
-              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
-                activeSubTab === 'scrap' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-900'
-              }`}
-            >
-              Scrap History ({data.scrap.length})
-            </button>
+            <div className="relative group/tip">
+              <button
+                onClick={() => setActiveSubTab('my_submissions')}
+                className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                  activeSubTab === 'my_submissions' ? 'bg-amber-600 text-white shadow-sm' : 'text-amber-800 bg-amber-50 hover:bg-amber-100'
+                }`}
+              >
+                📋 My Submissions Tracker ({data.mySubmissions ? data.mySubmissions.length : 0})
+              </button>
+              <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 hidden group-hover/tip:block w-64 p-2 bg-gray-900 text-white text-[11px] leading-snug rounded-lg shadow-xl z-50 pointer-events-none text-center">
+                Track status of Delivery Challans logged by you. Fix & resubmit any rejected entries.
+                <div className="absolute bottom-full left-1/2 -translate-x-1/2 -mb-1 border-4 border-transparent border-b-gray-900" />
+              </div>
+            </div>
+
+            <div className="relative group/tip">
+              <button
+                onClick={() => setActiveSubTab('balances')}
+                className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                  activeSubTab === 'balances' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-900'
+                }`}
+              >
+                Live Stock Balance
+              </button>
+              <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 hidden group-hover/tip:block w-64 p-2 bg-gray-900 text-white text-[11px] leading-snug rounded-lg shadow-xl z-50 pointer-events-none text-center">
+                Real-time available store quantity (Approved Inward - Installed - Scrapped).
+                <div className="absolute bottom-full left-1/2 -translate-x-1/2 -mb-1 border-4 border-transparent border-b-gray-900" />
+              </div>
+            </div>
+
+            <div className="relative group/tip">
+              <button
+                onClick={() => setActiveSubTab('anti_theft')}
+                className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                  activeSubTab === 'anti_theft' ? 'bg-purple-600 text-white shadow-sm' : 'text-purple-700 hover:bg-purple-50'
+                }`}
+              >
+                🛡️ Physical Stock Audit
+              </button>
+              <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 hidden group-hover/tip:block w-72 p-2 bg-gray-900 text-white text-[11px] leading-snug rounded-lg shadow-xl z-50 pointer-events-none text-center">
+                4-Way Reconciliation comparing system balance against physical store counts to spot shortages & shrinkage.
+                <div className="absolute bottom-full left-1/2 -translate-x-1/2 -mb-1 border-4 border-transparent border-b-gray-900" />
+              </div>
+            </div>
+
+            <div className="relative group/tip">
+              <button
+                onClick={() => setActiveSubTab('receipts')}
+                className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                  activeSubTab === 'receipts' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-900'
+                }`}
+              >
+                Inward History ({data.receipts.length})
+              </button>
+              <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 hidden group-hover/tip:block w-64 p-2 bg-gray-900 text-white text-[11px] leading-snug rounded-lg shadow-xl z-50 pointer-events-none text-center">
+                Complete historical log of all material arrivals, Delivery Challan (DC) #, and verifier sign-offs.
+                <div className="absolute bottom-full left-1/2 -translate-x-1/2 -mb-1 border-4 border-transparent border-b-gray-900" />
+              </div>
+            </div>
+
+            <div className="relative group/tip">
+              <button
+                onClick={() => setActiveSubTab('usage')}
+                className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                  activeSubTab === 'usage' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-900'
+                }`}
+              >
+                Installation History ({data.usage.length})
+              </button>
+              <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 hidden group-hover/tip:block w-64 p-2 bg-gray-900 text-white text-[11px] leading-snug rounded-lg shadow-xl z-50 pointer-events-none text-center">
+                Log of materials installed/consumed on-site linked to specific tasks & physical locations.
+                <div className="absolute bottom-full left-1/2 -translate-x-1/2 -mb-1 border-4 border-transparent border-b-gray-900" />
+              </div>
+            </div>
+
+            <div className="relative group/tip">
+              <button
+                onClick={() => setActiveSubTab('scrap')}
+                className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                  activeSubTab === 'scrap' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-900'
+                }`}
+              >
+                Scrap History ({data.scrap.length})
+              </button>
+              <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 hidden group-hover/tip:block w-64 p-2 bg-gray-900 text-white text-[11px] leading-snug rounded-lg shadow-xl z-50 pointer-events-none text-center">
+                Log of damaged, defective, or scrapped materials with damage photos & rejection reasons.
+                <div className="absolute bottom-full left-1/2 -translate-x-1/2 -mb-1 border-4 border-transparent border-b-gray-900" />
+              </div>
+            </div>
           </div>
 
           <div className="flex items-center gap-2">

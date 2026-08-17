@@ -176,54 +176,74 @@ export default function ProjectDetail({ project, user, onBack, onUpdate }) {
 
       {/* Main Tab Navigation Bar */}
       <div className="flex flex-wrap gap-1 bg-gray-200/80 p-1.5 rounded-xl w-fit">
-        <button
-          onClick={() => setProjectTab('tasks')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all ${
-            projectTab === 'tasks' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
-          }`}
-        >
-          <ListTodo className="w-4 h-4 text-emerald-600" />
-          Project Tasks ({tasks.length})
-        </button>
+        <div className="relative group/tip">
+          <button
+            onClick={() => setProjectTab('tasks')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all ${
+              projectTab === 'tasks' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            <ListTodo className="w-4 h-4 text-emerald-600" />
+            Project Tasks ({tasks.length})
+          </button>
+          <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 hidden group-hover/tip:block w-64 p-2 bg-gray-900 text-white text-[11px] leading-snug rounded-lg shadow-xl z-50 pointer-events-none text-center">
+            Task management board with status tracking, daily logs, and verifications.
+            <div className="absolute bottom-full left-1/2 -translate-x-1/2 -mb-1 border-4 border-transparent border-b-gray-900" />
+          </div>
+        </div>
+
         {canSeeInventory && (
-          <button
-            onClick={() => setProjectTab('inventory')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all ${
-              projectTab === 'inventory' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            <Package className="w-4 h-4 text-amber-600" />
-            Site Inventory & Audit {user.role === 'manager' && pendingManagerReceipts.length > 0 && (
-              <span className="bg-amber-500 text-white text-[10px] px-1.5 py-0.2 rounded-full font-bold animate-pulse">
-                {pendingManagerReceipts.length}
-              </span>
-            )}
-            {user.role === 'admin' && pendingAdminReceipts.length > 0 && (
-              <span className="bg-blue-600 text-white text-[10px] px-1.5 py-0.2 rounded-full font-bold animate-pulse">
-                {pendingAdminReceipts.length}
-              </span>
-            )}
-          </button>
+          <div className="relative group/tip">
+            <button
+              onClick={() => setProjectTab('inventory')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all ${
+                projectTab === 'inventory' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              <Package className="w-4 h-4 text-amber-600" />
+              Site Inventory & Audit {user.role === 'manager' && pendingManagerReceipts.length > 0 && (
+                <span className="bg-amber-500 text-white text-[10px] px-1.5 py-0.2 rounded-full font-bold animate-pulse">
+                  {pendingManagerReceipts.length}
+                </span>
+              )}
+              {user.role === 'admin' && pendingAdminReceipts.length > 0 && (
+                <span className="bg-blue-600 text-white text-[10px] px-1.5 py-0.2 rounded-full font-bold animate-pulse">
+                  {pendingAdminReceipts.length}
+                </span>
+              )}
+            </button>
+            <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 hidden group-hover/tip:block w-72 p-2 bg-gray-900 text-white text-[11px] leading-snug rounded-lg shadow-xl z-50 pointer-events-none text-center">
+              Material ledger, stock arrivals, installation logs, store stock audits, and duplicate DC protection.
+              <div className="absolute bottom-full left-1/2 -translate-x-1/2 -mb-1 border-4 border-transparent border-b-gray-900" />
+            </div>
+          </div>
         )}
+
         {canSeeDocuments && (
-          <button
-            onClick={() => setProjectTab('documents')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all ${
-              projectTab === 'documents' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            <FileCheck className="w-4 h-4 text-blue-600" />
-            Site Documents & DC {user.role === 'manager' && pendingManagerDocs.length > 0 && (
-              <span className="bg-amber-500 text-white text-[10px] px-1.5 py-0.2 rounded-full font-bold animate-pulse">
-                {pendingManagerDocs.length}
-              </span>
-            )}
-            {user.role === 'admin' && pendingAdminDocs.length > 0 && (
-              <span className="bg-blue-600 text-white text-[10px] px-1.5 py-0.2 rounded-full font-bold animate-pulse">
-                {pendingAdminDocs.length}
-              </span>
-            )}
-          </button>
+          <div className="relative group/tip">
+            <button
+              onClick={() => setProjectTab('documents')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all ${
+                projectTab === 'documents' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              <FileCheck className="w-4 h-4 text-blue-600" />
+              Site Documents & DC {user.role === 'manager' && pendingManagerDocs.length > 0 && (
+                <span className="bg-amber-500 text-white text-[10px] px-1.5 py-0.2 rounded-full font-bold animate-pulse">
+                  {pendingManagerDocs.length}
+                </span>
+              )}
+              {user.role === 'admin' && pendingAdminDocs.length > 0 && (
+                <span className="bg-blue-600 text-white text-[10px] px-1.5 py-0.2 rounded-full font-bold animate-pulse">
+                  {pendingAdminDocs.length}
+                </span>
+              )}
+            </button>
+            <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 hidden group-hover/tip:block w-72 p-2 bg-gray-900 text-white text-[11px] leading-snug rounded-lg shadow-xl z-50 pointer-events-none text-center">
+              Secure document vault for Delivery Challans, Quality Test Reports, Safety Permits, and Handover files.
+              <div className="absolute bottom-full left-1/2 -translate-x-1/2 -mb-1 border-4 border-transparent border-b-gray-900" />
+            </div>
+          </div>
         )}
       </div>
 
