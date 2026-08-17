@@ -18,8 +18,16 @@ export default function Header({ user, onLogout, onChangePassword, onViewTask })
   const [pendingDeps, setPendingDeps] = useState([]);
   const [depTab, setDepTab] = useState('my');
 
+  const parseNotificationDate = (d) => {
+    if (!d) return null;
+    if (d instanceof Date) return d;
+    const str = String(d).trim().replace(' ', 'T');
+    const dt = new Date(str);
+    return isNaN(dt.getTime()) ? new Date(d) : dt;
+  };
+
   const getFilteredNotifications = () => {
-    if (user.role !== 'admin' || dateFilter === 'all') return notifications;
+    if (dateFilter === 'all') return notifications;
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
     const yesterdayStart = todayStart - 24 * 60 * 60 * 1000;
@@ -27,9 +35,10 @@ export default function Header({ user, onLogout, onChangePassword, onViewTask })
 
     return notifications.filter(n => {
       if (!n.created_at) return true;
-      // Convert SQLite datetime string or standard ISO string to timestamp
-      // e.g. "2026-08-01 12:00:00" -> replace space with 'T' for iOS/Safari compatibility and append 'Z' to treat as UTC
-      const nTime = new Date(n.created_at).getTime();
+      const dt = parseNotificationDate(n.created_at);
+      if (!dt || isNaN(dt.getTime())) return true;
+      const nTime = dt.getTime();
+
       if (dateFilter === 'today') {
         return nTime >= todayStart;
       } else if (dateFilter === 'yesterday') {
@@ -38,7 +47,7 @@ export default function Header({ user, onLogout, onChangePassword, onViewTask })
         return nTime >= sevenDaysAgo;
       } else if (dateFilter === 'custom') {
         if (!customDate) return true;
-        const nDateStr = new Date(nTime).toISOString().slice(0, 10);
+        const nDateStr = dt.toISOString().slice(0, 10);
         return nDateStr === customDate;
       }
       return true;
@@ -376,38 +385,43 @@ export default function Header({ user, onLogout, onChangePassword, onViewTask })
                 <div className="fixed right-4 left-4 top-14 sm:absolute sm:right-0 sm:left-auto sm:top-10 sm:w-80 w-auto bg-white border border-gray-200 rounded-xl shadow-lg py-1 z-[1000] max-h-[80vh] flex flex-col">
                     <div className="flex items-center justify-between px-4 py-2 border-b border-gray-100 shrink-0">
                       <span className="text-xs font-semibold text-gray-700">Notifications</span>
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-2">
                         {unreadCount > 0 && (
-                          <button onClick={handleClearAll} className="text-[10px] text-amber-600 hover:text-amber-500 font-semibold transition-colors">Clear all</button>
+                          <button onClick={handleMarkAllRead} className="text-[10px] text-blue-600 hover:text-blue-500 font-semibold transition-colors">
+                            Mark all read
+                          </button>
+                        )}
+                        {notifications.length > 0 && (
+                          <button onClick={handleClearAll} className="text-[10px] text-red-600 hover:text-red-500 font-semibold transition-colors">
+                            Clear all
+                          </button>
                         )}
                       </div>
                     </div>
-                    {user.role === 'admin' && (
-                      <div className="flex items-center gap-1.5 px-4 py-1.5 bg-gray-50 border-b border-gray-100 shrink-0 flex-wrap">
-                        <span className="text-[9px] uppercase tracking-wider text-gray-400 font-semibold">Filter:</span>
-                        {['all', 'today', 'yesterday', 'week', 'custom'].map(f => (
-                          <button
-                            key={f}
-                            onClick={() => setDateFilter(f)}
-                            className={`text-[9px] px-1.5 py-0.5 rounded font-medium capitalize border transition-all ${
-                              dateFilter === f
-                                ? 'bg-amber-500 text-white border-amber-500'
-                                : 'bg-white text-gray-500 border-gray-200 hover:text-gray-700'
-                            }`}
-                          >
-                            {f}
-                          </button>
-                        ))}
-                        {dateFilter === 'custom' && (
-                          <input
-                            type="date"
-                            value={customDate}
-                            onChange={(e) => setCustomDate(e.target.value)}
-                            className="text-[9px] border border-gray-200 rounded px-1 py-0.5 bg-white focus:outline-none focus:ring-1 focus:ring-amber-500"
-                          />
-                        )}
-                      </div>
-                    )}
+                    <div className="flex items-center gap-1.5 px-4 py-1.5 bg-gray-50 border-b border-gray-100 shrink-0 flex-wrap">
+                      <span className="text-[9px] uppercase tracking-wider text-gray-400 font-semibold">Filter:</span>
+                      {['all', 'today', 'yesterday', 'week', 'custom'].map(f => (
+                        <button
+                          key={f}
+                          onClick={() => setDateFilter(f)}
+                          className={`text-[9px] px-1.5 py-0.5 rounded font-medium capitalize border transition-all ${
+                            dateFilter === f
+                              ? 'bg-amber-500 text-white border-amber-500'
+                              : 'bg-white text-gray-500 border-gray-200 hover:text-gray-700'
+                          }`}
+                        >
+                          {f}
+                        </button>
+                      ))}
+                      {dateFilter === 'custom' && (
+                        <input
+                          type="date"
+                          value={customDate}
+                          onChange={(e) => setCustomDate(e.target.value)}
+                          className="text-[9px] border border-gray-200 rounded px-1 py-0.5 bg-white focus:outline-none focus:ring-1 focus:ring-amber-500"
+                        />
+                      )}
+                    </div>
                     <div className="flex-1 overflow-y-auto divide-y divide-gray-50">
                       {displayedNotifications.length === 0 ? (
                         <div className="py-8 text-center text-xs text-gray-400">No notifications</div>

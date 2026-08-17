@@ -1333,6 +1333,15 @@ router.delete('/notifications/:id', auth, async (req, res) => {
   }
 });
 
+router.delete('/notifications', auth, async (req, res) => {
+  try {
+    await db.query('DELETE FROM notifications WHERE user_id = $1', [req.user.id]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.get('/tasks/:id/explanations', auth, async (req, res) => {
   try {
     const { id } = req.params;
