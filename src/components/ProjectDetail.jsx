@@ -368,22 +368,22 @@ export default function ProjectDetail({ project, user, onBack, onUpdate }) {
               )
             )}
 
-            <div className="divide-y divide-gray-100 max-h-[400px] overflow-y-auto">
+            <div className="divide-y divide-gray-100 max-h-[65vh] overflow-y-auto divide-solid">
               {members.length === 0 ? (
                 <div className="p-4 text-center text-xs text-gray-500 italic">
                   No members added yet.
                 </div>
               ) : (
                 members.map(member => (
-                  <div key={member.id} className="p-3 space-y-1.5 group hover:bg-gray-50 transition-colors">
+                  <div key={member.id} className="p-3 space-y-1.5 group hover:bg-blue-50/30 transition-colors">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <div className="w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center border border-gray-200">
+                        <div className="w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center border border-gray-200 shrink-0">
                           {member.role === 'admin' ? <Shield className="w-3.5 h-3.5 text-amber-600" /> : <User className="w-3.5 h-3.5 text-gray-500" />}
                         </div>
                         <div>
                           <p className="text-xs font-semibold text-gray-900 leading-tight">{member.name}</p>
-                          <p className="text-[10px] text-gray-500 uppercase tracking-wider">{member.role}</p>
+                          <p className="text-[10px] text-gray-500 uppercase tracking-wider">{member.role ? member.role.replace('_', ' ') : ''}</p>
                         </div>
                       </div>
                       {user.role === 'admin' && (
@@ -403,7 +403,7 @@ export default function ProjectDetail({ project, user, onBack, onUpdate }) {
                         <button
                           onClick={() => handleToggleMemberPermission(member, 'inventory')}
                           className={`px-1.5 py-0.5 rounded font-medium border transition-colors ${
-                            member.can_access_inventory ? 'bg-amber-100 text-amber-900 border-amber-300' : 'bg-gray-100 text-gray-500 border-gray-200'
+                            member.can_access_inventory ? 'bg-amber-100 text-amber-900 border-amber-300 font-bold' : 'bg-gray-100 text-gray-500 border-gray-200'
                           }`}
                         >
                           📦 Inventory: {member.can_access_inventory ? 'ON' : 'OFF'}
@@ -411,7 +411,7 @@ export default function ProjectDetail({ project, user, onBack, onUpdate }) {
                         <button
                           onClick={() => handleToggleMemberPermission(member, 'documents')}
                           className={`px-1.5 py-0.5 rounded font-medium border transition-colors ${
-                            member.can_access_documents ? 'bg-blue-100 text-blue-900 border-blue-300' : 'bg-gray-100 text-gray-500 border-gray-200'
+                            member.can_access_documents ? 'bg-blue-100 text-blue-900 border-blue-300 font-bold' : 'bg-gray-100 text-gray-500 border-gray-200'
                           }`}
                         >
                           📜 Docs: {member.can_access_documents ? 'ON' : 'OFF'}
