@@ -273,29 +273,35 @@ const initDatabase = async () => {
     CREATE INDEX IF NOT EXISTS idx_proj_audits ON project_physical_audits(project_id);
   `);
 
-  // ── Seed Default Master Items ──────────────────────────────────
-  const { rows: invRows } = await pool.query("SELECT COUNT(*) as count FROM inventory_master");
-  if (parseInt(invRows[0].count, 10) === 0) {
-    const defaultItems = [
-      ['VictoFire 7000 Control Panel', 'Panels', 'sets', 'High-capacity addressable fire cum PA panel'],
-      ['VictoFire 300 Addressable Panel', 'Panels', 'sets', 'Addressable fire alarm panel'],
-      ['VictoFire 2508 Smoke Detector', 'Detectors', 'pcs', 'False-alarm immune optical smoke detector'],
-      ['Thermal / Heat Detector', 'Detectors', 'pcs', 'Fixed temperature thermal detector'],
-      ['VictoFire Flat Module', 'Modules', 'pcs', 'Residential unit interface module'],
-      ['VictoFire Lobby Module', 'Modules', 'pcs', 'Floor/corridor interface module'],
-      ['VictoFire Area Module', 'Modules', 'pcs', 'Commercial zone interface module'],
-      ['Manual Call Point (MCP)', 'Notifiers', 'pcs', 'Break-glass manual call point'],
-      ['PA Speaker & Sounder', 'Notifiers', 'pcs', 'Public address speaker cum hooter'],
-      ['2-Core FRLS Armoured Cable', 'Cabling', 'meters', 'Fire resistant low smoke cable'],
-      ['PVC Conduit Pipe 25mm', 'Accessories', 'meters', 'Heavy duty rigid PVC conduit']
-    ];
-    for (const item of defaultItems) {
+  // ── Seed / Ensure Default Master Items ──────────────────────────
+  const requiredMasterItems = [
+    ['VictoFire 7000 Control Panel', 'Panels', 'sets', 'High-capacity addressable fire cum PA panel'],
+    ['VictoFire 300 Addressable Panel', 'Panels', 'sets', 'Addressable fire alarm panel'],
+    ['Two Four Zone Panel', 'Panels', 'pcs', '2 Zone / 4 Zone Fire Alarm Panel'],
+    ['Multisensor Panel', 'Panels', 'pcs', 'Multisensor Fire Alarm Panel'],
+    ['Amplifier', 'Panels', 'pcs', 'Audio Power Amplifier for PA/VA System'],
+    ['UPS', 'Panels', 'pcs', 'Uninterruptible Power Supply Unit'],
+    ['Repeater Panel', 'Panels', 'pcs', 'Remote Repeater Display Panel'],
+    ['Beam Detector', 'Detectors', 'pcs', 'Optical Beam Smoke Detector'],
+    ['VictoFire 2508 Smoke Detector', 'Detectors', 'pcs', 'False-alarm immune optical smoke detector'],
+    ['Thermal / Heat Detector', 'Detectors', 'pcs', 'Fixed temperature thermal detector'],
+    ['VictoFire Flat Module', 'Modules', 'pcs', 'Residential unit interface module'],
+    ['VictoFire Lobby Module', 'Modules', 'pcs', 'Floor/corridor interface module'],
+    ['VictoFire Area Module', 'Modules', 'pcs', 'Commercial zone interface module'],
+    ['Manual Call Point (MCP)', 'Notifiers', 'pcs', 'Break-glass manual call point'],
+    ['PA Speaker & Sounder', 'Notifiers', 'pcs', 'Public address speaker cum hooter'],
+    ['2-Core FRLS Armoured Cable', 'Cabling', 'meters', 'Fire resistant low smoke cable'],
+    ['PVC Conduit Pipe 25mm', 'Accessories', 'meters', 'Heavy duty rigid PVC conduit']
+  ];
+
+  for (const item of requiredMasterItems) {
+    const { rows: existing } = await pool.query('SELECT id FROM inventory_master WHERE LOWER(TRIM(name)) = LOWER(TRIM($1))', [item[0]]);
+    if (existing.length === 0) {
       await pool.query(
         'INSERT INTO inventory_master (name, category, unit, description) VALUES ($1, $2, $3, $4)',
         item
       );
     }
-    console.log('Default VictoFire inventory master catalog seeded.');
   }
 
   // ── Seed Admin User ────────────────────────────────────────────
