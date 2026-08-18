@@ -40,11 +40,14 @@ const initDatabase = async () => {
       name TEXT NOT NULL,
       email TEXT UNIQUE NOT NULL,
       password_hash TEXT NOT NULL,
-      role TEXT NOT NULL DEFAULT 'employee' CHECK(role IN ('admin','manager','site_manager','employee')),
+      role TEXT NOT NULL DEFAULT 'employee',
       department TEXT DEFAULT 'Engineering',
       avatar_url TEXT DEFAULT '',
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
+
+    -- Drop legacy restrictive check constraint on users.role if it exists
+    ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
 
     CREATE TABLE IF NOT EXISTS tasks (
       id SERIAL PRIMARY KEY,
