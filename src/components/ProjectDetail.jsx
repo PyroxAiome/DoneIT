@@ -160,7 +160,7 @@ export default function ProjectDetail({ project, user, onBack, onUpdate }) {
           </div>
         </div>
 
-        {user.role === 'admin' && (
+        {['admin', 'manager'].includes(user.role) && (
           <button
             onClick={() => {
               setSelectedTask(null);
@@ -300,7 +300,7 @@ export default function ProjectDetail({ project, user, onBack, onUpdate }) {
                       task={task}
                       onEdit={handleTaskSaved}
                       onSelect={(t) => {
-                        if (user.role === 'admin') {
+                        if (['admin', 'manager'].includes(user.role)) {
                           setSelectedTask(t);
                           setShowTaskModal(true);
                         }
