@@ -33,7 +33,13 @@ const getClient = () => pool.connect();
  * Called once at server startup.
  */
 const initDatabase = async () => {
-  // ── Create Tables ──────────────────────────────────────────────
+  // ── Drop legacy restrictive check constraint on users.role ─────────────
+  try {
+    await pool.query('ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check');
+  } catch (e) {
+    console.log('users_role_check drop note:', e.message);
+  }
+
   await pool.query(`
     CREATE TABLE IF NOT EXISTS users (
       id SERIAL PRIMARY KEY,
@@ -45,9 +51,6 @@ const initDatabase = async () => {
       avatar_url TEXT DEFAULT '',
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
-
-    -- Drop legacy restrictive check constraint on users.role if it exists
-    ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
 
     CREATE TABLE IF NOT EXISTS tasks (
       id SERIAL PRIMARY KEY,
