@@ -233,12 +233,14 @@ router.put('/auth/change-password', auth, async (req, res) => {
 });
 
 // ─── USERS ──────────────────────────────────────────────────────
+const ALLOWED_ROLES = [
+  'admin', 'manager', 'site_manager',
+  'software_engineer', 'electronics_engineer', 'mechanical_engineer', 'production_engineer',
+  'intern', 'hr', 'employee'
+];
+
 router.get('/employees', auth, async (req, res) => {
   try {
-    const includeAll = req.query.all === 'true';
-    let roleFilter = "role IN ('employee', 'site_manager')";
-    if (includeAll) roleFilter = "role IN ('admin','manager','site_manager','employee')";
-
     const { rows: users } = await db.query(`
       SELECT u.id, u.name, u.email, u.role, u.department, u.avatar_url, u.created_at,
         (
@@ -254,7 +256,6 @@ router.get('/employees', auth, async (req, res) => {
           ), 0
         ) as avg_progress
       FROM users u
-      WHERE ${roleFilter}
       ORDER BY u.name
     `);
 
@@ -270,9 +271,8 @@ router.post('/users', auth, adminOnly, async (req, res) => {
     if (!name || !email || !password || !role) {
       return res.status(400).json({ error: 'Name, email, password, and role required' });
     }
-    const allowedRoles = ['admin', 'manager', 'site_manager', 'employee'];
-    if (!allowedRoles.includes(role)) {
-      return res.status(400).json({ error: `Role must be one of: ${allowedRoles.join(', ')}` });
+    if (!ALLOWED_ROLES.includes(role)) {
+      return res.status(400).json({ error: `Role must be one of: ${ALLOWED_ROLES.join(', ')}` });
     }
     const { rows: existingRows } = await db.query('SELECT id FROM users WHERE email = $1', [email]);
     if (existingRows[0]) {
@@ -281,7 +281,7 @@ router.post('/users', auth, adminOnly, async (req, res) => {
     const hash = bcrypt.hashSync(password, 10);
     const result = await db.query(
       'INSERT INTO users (name, email, password_hash, role, department) VALUES ($1, $2, $3, $4, $5) RETURNING id',
-      [name, email, hash, role, department || 'Engineering']
+      [name, email, hash, role, department || 'General']
     );
 
     const { rows: userRows } = await db.query('SELECT id, name, email, role, department, avatar_url, created_at FROM users WHERE id = $1', [result.rows[0].id]);
@@ -298,9 +298,8 @@ router.put('/users/:id', auth, adminOnly, async (req, res) => {
     if (!name || !email || !role) {
       return res.status(400).json({ error: 'Name, email, and role are required' });
     }
-    const allowedRoles = ['admin', 'manager', 'site_manager', 'employee'];
-    if (!allowedRoles.includes(role)) {
-      return res.status(400).json({ error: `Role must be one of: ${allowedRoles.join(', ')}` });
+    if (!ALLOWED_ROLES.includes(role)) {
+      return res.status(400).json({ error: `Role must be one of: ${ALLOWED_ROLES.join(', ')}` });
     }
 
     const { rows: conflictRows } = await db.query('SELECT id FROM users WHERE email = $1 AND id != $2', [email, id]);

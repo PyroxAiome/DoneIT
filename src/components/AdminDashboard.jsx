@@ -558,7 +558,7 @@ export default function AdminDashboard({ user }) {
                     </div>
                     <div>
                       <p className="text-sm font-medium text-gray-800">{emp.name}</p>
-                      <p className="text-[10px] text-gray-400 uppercase">{emp.role} &middot; {emp.department}</p>
+                      <p className="text-[10px] text-amber-700 font-semibold uppercase">{emp.role ? emp.role.replace('_', ' ') : ''}</p>
                     </div>
                   </div>
                   {emp.role !== 'admin' && (

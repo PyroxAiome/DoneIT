@@ -235,7 +235,7 @@ export default function EmployeeDashboard({ user }) {
       {activeTab === 'team' && !selectedEmp ? (
         <div className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-            {employees.filter(e => e.role === 'employee').map((emp) => {
+            {employees.filter(e => !['admin', 'manager'].includes(e.role)).map((emp) => {
               const isSelf = emp.id === user.id;
               return (
                 <div key={emp.id} className={`bg-white border border-gray-200 rounded-xl p-4 hover:shadow-md hover:border-gray-300 transition-all cursor-pointer ${isSelf ? 'ring-1 ring-amber-500/30' : ''}`}
@@ -247,7 +247,7 @@ export default function EmployeeDashboard({ user }) {
                       </div>
                       <div>
                         <p className="text-sm font-medium text-gray-800">{emp.name} {isSelf && <span className="text-[10px] text-amber-600 bg-amber-50 px-1 py-0.2 rounded ml-1 font-semibold">You</span>}</p>
-                        <p className="text-[10px] text-gray-400 uppercase">{emp.role} &middot; {emp.department}</p>
+                        <p className="text-[10px] text-amber-700 font-semibold uppercase">{emp.role ? emp.role.replace('_', ' ') : ''}</p>
                       </div>
                     </div>
                   </div>

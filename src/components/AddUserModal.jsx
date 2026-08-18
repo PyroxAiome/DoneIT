@@ -85,31 +85,25 @@ export default function AddUserModal({ isOpen, onClose, onCreated, onUpdated, ed
             <input type="password" value={form.password} onChange={handleChange('password')} className="input-field" placeholder={editingUser ? "Optional password reset" : "Set password"} />
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs text-gray-500 uppercase tracking-wider block mb-1">Role</label>
-              <select value={form.role} onChange={handleChange('role')} className="input-field">
-                <option value="employee">Employee</option>
+          <div>
+            <label className="text-xs text-gray-500 uppercase tracking-wider block mb-1">User Role & Designation</label>
+            <select value={form.role} onChange={handleChange('role')} className="input-field">
+              <optgroup label="Engineers & Staff">
+                <option value="software_engineer">Software Engineer</option>
+                <option value="electronics_engineer">Electronics Engineer</option>
+                <option value="mechanical_engineer">Mechanical Engineer</option>
+                <option value="production_engineer">Production Engineer</option>
+                <option value="intern">Intern</option>
+                <option value="hr">HR</option>
+                <option value="employee">General Employee</option>
+              </optgroup>
+              <optgroup label="Management & Operations">
                 <option value="site_manager">Site Manager / QS</option>
                 <option value="manager">Manager</option>
                 <option value="admin">Admin</option>
-              </select>
-            </div>
-            <div>
-              <label className="text-xs text-gray-500 uppercase tracking-wider block mb-1">Category (Team)</label>
-              <select value={form.department} onChange={handleChange('department')} className="input-field">
-                <option>General</option>
-                <option>Software</option>
-                <option>Electronics</option>
-                <option>Mechanical</option>
-                <option>Production</option>
-                <option>Engineering</option>
-                <option>Design</option>
-                <option>Marketing</option>
-                <option>QA</option>
-                <option>Infra</option>
-                <option>Executive</option>
-              </select>
-            </div>
+              </optgroup>
+            </select>
+          </div>
           </div>
           <div className="flex justify-end gap-2 pt-2">
             <button type="button" onClick={() => { reset(); onClose(); }} className="btn-primary text-sm">Cancel</button>
