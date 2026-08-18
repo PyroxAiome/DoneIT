@@ -86,22 +86,18 @@ export default function AddUserModal({ isOpen, onClose, onCreated, onUpdated, ed
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
-            <label className="text-xs text-gray-500 uppercase tracking-wider block mb-1">User Role & Designation</label>
+            <label className="text-xs text-gray-500 uppercase tracking-wider block mb-1">Role</label>
             <select value={form.role} onChange={handleChange('role')} className="input-field">
-              <optgroup label="Engineers & Staff">
-                <option value="software_engineer">Software Engineer</option>
-                <option value="electronics_engineer">Electronics Engineer</option>
-                <option value="mechanical_engineer">Mechanical Engineer</option>
-                <option value="production_engineer">Production Engineer</option>
-                <option value="intern">Intern</option>
-                <option value="hr">HR</option>
-                <option value="employee">General Employee</option>
-              </optgroup>
-              <optgroup label="Management & Operations">
-                <option value="site_manager">Site Manager / QS</option>
-                <option value="manager">Manager</option>
-                <option value="admin">Admin</option>
-              </optgroup>
+              <option value="employee">Employee</option>
+              <option value="software_engineer">Software Engineer</option>
+              <option value="electronics_engineer">Electronics Engineer</option>
+              <option value="mechanical_engineer">Mechanical Engineer</option>
+              <option value="production_engineer">Production Engineer</option>
+              <option value="intern">Intern</option>
+              <option value="hr">HR</option>
+              <option value="site_manager">Site Manager / QS</option>
+              <option value="manager">Manager</option>
+              <option value="admin">Admin</option>
             </select>
           </div>
           </div>
