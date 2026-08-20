@@ -29,6 +29,19 @@ export default function ProjectInventory({ project, user, tasks }) {
   const [scrapForm, setScrapForm] = useState({ item_id: '', qty_scrapped: '', reason: '', photo_url: '' });
   const [itemForm, setItemForm] = useState({ name: '', category: 'Panels', unit: 'pcs', description: '' });
   const [auditForm, setAuditForm] = useState({ item_id: '', physical_counted_qty: '', notes: '' });
+
+  // Custom "Others" item name states
+  const [inwardCustomName, setInwardCustomName] = useState('');
+  const [usageCustomName, setUsageCustomName] = useState('');
+  const [scrapCustomName, setScrapCustomName] = useState('');
+
+  // Helper: resolve item_id — if 'others', quick-create the custom item first
+  const resolveItemId = async (itemId, customName) => {
+    if (itemId !== 'others') return itemId;
+    if (!customName || !customName.trim()) throw new Error('Please enter a custom item name');
+    const newItem = await api.quickCreateItem({ name: customName.trim() });
+    return newItem.id;
+  };
   
   const [resubmitItem, setResubmitItem] = useState(null);
   const [resubmitForm, setResubmitForm] = useState({ qty_received: '', challan_number: '', challan_photo: '', notes: '' });
@@ -89,9 +102,11 @@ export default function ProjectInventory({ project, user, tasks }) {
     if (!inwardForm.item_id || !inwardForm.qty_received) return;
     setBusy(true);
     try {
-      await api.logInwardMaterial(project.id, inwardForm);
+      const realItemId = await resolveItemId(inwardForm.item_id, inwardCustomName);
+      await api.logInwardMaterial(project.id, { ...inwardForm, item_id: realItemId });
       setShowInwardModal(false);
       setInwardForm({ item_id: '', qty_received: '', challan_number: '', challan_photo: '', notes: '' });
+      setInwardCustomName('');
       loadInventory();
     } catch (err) {
       alert(err.message);
@@ -105,9 +120,11 @@ export default function ProjectInventory({ project, user, tasks }) {
     if (!usageForm.item_id || !usageForm.qty_used) return;
     setBusy(true);
     try {
-      await api.logMaterialUsage(project.id, usageForm);
+      const realItemId = await resolveItemId(usageForm.item_id, usageCustomName);
+      await api.logMaterialUsage(project.id, { ...usageForm, item_id: realItemId });
       setShowUsageModal(false);
       setUsageForm({ item_id: '', task_id: '', qty_used: '', installed_location: '', notes: '' });
+      setUsageCustomName('');
       loadInventory();
     } catch (err) {
       alert(err.message);
@@ -121,9 +138,11 @@ export default function ProjectInventory({ project, user, tasks }) {
     if (!scrapForm.item_id || !scrapForm.qty_scrapped || !scrapForm.reason) return;
     setBusy(true);
     try {
-      await api.logMaterialScrap(project.id, scrapForm);
+      const realItemId = await resolveItemId(scrapForm.item_id, scrapCustomName);
+      await api.logMaterialScrap(project.id, { ...scrapForm, item_id: realItemId });
       setShowScrapModal(false);
       setScrapForm({ item_id: '', qty_scrapped: '', reason: '', photo_url: '' });
+      setScrapCustomName('');
       loadInventory();
     } catch (err) {
       alert(err.message);
@@ -896,7 +915,7 @@ export default function ProjectInventory({ project, user, tasks }) {
                 <label className="block font-semibold text-gray-700 mb-1">Select Material *</label>
                 <select
                   value={inwardForm.item_id}
-                  onChange={e => setInwardForm({ ...inwardForm, item_id: e.target.value })}
+                  onChange={e => { setInwardForm({ ...inwardForm, item_id: e.target.value }); if (e.target.value !== 'others') setInwardCustomName(''); }}
                   className="w-full p-2 border border-gray-300 rounded-lg"
                   required
                 >
@@ -904,7 +923,18 @@ export default function ProjectInventory({ project, user, tasks }) {
                   {data.balances.map(b => (
                     <option key={b.item_id} value={b.item_id}>{b.name} ({b.category})</option>
                   ))}
+                  <option value="others" className="font-semibold text-amber-700">⊕ Others (Custom Item)</option>
                 </select>
+                {inwardForm.item_id === 'others' && (
+                  <input
+                    type="text"
+                    placeholder="Enter custom item name (e.g. Cable Ties, Junction Box)"
+                    value={inwardCustomName}
+                    onChange={e => setInwardCustomName(e.target.value)}
+                    className="w-full p-2 border border-amber-400 rounded-lg mt-2 bg-amber-50 focus:ring-2 focus:ring-amber-300"
+                    required
+                  />
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -969,7 +999,7 @@ export default function ProjectInventory({ project, user, tasks }) {
                 <label className="block font-semibold text-gray-700 mb-1">Select Material *</label>
                 <select
                   value={usageForm.item_id}
-                  onChange={e => setUsageForm({ ...usageForm, item_id: e.target.value })}
+                  onChange={e => { setUsageForm({ ...usageForm, item_id: e.target.value }); if (e.target.value !== 'others') setUsageCustomName(''); }}
                   className="w-full p-2 border border-gray-300 rounded-lg"
                   required
                 >
@@ -979,7 +1009,18 @@ export default function ProjectInventory({ project, user, tasks }) {
                       {b.name} (Available: {b.in_stock} {b.unit})
                     </option>
                   ))}
+                  <option value="others" className="font-semibold text-amber-700">⊕ Others (Custom Item)</option>
                 </select>
+                {usageForm.item_id === 'others' && (
+                  <input
+                    type="text"
+                    placeholder="Enter custom item name (e.g. Cable Ties, Junction Box)"
+                    value={usageCustomName}
+                    onChange={e => setUsageCustomName(e.target.value)}
+                    className="w-full p-2 border border-amber-400 rounded-lg mt-2 bg-amber-50 focus:ring-2 focus:ring-amber-300"
+                    required
+                  />
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -1049,7 +1090,7 @@ export default function ProjectInventory({ project, user, tasks }) {
                 <label className="block font-semibold text-gray-700 mb-1">Select Damaged Item *</label>
                 <select
                   value={scrapForm.item_id}
-                  onChange={e => setScrapForm({ ...scrapForm, item_id: e.target.value })}
+                  onChange={e => { setScrapForm({ ...scrapForm, item_id: e.target.value }); if (e.target.value !== 'others') setScrapCustomName(''); }}
                   className="w-full p-2 border border-gray-300 rounded-lg"
                   required
                 >
@@ -1057,7 +1098,18 @@ export default function ProjectInventory({ project, user, tasks }) {
                   {data.balances.map(b => (
                     <option key={b.item_id} value={b.item_id}>{b.name}</option>
                   ))}
+                  <option value="others" className="font-semibold text-amber-700">⊕ Others (Custom Item)</option>
                 </select>
+                {scrapForm.item_id === 'others' && (
+                  <input
+                    type="text"
+                    placeholder="Enter custom item name (e.g. Cable Ties, Junction Box)"
+                    value={scrapCustomName}
+                    onChange={e => setScrapCustomName(e.target.value)}
+                    className="w-full p-2 border border-amber-400 rounded-lg mt-2 bg-amber-50 focus:ring-2 focus:ring-amber-300"
+                    required
+                  />
+                )}
               </div>
 
               <div>

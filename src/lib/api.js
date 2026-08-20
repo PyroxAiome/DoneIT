@@ -245,6 +245,12 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
+  quickCreateItem: (data) =>
+    request('/inventory/master/quick', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
   getProjectInventory: (id) => request(`/projects/${id}/inventory`),
 
   logInwardMaterial: (id, data) =>

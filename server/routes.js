@@ -1795,6 +1795,31 @@ router.post('/inventory/master', auth, adminOnly, async (req, res) => {
   }
 });
 
+// Quick-create a custom "Others" item on-the-fly (any role can use)
+router.post('/inventory/master/quick', auth, async (req, res) => {
+  try {
+    const { name, unit } = req.body;
+    if (!name || !name.trim()) return res.status(400).json({ error: 'Custom item name is required' });
+
+    // Check if item already exists (case-insensitive)
+    const { rows: existing } = await db.query(
+      'SELECT * FROM inventory_master WHERE LOWER(TRIM(name)) = LOWER(TRIM($1))',
+      [name.trim()]
+    );
+    if (existing.length > 0) {
+      return res.json(existing[0]); // Return existing item instead of creating duplicate
+    }
+
+    const { rows } = await db.query(
+      'INSERT INTO inventory_master (name, category, unit, description) VALUES ($1, $2, $3, $4) RETURNING *',
+      [name.trim(), 'Others', unit || 'pcs', 'Custom item added on-site']
+    );
+    res.status(201).json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.get('/projects/:id/inventory', auth, async (req, res) => {
   try {
     const { id } = req.params;
