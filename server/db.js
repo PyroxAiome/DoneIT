@@ -235,9 +235,8 @@ const initDatabase = async () => {
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
 
-    -- Migration alter for existing receipts table and role checks
+    -- Migration: remove legacy role check constraint (new roles added)
     ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
-    ALTER TABLE users ADD CONSTRAINT users_role_check CHECK(role IN ('admin','manager','site_manager','employee'));
 
     ALTER TABLE project_members ADD COLUMN IF NOT EXISTS can_access_inventory BOOLEAN DEFAULT false;
     ALTER TABLE project_members ADD COLUMN IF NOT EXISTS can_access_documents BOOLEAN DEFAULT false;
