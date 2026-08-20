@@ -30,17 +30,26 @@ export default function ProjectInventory({ project, user, tasks }) {
   const [itemForm, setItemForm] = useState({ name: '', category: 'Panels', unit: 'pcs', description: '' });
   const [auditForm, setAuditForm] = useState({ item_id: '', physical_counted_qty: '', notes: '' });
 
-  // Custom "Others" item name states
-  const [inwardCustomName, setInwardCustomName] = useState('');
-  const [usageCustomName, setUsageCustomName] = useState('');
-  const [scrapCustomName, setScrapCustomName] = useState('');
+  // Custom "Others" dynamic rows for bulk custom items
+  const emptyCustomRow = { name: '', qty: '', unit: 'pcs' };
+  const [inwardCustomRows, setInwardCustomRows] = useState([{ ...emptyCustomRow }]);
+  const [usageCustomRows, setUsageCustomRows] = useState([{ ...emptyCustomRow }]);
+  const [scrapCustomRows, setScrapCustomRows] = useState([{ ...emptyCustomRow }]);
 
-  // Helper: resolve item_id — if 'others', quick-create the custom item first
-  const resolveItemId = async (itemId, customName) => {
-    if (itemId !== 'others') return itemId;
-    if (!customName || !customName.trim()) throw new Error('Please enter a custom item name');
-    const newItem = await api.quickCreateItem({ name: customName.trim() });
-    return newItem.id;
+  // Helper: update a specific row in a custom rows array
+  const updateCustomRow = (rows, setRows, index, field, value) => {
+    const updated = rows.map((r, i) => i === index ? { ...r, [field]: value } : r);
+    setRows(updated);
+  };
+
+  // Helper: resolve and submit all custom rows as separate inward/usage/scrap entries
+  const resolveAndSubmitCustomRows = async (rows, projectId, submitFn, extraFields = {}) => {
+    const validRows = rows.filter(r => r.name.trim() && Number(r.qty) > 0);
+    if (validRows.length === 0) throw new Error('Please add at least one item with name and quantity');
+    for (const row of validRows) {
+      const newItem = await api.quickCreateItem({ name: row.name.trim(), unit: row.unit || 'pcs' });
+      await submitFn(projectId, { ...extraFields, item_id: newItem.id, qty_received: row.qty, qty_used: row.qty, qty_scrapped: row.qty });
+    }
   };
   
   const [resubmitItem, setResubmitItem] = useState(null);
@@ -99,14 +108,19 @@ export default function ProjectInventory({ project, user, tasks }) {
   // Handlers
   const handleInwardSubmit = async (e) => {
     e.preventDefault();
-    if (!inwardForm.item_id || !inwardForm.qty_received) return;
     setBusy(true);
     try {
-      const realItemId = await resolveItemId(inwardForm.item_id, inwardCustomName);
-      await api.logInwardMaterial(project.id, { ...inwardForm, item_id: realItemId });
+      if (inwardForm.item_id === 'others') {
+        // Submit each custom row as a separate inward entry
+        const extraFields = { challan_number: inwardForm.challan_number, challan_photo: inwardForm.challan_photo, notes: inwardForm.notes };
+        await resolveAndSubmitCustomRows(inwardCustomRows, project.id, api.logInwardMaterial, extraFields);
+      } else {
+        if (!inwardForm.item_id || !inwardForm.qty_received) return setBusy(false);
+        await api.logInwardMaterial(project.id, inwardForm);
+      }
       setShowInwardModal(false);
       setInwardForm({ item_id: '', qty_received: '', challan_number: '', challan_photo: '', notes: '' });
-      setInwardCustomName('');
+      setInwardCustomRows([{ ...emptyCustomRow }]);
       loadInventory();
     } catch (err) {
       alert(err.message);
@@ -117,14 +131,18 @@ export default function ProjectInventory({ project, user, tasks }) {
 
   const handleUsageSubmit = async (e) => {
     e.preventDefault();
-    if (!usageForm.item_id || !usageForm.qty_used) return;
     setBusy(true);
     try {
-      const realItemId = await resolveItemId(usageForm.item_id, usageCustomName);
-      await api.logMaterialUsage(project.id, { ...usageForm, item_id: realItemId });
+      if (usageForm.item_id === 'others') {
+        const extraFields = { task_id: usageForm.task_id, installed_location: usageForm.installed_location, notes: usageForm.notes };
+        await resolveAndSubmitCustomRows(usageCustomRows, project.id, api.logMaterialUsage, extraFields);
+      } else {
+        if (!usageForm.item_id || !usageForm.qty_used) return setBusy(false);
+        await api.logMaterialUsage(project.id, usageForm);
+      }
       setShowUsageModal(false);
       setUsageForm({ item_id: '', task_id: '', qty_used: '', installed_location: '', notes: '' });
-      setUsageCustomName('');
+      setUsageCustomRows([{ ...emptyCustomRow }]);
       loadInventory();
     } catch (err) {
       alert(err.message);
@@ -135,14 +153,18 @@ export default function ProjectInventory({ project, user, tasks }) {
 
   const handleScrapSubmit = async (e) => {
     e.preventDefault();
-    if (!scrapForm.item_id || !scrapForm.qty_scrapped || !scrapForm.reason) return;
     setBusy(true);
     try {
-      const realItemId = await resolveItemId(scrapForm.item_id, scrapCustomName);
-      await api.logMaterialScrap(project.id, { ...scrapForm, item_id: realItemId });
+      if (scrapForm.item_id === 'others') {
+        const extraFields = { reason: scrapForm.reason, photo_url: scrapForm.photo_url };
+        await resolveAndSubmitCustomRows(scrapCustomRows, project.id, api.logMaterialScrap, extraFields);
+      } else {
+        if (!scrapForm.item_id || !scrapForm.qty_scrapped || !scrapForm.reason) return setBusy(false);
+        await api.logMaterialScrap(project.id, scrapForm);
+      }
       setShowScrapModal(false);
       setScrapForm({ item_id: '', qty_scrapped: '', reason: '', photo_url: '' });
-      setScrapCustomName('');
+      setScrapCustomRows([{ ...emptyCustomRow }]);
       loadInventory();
     } catch (err) {
       alert(err.message);
@@ -904,7 +926,7 @@ export default function ProjectInventory({ project, user, tasks }) {
       {/* Modal: Log Inward Material */}
       {showInwardModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/30 backdrop-blur-sm" onClick={() => setShowInwardModal(false)}>
-          <div className="bg-white rounded-xl shadow-xl border border-gray-200 max-w-md w-full p-5 space-y-4" onClick={e => e.stopPropagation()}>
+          <div className={`bg-white rounded-xl shadow-xl border border-gray-200 w-full p-5 space-y-4 ${inwardForm.item_id === 'others' ? 'max-w-2xl' : 'max-w-md'}`} onClick={e => e.stopPropagation()}>
             <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
               <ArrowDownLeft className="w-5 h-5 text-emerald-600" />
               Log Inward Material (Arrival)
@@ -915,7 +937,7 @@ export default function ProjectInventory({ project, user, tasks }) {
                 <label className="block font-semibold text-gray-700 mb-1">Select Material *</label>
                 <select
                   value={inwardForm.item_id}
-                  onChange={e => { setInwardForm({ ...inwardForm, item_id: e.target.value }); if (e.target.value !== 'others') setInwardCustomName(''); }}
+                  onChange={e => { setInwardForm({ ...inwardForm, item_id: e.target.value }); if (e.target.value !== 'others') setInwardCustomRows([{ ...emptyCustomRow }]); }}
                   className="w-full p-2 border border-gray-300 rounded-lg"
                   required
                 >
@@ -925,54 +947,105 @@ export default function ProjectInventory({ project, user, tasks }) {
                   ))}
                   <option value="others" className="font-semibold text-amber-700">⊕ Others (Custom Item)</option>
                 </select>
-                {inwardForm.item_id === 'others' && (
-                  <input
-                    type="text"
-                    placeholder="Enter custom item name (e.g. Cable Ties, Junction Box)"
-                    value={inwardCustomName}
-                    onChange={e => setInwardCustomName(e.target.value)}
-                    className="w-full p-2 border border-amber-400 rounded-lg mt-2 bg-amber-50 focus:ring-2 focus:ring-amber-300"
-                    required
-                  />
-                )}
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-semibold text-gray-700 mb-1">Quantity Received *</label>
-                  <input
-                    type="number"
-                    step="any"
-                    min="0.1"
-                    placeholder="e.g. 50"
-                    value={inwardForm.qty_received}
-                    onChange={e => setInwardForm({ ...inwardForm, qty_received: e.target.value })}
-                    className="w-full p-2 border border-gray-300 rounded-lg"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block font-semibold text-gray-700 mb-1">Challan / Invoice #</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. CH-9042"
-                    value={inwardForm.challan_number}
-                    onChange={e => setInwardForm({ ...inwardForm, challan_number: e.target.value })}
-                    className="w-full p-2 border border-gray-300 rounded-lg"
-                  />
-                </div>
-              </div>
+              {/* Dynamic table for "Others" custom items */}
+              {inwardForm.item_id === 'others' ? (
+                <>
+                  <div className="border border-amber-300 rounded-lg overflow-hidden bg-amber-50/50">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="bg-amber-100 text-amber-800">
+                          <th className="p-2 text-left font-semibold">#</th>
+                          <th className="p-2 text-left font-semibold">Item Name *</th>
+                          <th className="p-2 text-left font-semibold w-24">Qty *</th>
+                          <th className="p-2 text-left font-semibold w-24">Unit</th>
+                          <th className="p-2 w-10"></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {inwardCustomRows.map((row, i) => (
+                          <tr key={i} className="border-t border-amber-200">
+                            <td className="p-2 text-gray-500 font-mono">{i + 1}</td>
+                            <td className="p-2">
+                              <input type="text" placeholder="e.g. Cable Ties" value={row.name}
+                                onChange={e => updateCustomRow(inwardCustomRows, setInwardCustomRows, i, 'name', e.target.value)}
+                                className="w-full p-1.5 border border-gray-300 rounded focus:ring-2 focus:ring-amber-300 bg-white" required />
+                            </td>
+                            <td className="p-2">
+                              <input type="number" step="any" min="0.1" placeholder="0" value={row.qty}
+                                onChange={e => updateCustomRow(inwardCustomRows, setInwardCustomRows, i, 'qty', e.target.value)}
+                                className="w-full p-1.5 border border-gray-300 rounded focus:ring-2 focus:ring-amber-300 bg-white" required />
+                            </td>
+                            <td className="p-2">
+                              <select value={row.unit} onChange={e => updateCustomRow(inwardCustomRows, setInwardCustomRows, i, 'unit', e.target.value)}
+                                className="w-full p-1.5 border border-gray-300 rounded bg-white">
+                                <option value="pcs">pcs</option>
+                                <option value="kg">kg</option>
+                                <option value="mtr">mtr</option>
+                                <option value="ltr">ltr</option>
+                                <option value="box">box</option>
+                                <option value="bundle">bundle</option>
+                                <option value="set">set</option>
+                                <option value="roll">roll</option>
+                              </select>
+                            </td>
+                            <td className="p-2">
+                              {inwardCustomRows.length > 1 && (
+                                <button type="button" onClick={() => setInwardCustomRows(inwardCustomRows.filter((_, j) => j !== i))}
+                                  className="text-red-500 hover:text-red-700 font-bold text-lg leading-none">×</button>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    <button type="button" onClick={() => setInwardCustomRows([...inwardCustomRows, { ...emptyCustomRow }])}
+                      className="w-full p-2 text-amber-700 font-semibold hover:bg-amber-100 border-t border-amber-200 flex items-center justify-center gap-1 transition-colors">
+                      + Add Another Item
+                    </button>
+                  </div>
 
-              <div>
-                <label className="block font-semibold text-gray-700 mb-1">Notes / Supplier</label>
-                <input
-                  type="text"
-                  placeholder="Optional delivery details"
-                  value={inwardForm.notes}
-                  onChange={e => setInwardForm({ ...inwardForm, notes: e.target.value })}
-                  className="w-full p-2 border border-gray-300 rounded-lg"
-                />
-              </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block font-semibold text-gray-700 mb-1">Challan / Invoice #</label>
+                      <input type="text" placeholder="e.g. CH-9042" value={inwardForm.challan_number}
+                        onChange={e => setInwardForm({ ...inwardForm, challan_number: e.target.value })}
+                        className="w-full p-2 border border-gray-300 rounded-lg" />
+                    </div>
+                    <div>
+                      <label className="block font-semibold text-gray-700 mb-1">Notes / Supplier</label>
+                      <input type="text" placeholder="Optional delivery details" value={inwardForm.notes}
+                        onChange={e => setInwardForm({ ...inwardForm, notes: e.target.value })}
+                        className="w-full p-2 border border-gray-300 rounded-lg" />
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block font-semibold text-gray-700 mb-1">Quantity Received *</label>
+                      <input type="number" step="any" min="0.1" placeholder="e.g. 50" value={inwardForm.qty_received}
+                        onChange={e => setInwardForm({ ...inwardForm, qty_received: e.target.value })}
+                        className="w-full p-2 border border-gray-300 rounded-lg" required />
+                    </div>
+                    <div>
+                      <label className="block font-semibold text-gray-700 mb-1">Challan / Invoice #</label>
+                      <input type="text" placeholder="e.g. CH-9042" value={inwardForm.challan_number}
+                        onChange={e => setInwardForm({ ...inwardForm, challan_number: e.target.value })}
+                        className="w-full p-2 border border-gray-300 rounded-lg" />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block font-semibold text-gray-700 mb-1">Notes / Supplier</label>
+                    <input type="text" placeholder="Optional delivery details" value={inwardForm.notes}
+                      onChange={e => setInwardForm({ ...inwardForm, notes: e.target.value })}
+                      className="w-full p-2 border border-gray-300 rounded-lg" />
+                  </div>
+                </>
+              )}
 
               <div className="flex justify-end gap-2 pt-3">
                 <button type="button" onClick={() => setShowInwardModal(false)} className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg">Cancel</button>
@@ -988,7 +1061,7 @@ export default function ProjectInventory({ project, user, tasks }) {
       {/* Modal: Log Installation / Usage */}
       {showUsageModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/30 backdrop-blur-sm" onClick={() => setShowUsageModal(false)}>
-          <div className="bg-white rounded-xl shadow-xl border border-gray-200 max-w-md w-full p-5 space-y-4" onClick={e => e.stopPropagation()}>
+          <div className={`bg-white rounded-xl shadow-xl border border-gray-200 w-full p-5 space-y-4 ${usageForm.item_id === 'others' ? 'max-w-2xl' : 'max-w-md'}`} onClick={e => e.stopPropagation()}>
             <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
               <ArrowUpRight className="w-5 h-5 text-blue-600" />
               Record Material Installed / Used
@@ -999,7 +1072,7 @@ export default function ProjectInventory({ project, user, tasks }) {
                 <label className="block font-semibold text-gray-700 mb-1">Select Material *</label>
                 <select
                   value={usageForm.item_id}
-                  onChange={e => { setUsageForm({ ...usageForm, item_id: e.target.value }); if (e.target.value !== 'others') setUsageCustomName(''); }}
+                  onChange={e => { setUsageForm({ ...usageForm, item_id: e.target.value }); if (e.target.value !== 'others') setUsageCustomRows([{ ...emptyCustomRow }]); }}
                   className="w-full p-2 border border-gray-300 rounded-lg"
                   required
                 >
@@ -1011,52 +1084,98 @@ export default function ProjectInventory({ project, user, tasks }) {
                   ))}
                   <option value="others" className="font-semibold text-amber-700">⊕ Others (Custom Item)</option>
                 </select>
-                {usageForm.item_id === 'others' && (
-                  <input
-                    type="text"
-                    placeholder="Enter custom item name (e.g. Cable Ties, Junction Box)"
-                    value={usageCustomName}
-                    onChange={e => setUsageCustomName(e.target.value)}
-                    className="w-full p-2 border border-amber-400 rounded-lg mt-2 bg-amber-50 focus:ring-2 focus:ring-amber-300"
-                    required
-                  />
-                )}
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-semibold text-gray-700 mb-1">Quantity Used *</label>
-                  <input
-                    type="number"
-                    step="any"
-                    min="0.1"
-                    placeholder="e.g. 10"
-                    value={usageForm.qty_used}
-                    onChange={e => setUsageForm({ ...usageForm, qty_used: e.target.value })}
-                    className="w-full p-2 border border-gray-300 rounded-lg"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block font-semibold text-gray-700 mb-1">Location / Floor</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Floor 3, Flat 302"
-                    value={usageForm.installed_location}
-                    onChange={e => setUsageForm({ ...usageForm, installed_location: e.target.value })}
-                    className="w-full p-2 border border-gray-300 rounded-lg"
-                  />
-                </div>
-              </div>
+              {usageForm.item_id === 'others' ? (
+                <>
+                  <div className="border border-amber-300 rounded-lg overflow-hidden bg-amber-50/50">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="bg-amber-100 text-amber-800">
+                          <th className="p-2 text-left font-semibold">#</th>
+                          <th className="p-2 text-left font-semibold">Item Name *</th>
+                          <th className="p-2 text-left font-semibold w-24">Qty *</th>
+                          <th className="p-2 text-left font-semibold w-24">Unit</th>
+                          <th className="p-2 w-10"></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {usageCustomRows.map((row, i) => (
+                          <tr key={i} className="border-t border-amber-200">
+                            <td className="p-2 text-gray-500 font-mono">{i + 1}</td>
+                            <td className="p-2">
+                              <input type="text" placeholder="e.g. Cable Ties" value={row.name}
+                                onChange={e => updateCustomRow(usageCustomRows, setUsageCustomRows, i, 'name', e.target.value)}
+                                className="w-full p-1.5 border border-gray-300 rounded focus:ring-2 focus:ring-amber-300 bg-white" required />
+                            </td>
+                            <td className="p-2">
+                              <input type="number" step="any" min="0.1" placeholder="0" value={row.qty}
+                                onChange={e => updateCustomRow(usageCustomRows, setUsageCustomRows, i, 'qty', e.target.value)}
+                                className="w-full p-1.5 border border-gray-300 rounded focus:ring-2 focus:ring-amber-300 bg-white" required />
+                            </td>
+                            <td className="p-2">
+                              <select value={row.unit} onChange={e => updateCustomRow(usageCustomRows, setUsageCustomRows, i, 'unit', e.target.value)}
+                                className="w-full p-1.5 border border-gray-300 rounded bg-white">
+                                <option value="pcs">pcs</option><option value="kg">kg</option><option value="mtr">mtr</option>
+                                <option value="ltr">ltr</option><option value="box">box</option><option value="bundle">bundle</option>
+                                <option value="set">set</option><option value="roll">roll</option>
+                              </select>
+                            </td>
+                            <td className="p-2">
+                              {usageCustomRows.length > 1 && (
+                                <button type="button" onClick={() => setUsageCustomRows(usageCustomRows.filter((_, j) => j !== i))}
+                                  className="text-red-500 hover:text-red-700 font-bold text-lg leading-none">×</button>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    <button type="button" onClick={() => setUsageCustomRows([...usageCustomRows, { ...emptyCustomRow }])}
+                      className="w-full p-2 text-amber-700 font-semibold hover:bg-amber-100 border-t border-amber-200 flex items-center justify-center gap-1 transition-colors">
+                      + Add Another Item
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block font-semibold text-gray-700 mb-1">Location / Floor</label>
+                      <input type="text" placeholder="e.g. Floor 3, Flat 302" value={usageForm.installed_location}
+                        onChange={e => setUsageForm({ ...usageForm, installed_location: e.target.value })}
+                        className="w-full p-2 border border-gray-300 rounded-lg" />
+                    </div>
+                    <div>
+                      <label className="block font-semibold text-gray-700 mb-1">Notes</label>
+                      <input type="text" placeholder="Optional" value={usageForm.notes}
+                        onChange={e => setUsageForm({ ...usageForm, notes: e.target.value })}
+                        className="w-full p-2 border border-gray-300 rounded-lg" />
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block font-semibold text-gray-700 mb-1">Quantity Used *</label>
+                      <input type="number" step="any" min="0.1" placeholder="e.g. 10" value={usageForm.qty_used}
+                        onChange={e => setUsageForm({ ...usageForm, qty_used: e.target.value })}
+                        className="w-full p-2 border border-gray-300 rounded-lg" required />
+                    </div>
+                    <div>
+                      <label className="block font-semibold text-gray-700 mb-1">Location / Floor</label>
+                      <input type="text" placeholder="e.g. Floor 3, Flat 302" value={usageForm.installed_location}
+                        onChange={e => setUsageForm({ ...usageForm, installed_location: e.target.value })}
+                        className="w-full p-2 border border-gray-300 rounded-lg" />
+                    </div>
+                  </div>
+                </>
+              )}
 
               {tasks && tasks.length > 0 && (
                 <div>
                   <label className="block font-semibold text-gray-700 mb-1">Link to Task</label>
-                  <select
-                    value={usageForm.task_id}
-                    onChange={e => setUsageForm({ ...usageForm, task_id: e.target.value })}
-                    className="w-full p-2 border border-gray-300 rounded-lg"
-                  >
+                  <select value={usageForm.task_id} onChange={e => setUsageForm({ ...usageForm, task_id: e.target.value })}
+                    className="w-full p-2 border border-gray-300 rounded-lg">
                     <option value="">General Project Use (No Task)</option>
                     {tasks.map(t => (
                       <option key={t.id} value={t.id}>{t.title}</option>
@@ -1079,7 +1198,7 @@ export default function ProjectInventory({ project, user, tasks }) {
       {/* Modal: Log Scrap/Damage */}
       {showScrapModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/30 backdrop-blur-sm" onClick={() => setShowScrapModal(false)}>
-          <div className="bg-white rounded-xl shadow-xl border border-gray-200 max-w-md w-full p-5 space-y-4" onClick={e => e.stopPropagation()}>
+          <div className={`bg-white rounded-xl shadow-xl border border-gray-200 w-full p-5 space-y-4 ${scrapForm.item_id === 'others' ? 'max-w-2xl' : 'max-w-md'}`} onClick={e => e.stopPropagation()}>
             <h3 className="text-base font-bold text-red-600 flex items-center gap-2">
               <AlertTriangle className="w-5 h-5 text-red-600" />
               Report Material Scrap / Damage
@@ -1090,7 +1209,7 @@ export default function ProjectInventory({ project, user, tasks }) {
                 <label className="block font-semibold text-gray-700 mb-1">Select Damaged Item *</label>
                 <select
                   value={scrapForm.item_id}
-                  onChange={e => { setScrapForm({ ...scrapForm, item_id: e.target.value }); if (e.target.value !== 'others') setScrapCustomName(''); }}
+                  onChange={e => { setScrapForm({ ...scrapForm, item_id: e.target.value }); if (e.target.value !== 'others') setScrapCustomRows([{ ...emptyCustomRow }]); }}
                   className="w-full p-2 border border-gray-300 rounded-lg"
                   required
                 >
@@ -1100,42 +1219,75 @@ export default function ProjectInventory({ project, user, tasks }) {
                   ))}
                   <option value="others" className="font-semibold text-amber-700">⊕ Others (Custom Item)</option>
                 </select>
-                {scrapForm.item_id === 'others' && (
-                  <input
-                    type="text"
-                    placeholder="Enter custom item name (e.g. Cable Ties, Junction Box)"
-                    value={scrapCustomName}
-                    onChange={e => setScrapCustomName(e.target.value)}
-                    className="w-full p-2 border border-amber-400 rounded-lg mt-2 bg-amber-50 focus:ring-2 focus:ring-amber-300"
-                    required
-                  />
-                )}
               </div>
 
-              <div>
-                <label className="block font-semibold text-gray-700 mb-1">Quantity Scrapped *</label>
-                <input
-                  type="number"
-                  step="any"
-                  min="0.1"
-                  placeholder="e.g. 2"
-                  value={scrapForm.qty_scrapped}
-                  onChange={e => setScrapForm({ ...scrapForm, qty_scrapped: e.target.value })}
-                  className="w-full p-2 border border-gray-300 rounded-lg"
-                  required
-                />
-              </div>
+              {scrapForm.item_id === 'others' ? (
+                <>
+                  <div className="border border-amber-300 rounded-lg overflow-hidden bg-amber-50/50">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="bg-amber-100 text-amber-800">
+                          <th className="p-2 text-left font-semibold">#</th>
+                          <th className="p-2 text-left font-semibold">Item Name *</th>
+                          <th className="p-2 text-left font-semibold w-24">Qty *</th>
+                          <th className="p-2 text-left font-semibold w-24">Unit</th>
+                          <th className="p-2 w-10"></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {scrapCustomRows.map((row, i) => (
+                          <tr key={i} className="border-t border-amber-200">
+                            <td className="p-2 text-gray-500 font-mono">{i + 1}</td>
+                            <td className="p-2">
+                              <input type="text" placeholder="e.g. Cable Ties" value={row.name}
+                                onChange={e => updateCustomRow(scrapCustomRows, setScrapCustomRows, i, 'name', e.target.value)}
+                                className="w-full p-1.5 border border-gray-300 rounded focus:ring-2 focus:ring-amber-300 bg-white" required />
+                            </td>
+                            <td className="p-2">
+                              <input type="number" step="any" min="0.1" placeholder="0" value={row.qty}
+                                onChange={e => updateCustomRow(scrapCustomRows, setScrapCustomRows, i, 'qty', e.target.value)}
+                                className="w-full p-1.5 border border-gray-300 rounded focus:ring-2 focus:ring-amber-300 bg-white" required />
+                            </td>
+                            <td className="p-2">
+                              <select value={row.unit} onChange={e => updateCustomRow(scrapCustomRows, setScrapCustomRows, i, 'unit', e.target.value)}
+                                className="w-full p-1.5 border border-gray-300 rounded bg-white">
+                                <option value="pcs">pcs</option><option value="kg">kg</option><option value="mtr">mtr</option>
+                                <option value="ltr">ltr</option><option value="box">box</option><option value="bundle">bundle</option>
+                                <option value="set">set</option><option value="roll">roll</option>
+                              </select>
+                            </td>
+                            <td className="p-2">
+                              {scrapCustomRows.length > 1 && (
+                                <button type="button" onClick={() => setScrapCustomRows(scrapCustomRows.filter((_, j) => j !== i))}
+                                  className="text-red-500 hover:text-red-700 font-bold text-lg leading-none">×</button>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    <button type="button" onClick={() => setScrapCustomRows([...scrapCustomRows, { ...emptyCustomRow }])}
+                      className="w-full p-2 text-amber-700 font-semibold hover:bg-amber-100 border-t border-amber-200 flex items-center justify-center gap-1 transition-colors">
+                      + Add Another Item
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div>
+                    <label className="block font-semibold text-gray-700 mb-1">Quantity Scrapped *</label>
+                    <input type="number" step="any" min="0.1" placeholder="e.g. 2" value={scrapForm.qty_scrapped}
+                      onChange={e => setScrapForm({ ...scrapForm, qty_scrapped: e.target.value })}
+                      className="w-full p-2 border border-gray-300 rounded-lg" required />
+                  </div>
+                </>
+              )}
 
               <div>
                 <label className="block font-semibold text-gray-700 mb-1">Reason for Damage / Scrap *</label>
-                <textarea
-                  rows={2}
-                  placeholder="e.g. Broken base during installation on Floor 2"
-                  value={scrapForm.reason}
-                  onChange={e => setScrapForm({ ...scrapForm, reason: e.target.value })}
-                  className="w-full p-2 border border-gray-300 rounded-lg"
-                  required
-                />
+                <textarea rows={2} placeholder="e.g. Broken base during installation on Floor 2"
+                  value={scrapForm.reason} onChange={e => setScrapForm({ ...scrapForm, reason: e.target.value })}
+                  className="w-full p-2 border border-gray-300 rounded-lg" required />
               </div>
 
               <div className="flex justify-end gap-2 pt-3">
