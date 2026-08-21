@@ -46,9 +46,13 @@ export default function ProjectInventory({ project, user, tasks }) {
   const resolveAndSubmitCustomRows = async (rows, projectId, submitFn, extraFields = {}) => {
     const validRows = rows.filter(r => r.name.trim() && Number(r.qty) > 0);
     if (validRows.length === 0) throw new Error('Please add at least one item with name and quantity');
-    for (const row of validRows) {
+    for (let i = 0; i < validRows.length; i++) {
+      const row = validRows[i];
       const newItem = await api.quickCreateItem({ name: row.name.trim(), unit: row.unit || 'pcs' });
-      await submitFn(projectId, { ...extraFields, item_id: newItem.id, qty_received: row.qty, qty_used: row.qty, qty_scrapped: row.qty });
+      // Only send challan_number on the first item to avoid duplicate DC error (one challan can have multiple items)
+      const fields = { ...extraFields, item_id: newItem.id, qty_received: row.qty, qty_used: row.qty, qty_scrapped: row.qty };
+      if (i > 0 && fields.challan_number) fields.challan_number = '';
+      await submitFn(projectId, fields);
     }
   };
   
