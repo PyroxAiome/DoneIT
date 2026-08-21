@@ -30,14 +30,22 @@ export default function ProjectInventory({ project, user, tasks }) {
   const [itemForm, setItemForm] = useState({ name: '', category: 'Panels', unit: 'pcs', description: '' });
   const [auditForm, setAuditForm] = useState({ item_id: '', physical_counted_qty: '', notes: '' });
 
+  const isAdminOrManager = user?.role === 'admin' || user?.role === 'manager';
+
   // Custom "Others" dynamic rows for bulk custom items
-  // Each row: { item_id: (number|null), name, qty, unit } — item_id is set for existing items
-  const emptyCustomRow = { item_id: null, name: '', qty: '', unit: 'pcs' };
+  // Each row: { item_id: (number|null), name, in_stock, qty, unit } — item_id is set for existing items
+  const emptyCustomRow = { item_id: null, name: '', in_stock: 0, qty: '', unit: 'pcs' };
 
   // Build initial rows from existing "Others" items in inventory
   const buildOthersRows = () => {
     const existingOthers = data.balances.filter(b => b.category === 'Others');
-    const rows = existingOthers.map(b => ({ item_id: b.item_id, name: b.name, qty: '', unit: b.unit || 'pcs' }));
+    const rows = existingOthers.map(b => ({
+      item_id: b.item_id,
+      name: b.name,
+      in_stock: b.in_stock || 0,
+      qty: '',
+      unit: b.unit || 'pcs'
+    }));
     rows.push({ ...emptyCustomRow }); // always one blank row for new entries
     return rows;
   };
@@ -50,6 +58,28 @@ export default function ProjectInventory({ project, user, tasks }) {
   const updateCustomRow = (rows, setRows, index, field, value) => {
     const updated = rows.map((r, i) => i === index ? { ...r, [field]: value } : r);
     setRows(updated);
+  };
+
+  // Helper: delete a custom row — unsaved draft rows anyone can delete, existing saved items only Admin/Manager
+  const handleDeleteCustomRow = async (rows, setRows, index, row) => {
+    if (!row.item_id) {
+      // Unsaved draft row
+      setRows(rows.filter((_, j) => j !== index));
+      return;
+    }
+    if (!isAdminOrManager) return;
+    if (confirm(`Are you sure you want to delete "${row.name}" from inventory? This will permanently delete the item and all its history.`)) {
+      setBusy(true);
+      try {
+        await api.deleteInventoryMaster(row.item_id);
+        setRows(rows.filter((_, j) => j !== index));
+        loadInventory();
+      } catch (err) {
+        alert(err.message);
+      } finally {
+        setBusy(false);
+      }
+    }
   };
 
   // Helper: resolve and submit all custom rows as separate inward/usage/scrap entries
@@ -989,17 +1019,24 @@ export default function ProjectInventory({ project, user, tasks }) {
                             <td className="p-2">
                               <input type="text" placeholder="e.g. Cable Ties" value={row.name}
                                 onChange={e => updateCustomRow(inwardCustomRows, setInwardCustomRows, i, 'name', e.target.value)}
-                                className={`w-full p-1.5 border rounded focus:ring-2 focus:ring-amber-300 ${row.item_id ? 'bg-gray-100 border-gray-200 text-gray-600' : 'bg-white border-gray-300'}`}
-                                readOnly={!!row.item_id} required />
+                                className={`w-full p-1.5 border rounded focus:ring-2 focus:ring-amber-300 ${row.item_id ? 'bg-gray-100 border-gray-200 text-gray-700 font-semibold' : 'bg-white border-gray-300'}`}
+                                readOnly={!!row.item_id} required={!row.item_id} />
+                              {row.item_id != null && (
+                                <div className="mt-1 flex items-center gap-1">
+                                  <span className="bg-emerald-100 text-emerald-800 text-[10px] px-1.5 py-0.5 rounded font-bold border border-emerald-300">
+                                    In Stock: {row.in_stock ?? 0} {row.unit}
+                                  </span>
+                                </div>
+                              )}
                             </td>
                             <td className="p-2">
-                              <input type="number" step="any" min="0.1" placeholder="0" value={row.qty}
+                              <input type="number" step="any" min="0" placeholder="0" value={row.qty}
                                 onChange={e => updateCustomRow(inwardCustomRows, setInwardCustomRows, i, 'qty', e.target.value)}
-                                className="w-full p-1.5 border border-gray-300 rounded focus:ring-2 focus:ring-amber-300 bg-white" required />
+                                className="w-full p-1.5 border border-gray-300 rounded focus:ring-2 focus:ring-amber-300 bg-white" />
                             </td>
                             <td className="p-2">
                               <select value={row.unit} onChange={e => updateCustomRow(inwardCustomRows, setInwardCustomRows, i, 'unit', e.target.value)}
-                                className="w-full p-1.5 border border-gray-300 rounded bg-white">
+                                className="w-full p-1.5 border border-gray-300 rounded bg-white" disabled={!!row.item_id}>
                                 <option value="pcs">pcs</option>
                                 <option value="kg">kg</option>
                                 <option value="mtr">mtr</option>
@@ -1010,10 +1047,11 @@ export default function ProjectInventory({ project, user, tasks }) {
                                 <option value="roll">roll</option>
                               </select>
                             </td>
-                            <td className="p-2">
-                              {inwardCustomRows.length > 1 && (
-                                <button type="button" onClick={() => setInwardCustomRows(inwardCustomRows.filter((_, j) => j !== i))}
-                                  className="text-red-500 hover:text-red-700 font-bold text-lg leading-none">×</button>
+                            <td className="p-2 text-center">
+                              {(!row.item_id || isAdminOrManager) && (inwardCustomRows.length > 1 || row.item_id) && (
+                                <button type="button" onClick={() => handleDeleteCustomRow(inwardCustomRows, setInwardCustomRows, i, row)}
+                                  className="text-red-500 hover:text-red-700 font-bold text-lg leading-none p-1 rounded hover:bg-red-50"
+                                  title={row.item_id ? "Delete item from catalog (Admin/Manager only)" : "Remove row"}>×</button>
                               )}
                             </td>
                           </tr>
@@ -1126,26 +1164,34 @@ export default function ProjectInventory({ project, user, tasks }) {
                             <td className="p-2">
                               <input type="text" placeholder="e.g. Cable Ties" value={row.name}
                                 onChange={e => updateCustomRow(usageCustomRows, setUsageCustomRows, i, 'name', e.target.value)}
-                                className={`w-full p-1.5 border rounded focus:ring-2 focus:ring-amber-300 ${row.item_id ? 'bg-gray-100 border-gray-200 text-gray-600' : 'bg-white border-gray-300'}`}
-                                readOnly={!!row.item_id} required />
+                                className={`w-full p-1.5 border rounded focus:ring-2 focus:ring-amber-300 ${row.item_id ? 'bg-gray-100 border-gray-200 text-gray-700 font-semibold' : 'bg-white border-gray-300'}`}
+                                readOnly={!!row.item_id} required={!row.item_id} />
+                              {row.item_id != null && (
+                                <div className="mt-1 flex items-center gap-1">
+                                  <span className="bg-emerald-100 text-emerald-800 text-[10px] px-1.5 py-0.5 rounded font-bold border border-emerald-300">
+                                    In Stock: {row.in_stock ?? 0} {row.unit}
+                                  </span>
+                                </div>
+                              )}
                             </td>
                             <td className="p-2">
-                              <input type="number" step="any" min="0.1" placeholder="0" value={row.qty}
+                              <input type="number" step="any" min="0" placeholder="0" value={row.qty}
                                 onChange={e => updateCustomRow(usageCustomRows, setUsageCustomRows, i, 'qty', e.target.value)}
-                                className="w-full p-1.5 border border-gray-300 rounded focus:ring-2 focus:ring-amber-300 bg-white" required />
+                                className="w-full p-1.5 border border-gray-300 rounded focus:ring-2 focus:ring-amber-300 bg-white" />
                             </td>
                             <td className="p-2">
                               <select value={row.unit} onChange={e => updateCustomRow(usageCustomRows, setUsageCustomRows, i, 'unit', e.target.value)}
-                                className="w-full p-1.5 border border-gray-300 rounded bg-white">
+                                className="w-full p-1.5 border border-gray-300 rounded bg-white" disabled={!!row.item_id}>
                                 <option value="pcs">pcs</option><option value="kg">kg</option><option value="mtr">mtr</option>
                                 <option value="ltr">ltr</option><option value="box">box</option><option value="bundle">bundle</option>
                                 <option value="set">set</option><option value="roll">roll</option>
                               </select>
                             </td>
-                            <td className="p-2">
-                              {usageCustomRows.length > 1 && (
-                                <button type="button" onClick={() => setUsageCustomRows(usageCustomRows.filter((_, j) => j !== i))}
-                                  className="text-red-500 hover:text-red-700 font-bold text-lg leading-none">×</button>
+                            <td className="p-2 text-center">
+                              {(!row.item_id || isAdminOrManager) && (usageCustomRows.length > 1 || row.item_id) && (
+                                <button type="button" onClick={() => handleDeleteCustomRow(usageCustomRows, setUsageCustomRows, i, row)}
+                                  className="text-red-500 hover:text-red-700 font-bold text-lg leading-none p-1 rounded hover:bg-red-50"
+                                  title={row.item_id ? "Delete item from catalog (Admin/Manager only)" : "Remove row"}>×</button>
                               )}
                             </td>
                           </tr>
@@ -1262,26 +1308,34 @@ export default function ProjectInventory({ project, user, tasks }) {
                             <td className="p-2">
                               <input type="text" placeholder="e.g. Cable Ties" value={row.name}
                                 onChange={e => updateCustomRow(scrapCustomRows, setScrapCustomRows, i, 'name', e.target.value)}
-                                className={`w-full p-1.5 border rounded focus:ring-2 focus:ring-amber-300 ${row.item_id ? 'bg-gray-100 border-gray-200 text-gray-600' : 'bg-white border-gray-300'}`}
-                                readOnly={!!row.item_id} required />
+                                className={`w-full p-1.5 border rounded focus:ring-2 focus:ring-amber-300 ${row.item_id ? 'bg-gray-100 border-gray-200 text-gray-700 font-semibold' : 'bg-white border-gray-300'}`}
+                                readOnly={!!row.item_id} required={!row.item_id} />
+                              {row.item_id != null && (
+                                <div className="mt-1 flex items-center gap-1">
+                                  <span className="bg-emerald-100 text-emerald-800 text-[10px] px-1.5 py-0.5 rounded font-bold border border-emerald-300">
+                                    In Stock: {row.in_stock ?? 0} {row.unit}
+                                  </span>
+                                </div>
+                              )}
                             </td>
                             <td className="p-2">
-                              <input type="number" step="any" min="0.1" placeholder="0" value={row.qty}
+                              <input type="number" step="any" min="0" placeholder="0" value={row.qty}
                                 onChange={e => updateCustomRow(scrapCustomRows, setScrapCustomRows, i, 'qty', e.target.value)}
-                                className="w-full p-1.5 border border-gray-300 rounded focus:ring-2 focus:ring-amber-300 bg-white" required />
+                                className="w-full p-1.5 border border-gray-300 rounded focus:ring-2 focus:ring-amber-300 bg-white" />
                             </td>
                             <td className="p-2">
                               <select value={row.unit} onChange={e => updateCustomRow(scrapCustomRows, setScrapCustomRows, i, 'unit', e.target.value)}
-                                className="w-full p-1.5 border border-gray-300 rounded bg-white">
+                                className="w-full p-1.5 border border-gray-300 rounded bg-white" disabled={!!row.item_id}>
                                 <option value="pcs">pcs</option><option value="kg">kg</option><option value="mtr">mtr</option>
                                 <option value="ltr">ltr</option><option value="box">box</option><option value="bundle">bundle</option>
                                 <option value="set">set</option><option value="roll">roll</option>
                               </select>
                             </td>
-                            <td className="p-2">
-                              {scrapCustomRows.length > 1 && (
-                                <button type="button" onClick={() => setScrapCustomRows(scrapCustomRows.filter((_, j) => j !== i))}
-                                  className="text-red-500 hover:text-red-700 font-bold text-lg leading-none">×</button>
+                            <td className="p-2 text-center">
+                              {(!row.item_id || isAdminOrManager) && (scrapCustomRows.length > 1 || row.item_id) && (
+                                <button type="button" onClick={() => handleDeleteCustomRow(scrapCustomRows, setScrapCustomRows, i, row)}
+                                  className="text-red-500 hover:text-red-700 font-bold text-lg leading-none p-1 rounded hover:bg-red-50"
+                                  title={row.item_id ? "Delete item from catalog (Admin/Manager only)" : "Remove row"}>×</button>
                               )}
                             </td>
                           </tr>

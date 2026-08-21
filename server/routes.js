@@ -1820,6 +1820,17 @@ router.post('/inventory/master/quick', auth, async (req, res) => {
   }
 });
 
+// Delete an inventory master item (Admin & Manager only)
+router.delete('/inventory/master/:id', auth, adminOrManager, async (req, res) => {
+  try {
+    const { id } = req.params;
+    await db.query('DELETE FROM inventory_master WHERE id = $1', [id]);
+    res.json({ success: true, message: 'Item deleted successfully' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.get('/projects/:id/inventory', auth, async (req, res) => {
   try {
     const { id } = req.params;
