@@ -31,7 +31,17 @@ export default function ProjectInventory({ project, user, tasks }) {
   const [auditForm, setAuditForm] = useState({ item_id: '', physical_counted_qty: '', notes: '' });
 
   // Custom "Others" dynamic rows for bulk custom items
-  const emptyCustomRow = { name: '', qty: '', unit: 'pcs' };
+  // Each row: { item_id: (number|null), name, qty, unit } — item_id is set for existing items
+  const emptyCustomRow = { item_id: null, name: '', qty: '', unit: 'pcs' };
+
+  // Build initial rows from existing "Others" items in inventory
+  const buildOthersRows = () => {
+    const existingOthers = data.balances.filter(b => b.category === 'Others');
+    const rows = existingOthers.map(b => ({ item_id: b.item_id, name: b.name, qty: '', unit: b.unit || 'pcs' }));
+    rows.push({ ...emptyCustomRow }); // always one blank row for new entries
+    return rows;
+  };
+
   const [inwardCustomRows, setInwardCustomRows] = useState([{ ...emptyCustomRow }]);
   const [usageCustomRows, setUsageCustomRows] = useState([{ ...emptyCustomRow }]);
   const [scrapCustomRows, setScrapCustomRows] = useState([{ ...emptyCustomRow }]);
@@ -44,13 +54,18 @@ export default function ProjectInventory({ project, user, tasks }) {
 
   // Helper: resolve and submit all custom rows as separate inward/usage/scrap entries
   const resolveAndSubmitCustomRows = async (rows, projectId, submitFn, extraFields = {}) => {
-    const validRows = rows.filter(r => r.name.trim() && Number(r.qty) > 0);
-    if (validRows.length === 0) throw new Error('Please add at least one item with name and quantity');
+    const validRows = rows.filter(r => Number(r.qty) > 0 && (r.item_id || r.name.trim()));
+    if (validRows.length === 0) throw new Error('Please add at least one item with quantity');
     for (let i = 0; i < validRows.length; i++) {
       const row = validRows[i];
-      const newItem = await api.quickCreateItem({ name: row.name.trim(), unit: row.unit || 'pcs' });
-      // Only send challan_number on the first item to avoid duplicate DC error (one challan can have multiple items)
-      const fields = { ...extraFields, item_id: newItem.id, qty_received: row.qty, qty_used: row.qty, qty_scrapped: row.qty };
+      // Use existing item_id if available, otherwise create new item
+      let itemId = row.item_id;
+      if (!itemId) {
+        const newItem = await api.quickCreateItem({ name: row.name.trim(), unit: row.unit || 'pcs' });
+        itemId = newItem.id;
+      }
+      // Only send challan_number on the first item to avoid duplicate DC error
+      const fields = { ...extraFields, item_id: itemId, qty_received: row.qty, qty_used: row.qty, qty_scrapped: row.qty };
       if (i > 0 && fields.challan_number) fields.challan_number = '';
       await submitFn(projectId, fields);
     }
@@ -941,7 +956,7 @@ export default function ProjectInventory({ project, user, tasks }) {
                 <label className="block font-semibold text-gray-700 mb-1">Select Material *</label>
                 <select
                   value={inwardForm.item_id}
-                  onChange={e => { setInwardForm({ ...inwardForm, item_id: e.target.value }); if (e.target.value !== 'others') setInwardCustomRows([{ ...emptyCustomRow }]); }}
+                  onChange={e => { setInwardForm({ ...inwardForm, item_id: e.target.value }); e.target.value === 'others' ? setInwardCustomRows(buildOthersRows()) : setInwardCustomRows([{ ...emptyCustomRow }]); }}
                   className="w-full p-2 border border-gray-300 rounded-lg"
                   required
                 >
@@ -974,7 +989,8 @@ export default function ProjectInventory({ project, user, tasks }) {
                             <td className="p-2">
                               <input type="text" placeholder="e.g. Cable Ties" value={row.name}
                                 onChange={e => updateCustomRow(inwardCustomRows, setInwardCustomRows, i, 'name', e.target.value)}
-                                className="w-full p-1.5 border border-gray-300 rounded focus:ring-2 focus:ring-amber-300 bg-white" required />
+                                className={`w-full p-1.5 border rounded focus:ring-2 focus:ring-amber-300 ${row.item_id ? 'bg-gray-100 border-gray-200 text-gray-600' : 'bg-white border-gray-300'}`}
+                                readOnly={!!row.item_id} required />
                             </td>
                             <td className="p-2">
                               <input type="number" step="any" min="0.1" placeholder="0" value={row.qty}
@@ -1076,7 +1092,7 @@ export default function ProjectInventory({ project, user, tasks }) {
                 <label className="block font-semibold text-gray-700 mb-1">Select Material *</label>
                 <select
                   value={usageForm.item_id}
-                  onChange={e => { setUsageForm({ ...usageForm, item_id: e.target.value }); if (e.target.value !== 'others') setUsageCustomRows([{ ...emptyCustomRow }]); }}
+                  onChange={e => { setUsageForm({ ...usageForm, item_id: e.target.value }); e.target.value === 'others' ? setUsageCustomRows(buildOthersRows()) : setUsageCustomRows([{ ...emptyCustomRow }]); }}
                   className="w-full p-2 border border-gray-300 rounded-lg"
                   required
                 >
@@ -1110,7 +1126,8 @@ export default function ProjectInventory({ project, user, tasks }) {
                             <td className="p-2">
                               <input type="text" placeholder="e.g. Cable Ties" value={row.name}
                                 onChange={e => updateCustomRow(usageCustomRows, setUsageCustomRows, i, 'name', e.target.value)}
-                                className="w-full p-1.5 border border-gray-300 rounded focus:ring-2 focus:ring-amber-300 bg-white" required />
+                                className={`w-full p-1.5 border rounded focus:ring-2 focus:ring-amber-300 ${row.item_id ? 'bg-gray-100 border-gray-200 text-gray-600' : 'bg-white border-gray-300'}`}
+                                readOnly={!!row.item_id} required />
                             </td>
                             <td className="p-2">
                               <input type="number" step="any" min="0.1" placeholder="0" value={row.qty}
@@ -1213,7 +1230,7 @@ export default function ProjectInventory({ project, user, tasks }) {
                 <label className="block font-semibold text-gray-700 mb-1">Select Damaged Item *</label>
                 <select
                   value={scrapForm.item_id}
-                  onChange={e => { setScrapForm({ ...scrapForm, item_id: e.target.value }); if (e.target.value !== 'others') setScrapCustomRows([{ ...emptyCustomRow }]); }}
+                  onChange={e => { setScrapForm({ ...scrapForm, item_id: e.target.value }); e.target.value === 'others' ? setScrapCustomRows(buildOthersRows()) : setScrapCustomRows([{ ...emptyCustomRow }]); }}
                   className="w-full p-2 border border-gray-300 rounded-lg"
                   required
                 >
@@ -1245,7 +1262,8 @@ export default function ProjectInventory({ project, user, tasks }) {
                             <td className="p-2">
                               <input type="text" placeholder="e.g. Cable Ties" value={row.name}
                                 onChange={e => updateCustomRow(scrapCustomRows, setScrapCustomRows, i, 'name', e.target.value)}
-                                className="w-full p-1.5 border border-gray-300 rounded focus:ring-2 focus:ring-amber-300 bg-white" required />
+                                className={`w-full p-1.5 border rounded focus:ring-2 focus:ring-amber-300 ${row.item_id ? 'bg-gray-100 border-gray-200 text-gray-600' : 'bg-white border-gray-300'}`}
+                                readOnly={!!row.item_id} required />
                             </td>
                             <td className="p-2">
                               <input type="number" step="any" min="0.1" placeholder="0" value={row.qty}
