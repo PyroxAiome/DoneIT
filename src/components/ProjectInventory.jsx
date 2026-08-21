@@ -946,7 +946,7 @@ export default function ProjectInventory({ project, user, tasks }) {
                   required
                 >
                   <option value="">Choose item from catalog...</option>
-                  {data.balances.map(b => (
+                  {data.balances.filter(b => b.category !== 'Others').map(b => (
                     <option key={b.item_id} value={b.item_id}>{b.name} ({b.category})</option>
                   ))}
                   <option value="others" className="font-semibold text-amber-700">⊕ Others (Custom Item)</option>
@@ -1081,7 +1081,7 @@ export default function ProjectInventory({ project, user, tasks }) {
                   required
                 >
                   <option value="">Choose item...</option>
-                  {data.balances.map(b => (
+                  {data.balances.filter(b => b.category !== 'Others').map(b => (
                     <option key={b.item_id} value={b.item_id}>
                       {b.name} (Available: {b.in_stock} {b.unit})
                     </option>
@@ -1218,7 +1218,7 @@ export default function ProjectInventory({ project, user, tasks }) {
                   required
                 >
                   <option value="">Choose item...</option>
-                  {data.balances.map(b => (
+                  {data.balances.filter(b => b.category !== 'Others').map(b => (
                     <option key={b.item_id} value={b.item_id}>{b.name}</option>
                   ))}
                   <option value="others" className="font-semibold text-amber-700">⊕ Others (Custom Item)</option>
@@ -1324,7 +1324,7 @@ export default function ProjectInventory({ project, user, tasks }) {
                   required
                 >
                   <option value="">Choose item...</option>
-                  {data.balances.map(b => (
+                  {data.balances.filter(b => b.category !== 'Others').map(b => (
                     <option key={b.item_id} value={b.item_id}>
                       {b.name} (Expected Store Balance: {b.in_stock} {b.unit})
                     </option>
