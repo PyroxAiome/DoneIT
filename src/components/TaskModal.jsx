@@ -76,7 +76,7 @@ export default function TaskModal({ isOpen, onClose, onSaved, task, employees, o
         category: 'General', assignee_id: currentUser ? String(currentUser.id) : '', start_date: '', due_date: '', estimated_hours: '',
         project_id: projectId ? String(projectId) : '',
       });
-      if (currentUser && currentUser.role === 'employee') {
+      if (currentUser && !['admin', 'manager'].includes(currentUser.role)) {
         setSelectedAssigneeIds([Number(currentUser.id)]);
       } else {
         setSelectedAssigneeIds([]);
@@ -88,7 +88,7 @@ export default function TaskModal({ isOpen, onClose, onSaved, task, employees, o
   if (!isOpen) return null;
 
   const toggleAssigneeSelection = (empId) => {
-    if (currentUser?.role === 'employee' && empId !== currentUser?.id) {
+    if (currentUser && !['admin', 'manager'].includes(currentUser.role) && empId !== currentUser?.id) {
       return;
     }
     setSelectedAssigneeIds(prev => {
@@ -104,7 +104,7 @@ export default function TaskModal({ isOpen, onClose, onSaved, task, employees, o
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.title.trim()) { setError('Title is required'); return; }
-    if (currentUser?.role !== 'employee') {
+    if (currentUser && ['admin', 'manager'].includes(currentUser.role)) {
       if (selectedAssigneeIds.length === 0) { setError('At least one assignee must be selected'); return; }
     }
     setBusy(true);

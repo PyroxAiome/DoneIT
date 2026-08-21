@@ -38,11 +38,10 @@ const statusStyles = {
 const canModifyTask = (user, task) => {
   if (!user) return false;
   if (user.role === 'admin') return true;
-  if (user.role === 'employee') return task.creator_id === user.id;
   if (user.role === 'manager') {
-    return task.creator_id === user.id || (task.creator_role === 'employee' && task.creator_department === user.department);
+    return task.creator_id === user.id || (!['admin', 'manager'].includes(task.creator_role) && task.creator_department === user.department);
   }
-  return false;
+  return task.creator_id === user.id;
 };
 
 const canDeleteTask = (user, task) => {

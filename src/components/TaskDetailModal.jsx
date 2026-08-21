@@ -460,7 +460,7 @@ export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated, 
               )}
 
               {/* Top-level review input — only admin/manager */}
-              {!readOnly && user.role !== 'employee' && (
+              {!readOnly && ['admin', 'manager'].includes(user.role) && (
                 <div className="flex gap-2 pt-2 border-t border-gray-100">
                   <input value={fbText} onChange={(e) => setFbText(e.target.value)}
                     className="input-field text-sm flex-1" placeholder="Write a review..."
