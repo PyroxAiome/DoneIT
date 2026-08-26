@@ -245,10 +245,17 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
+  updateInventoryMaster: (id, data) =>
+    request(`/inventory/master/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+
   deleteInventoryMaster: (id) =>
     request(`/inventory/master/${id}`, {
       method: 'DELETE',
     }),
+
   getProjectInventory: (id) => request(`/projects/${id}/inventory`),
 
   logInwardMaterial: (id, data) =>

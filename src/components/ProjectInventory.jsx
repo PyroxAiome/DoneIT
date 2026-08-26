@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { 
   Package, Plus, TrendingUp, ArrowDownLeft, ArrowUpRight, AlertTriangle, 
   CheckCircle2, FileText, Camera, MapPin, Search, Filter, ShieldAlert, Layers,
-  ShieldCheck, Eye, XCircle, X, Trash2
+  ShieldCheck, Eye, XCircle, X, Trash2, Pencil
 } from 'lucide-react';
 import { api } from '../lib/api';
 
@@ -22,6 +22,7 @@ export default function ProjectInventory({ project, user, tasks }) {
   const [showScrapModal, setShowScrapModal] = useState(false);
   const [showAddItemModal, setShowAddItemModal] = useState(false);
   const [showAuditModal, setShowAuditModal] = useState(false);
+  const [editItem, setEditItem] = useState(null);
 
   // Form States
   const [inwardForm, setInwardForm] = useState({ item_id: '', qty_received: '', challan_number: '', challan_photo: '', notes: '' });
@@ -144,6 +145,26 @@ export default function ProjectInventory({ project, user, tasks }) {
       loadInventory();
     } catch (err) {
       alert(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleEditItemSubmit = async (e) => {
+    e.preventDefault();
+    if (!editItem || !editItem.name.trim()) return;
+    setBusy(true);
+    try {
+      await api.updateInventoryMaster(editItem.id, {
+        name: editItem.name.trim(),
+        category: editItem.category || 'General',
+        unit: editItem.unit || 'pcs',
+        description: editItem.description || ''
+      });
+      setEditItem(null);
+      loadInventory();
+    } catch (err) {
+      alert(err.message || 'Failed to update item');
     } finally {
       setBusy(false);
     }
@@ -725,15 +746,32 @@ export default function ProjectInventory({ project, user, tasks }) {
                       </td>
                       {user.role === 'admin' && (
                         <td className="p-3 text-center">
-                          <button
-                            type="button"
-                            disabled={busy}
-                            onClick={() => handleDeleteItem(b)}
-                            className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
-                            title={`Delete ${b.name}`}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                          <div className="flex items-center justify-center gap-1">
+                            <button
+                              type="button"
+                              disabled={busy}
+                              onClick={() => setEditItem({
+                                id: b.item_id,
+                                name: b.name,
+                                category: b.category,
+                                unit: b.unit,
+                                description: b.description || ''
+                              })}
+                              className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                              title={`Edit ${b.name}`}
+                            >
+                              <Pencil className="w-4 h-4" />
+                            </button>
+                            <button
+                              type="button"
+                              disabled={busy}
+                              onClick={() => handleDeleteItem(b)}
+                              className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                              title={`Delete ${b.name}`}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
                         </td>
                       )}
                     </tr>
@@ -1219,6 +1257,80 @@ export default function ProjectInventory({ project, user, tasks }) {
                 <button type="button" onClick={() => setShowAddItemModal(false)} className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg">Cancel</button>
                 <button type="submit" disabled={busy} className="px-4 py-1.5 bg-amber-600 text-white rounded-lg font-semibold hover:bg-amber-700">
                   {busy ? 'Saving...' : 'Add to Catalog'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Edit Master Catalog Item (Admin Only) */}
+      {editItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/30 backdrop-blur-sm" onClick={() => setEditItem(null)}>
+          <div className="bg-white rounded-xl shadow-xl border border-gray-200 max-w-md w-full p-5 space-y-4" onClick={e => e.stopPropagation()}>
+            <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
+              <Pencil className="w-5 h-5 text-blue-600" />
+              Edit Material / Item
+            </h3>
+
+            <form onSubmit={handleEditItemSubmit} className="space-y-3 text-xs">
+              <div>
+                <label className="block font-semibold text-gray-700 mb-1">Material Name *</label>
+                <input
+                  type="text"
+                  placeholder="e.g. 4-Core FRLS Cable"
+                  value={editItem.name}
+                  onChange={e => setEditItem({ ...editItem, name: e.target.value })}
+                  className="w-full p-2 border border-gray-300 rounded-lg"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold text-gray-700 mb-1">Category</label>
+                  <select
+                    value={editItem.category}
+                    onChange={e => setEditItem({ ...editItem, category: e.target.value })}
+                    className="w-full p-2 border border-gray-300 rounded-lg"
+                  >
+                    <option value="Panels">Panels</option>
+                    <option value="Detectors">Detectors</option>
+                    <option value="Modules">Modules</option>
+                    <option value="Notifiers">Notifiers</option>
+                    <option value="Cabling">Cabling</option>
+                    <option value="Accessories">Accessories</option>
+                    <option value="General">General</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block font-semibold text-gray-700 mb-1">Unit of Measurement</label>
+                  <input
+                    type="text"
+                    placeholder="pcs, meters, sets, boxes"
+                    value={editItem.unit}
+                    onChange={e => setEditItem({ ...editItem, unit: e.target.value })}
+                    className="w-full p-2 border border-gray-300 rounded-lg"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-gray-700 mb-1">Description</label>
+                <input
+                  type="text"
+                  placeholder="Technical specification or details"
+                  value={editItem.description}
+                  onChange={e => setEditItem({ ...editItem, description: e.target.value })}
+                  className="w-full p-2 border border-gray-300 rounded-lg"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3">
+                <button type="button" onClick={() => setEditItem(null)} className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg">Cancel</button>
+                <button type="submit" disabled={busy} className="px-4 py-1.5 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700">
+                  {busy ? 'Updating...' : 'Save Changes'}
                 </button>
               </div>
             </form>

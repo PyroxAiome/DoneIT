@@ -1795,6 +1795,22 @@ router.post('/inventory/master', auth, adminOnly, async (req, res) => {
   }
 });
 
+router.put('/inventory/master/:id', auth, adminOnly, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, category, unit, description } = req.body;
+    if (!name || !name.trim()) return res.status(400).json({ error: 'Item name is required' });
+    const { rows } = await db.query(
+      'UPDATE inventory_master SET name = $1, category = $2, unit = $3, description = $4 WHERE id = $5 RETURNING *',
+      [name.trim(), category || 'General', unit || 'pcs', description || '', id]
+    );
+    if (rows.length === 0) return res.status(404).json({ error: 'Item not found' });
+    res.json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.delete('/inventory/master/:id', auth, adminOnly, async (req, res) => {
   try {
     const { id } = req.params;
@@ -1905,15 +1921,15 @@ router.post('/projects/:id/inventory/inward', auth, async (req, res) => {
       return res.status(400).json({ error: 'Valid item_id and positive qty_received required' });
     }
 
-    // STRICT DUPLICATE DC CHECK PER PROJECT
+    // Duplicate DC check per project and item (allows multiple different items under the same Delivery Challan)
     if (challan_number && challan_number.trim()) {
       const existing = await db.query(
-        `SELECT id FROM project_material_receipts WHERE project_id = $1 AND LOWER(TRIM(challan_number)) = LOWER(TRIM($2)) AND status != 'rejected'`,
-        [id, challan_number.trim()]
+        `SELECT id FROM project_material_receipts WHERE project_id = $1 AND item_id = $2 AND LOWER(TRIM(challan_number)) = LOWER(TRIM($3)) AND status != 'rejected'`,
+        [id, item_id, challan_number.trim()]
       );
       if (existing.rows.length > 0) {
         return res.status(409).json({ 
-          error: `Duplicate Delivery Challan! DC #${challan_number.trim()} has already been logged for this project.` 
+          error: `Duplicate Entry! This material on DC #${challan_number.trim()} has already been logged for this project.` 
         });
       }
     }
