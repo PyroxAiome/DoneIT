@@ -176,7 +176,7 @@ export default function AdminDashboard({ user }) {
       }
       const parts = hash.substring(1).split('/');
       const tabId = parts[0];
-      if (['overview', 'projects', 'work', 'completed', 'team', 'admin'].includes(tabId)) {
+      if (['overview', 'projects', 'work', 'repeated_tasks', 'completed', 'team', 'admin'].includes(tabId)) {
         setActiveTab(tabId);
         if (tabId !== 'projects') {
           setSelectedProject(null);

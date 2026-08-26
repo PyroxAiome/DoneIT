@@ -69,7 +69,7 @@ export default function EmployeeDashboard({ user }) {
       }
       const parts = hash.substring(1).split('/');
       const tabId = parts[0];
-      if (['projects', 'work', 'completed', 'team'].includes(tabId)) {
+      if (['projects', 'work', 'repeated_tasks', 'completed', 'team'].includes(tabId)) {
         setActiveTab(tabId);
         if (tabId !== 'projects') setSelectedProject(null);
       }
