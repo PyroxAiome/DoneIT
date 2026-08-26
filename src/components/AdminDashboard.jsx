@@ -68,7 +68,7 @@ export default function AdminDashboard({ user }) {
     if (!hash) return { tab: 'overview', empId: null };
     const parts = hash.substring(1).split('/');
     const tabId = parts[0];
-    const validTab = ['overview', 'projects', 'work', 'completed', 'team', 'admin'].includes(tabId) ? tabId : 'overview';
+    const validTab = ['overview', 'projects', 'work', 'repeated_tasks', 'completed', 'team', 'admin'].includes(tabId) ? tabId : 'overview';
     const empId = (parts[1] === 'employee' && parts[2]) ? Number(parts[2]) : null;
     return { tab: validTab, empId };
   };
@@ -543,7 +543,7 @@ export default function AdminDashboard({ user }) {
       )}
 
       {activeTab === 'repeated_tasks' && (
-        <RepeatedTasksList user={user} projects={projects} />
+        <RepeatedTasksList user={user} />
       )}
 
       {activeTab === 'team' && (

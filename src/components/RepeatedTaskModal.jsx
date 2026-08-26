@@ -24,6 +24,7 @@ const daysOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Sat
 
 export default function RepeatedTaskModal({ isOpen, onClose, task, onSaved, projects = [] }) {
   const [users, setUsers] = useState([]);
+  const [projectsList, setProjectsList] = useState([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [userSearch, setUserSearch] = useState('');
   const [busy, setBusy] = useState(false);
@@ -45,6 +46,11 @@ export default function RepeatedTaskModal({ isOpen, onClose, task, onSaved, proj
   useEffect(() => {
     if (isOpen) {
       loadUsers();
+      if (Array.isArray(projects) && projects.length > 0) {
+        setProjectsList(projects);
+      } else {
+        api.getProjects().then(data => setProjectsList(Array.isArray(data) ? data : [])).catch(() => {});
+      }
       if (task) {
         setFormData({
           title: task.title || '',
@@ -295,7 +301,7 @@ export default function RepeatedTaskModal({ isOpen, onClose, task, onSaved, proj
           </div>
 
           {/* Associated Project (Optional) */}
-          {projects && projects.length > 0 && (
+          {projectsList && projectsList.length > 0 && (
             <div>
               <label className="block font-semibold text-gray-700 mb-1">Linked Project (Optional)</label>
               <select
@@ -304,7 +310,7 @@ export default function RepeatedTaskModal({ isOpen, onClose, task, onSaved, proj
                 className="w-full p-2 border border-gray-300 rounded-lg bg-white"
               >
                 <option value="">Company-Wide (General Activity)</option>
-                {projects.map(p => (
+                {projectsList.map(p => (
                   <option key={p.id} value={p.id}>{p.name}</option>
                 ))}
               </select>
