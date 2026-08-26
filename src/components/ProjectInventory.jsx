@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { 
   Package, Plus, TrendingUp, ArrowDownLeft, ArrowUpRight, AlertTriangle, 
   CheckCircle2, FileText, Camera, MapPin, Search, Filter, ShieldAlert, Layers,
-  ShieldCheck, Eye, XCircle, X
+  ShieldCheck, Eye, XCircle, X, Trash2
 } from 'lucide-react';
 import { api } from '../lib/api';
 
@@ -30,77 +30,7 @@ export default function ProjectInventory({ project, user, tasks }) {
   const [itemForm, setItemForm] = useState({ name: '', category: 'Panels', unit: 'pcs', description: '' });
   const [auditForm, setAuditForm] = useState({ item_id: '', physical_counted_qty: '', notes: '' });
 
-  const isAdminOrManager = user?.role === 'admin' || user?.role === 'manager';
 
-  // Custom "Others" dynamic rows for bulk custom items
-  // Each row: { item_id: (number|null), name, in_stock, qty, unit } — item_id is set for existing items
-  const emptyCustomRow = { item_id: null, name: '', in_stock: 0, qty: '', unit: 'pcs' };
-
-  // Build initial rows from existing "Others" items in inventory
-  const buildOthersRows = () => {
-    const existingOthers = data.balances.filter(b => b.category === 'Others');
-    const rows = existingOthers.map(b => ({
-      item_id: b.item_id,
-      name: b.name,
-      in_stock: b.in_stock || 0,
-      qty: '',
-      unit: b.unit || 'pcs'
-    }));
-    rows.push({ ...emptyCustomRow }); // always one blank row for new entries
-    return rows;
-  };
-
-  const [inwardCustomRows, setInwardCustomRows] = useState([{ ...emptyCustomRow }]);
-  const [usageCustomRows, setUsageCustomRows] = useState([{ ...emptyCustomRow }]);
-  const [scrapCustomRows, setScrapCustomRows] = useState([{ ...emptyCustomRow }]);
-
-  // Helper: update a specific row in a custom rows array
-  const updateCustomRow = (rows, setRows, index, field, value) => {
-    const updated = rows.map((r, i) => i === index ? { ...r, [field]: value } : r);
-    setRows(updated);
-  };
-
-  // Helper: delete a custom row — unsaved draft rows anyone can delete, existing saved items only Admin/Manager
-  const handleDeleteCustomRow = async (rows, setRows, index, row) => {
-    if (!row.item_id) {
-      // Unsaved draft row
-      setRows(rows.filter((_, j) => j !== index));
-      return;
-    }
-    if (!isAdminOrManager) return;
-    if (confirm(`Are you sure you want to delete "${row.name}" from inventory? This will permanently delete the item and all its history.`)) {
-      setBusy(true);
-      try {
-        await api.deleteInventoryMaster(row.item_id);
-        setRows(rows.filter((_, j) => j !== index));
-        loadInventory();
-      } catch (err) {
-        alert(err.message);
-      } finally {
-        setBusy(false);
-      }
-    }
-  };
-
-  // Helper: resolve and submit all custom rows as separate inward/usage/scrap entries
-  const resolveAndSubmitCustomRows = async (rows, projectId, submitFn, extraFields = {}) => {
-    const validRows = rows.filter(r => Number(r.qty) > 0 && (r.item_id || r.name.trim()));
-    if (validRows.length === 0) throw new Error('Please add at least one item with quantity');
-    for (let i = 0; i < validRows.length; i++) {
-      const row = validRows[i];
-      // Use existing item_id if available, otherwise create new item
-      let itemId = row.item_id;
-      if (!itemId) {
-        const newItem = await api.quickCreateItem({ name: row.name.trim(), unit: row.unit || 'pcs' });
-        itemId = newItem.id;
-      }
-      // Only send challan_number on the first item to avoid duplicate DC error
-      const fields = { ...extraFields, item_id: itemId, qty_received: row.qty, qty_used: row.qty, qty_scrapped: row.qty };
-      if (i > 0 && fields.challan_number) fields.challan_number = '';
-      await submitFn(projectId, fields);
-    }
-  };
-  
   const [resubmitItem, setResubmitItem] = useState(null);
   const [resubmitForm, setResubmitForm] = useState({ qty_received: '', challan_number: '', challan_photo: '', notes: '' });
   const [busy, setBusy] = useState(false);
@@ -159,17 +89,10 @@ export default function ProjectInventory({ project, user, tasks }) {
     e.preventDefault();
     setBusy(true);
     try {
-      if (inwardForm.item_id === 'others') {
-        // Submit each custom row as a separate inward entry
-        const extraFields = { challan_number: inwardForm.challan_number, challan_photo: inwardForm.challan_photo, notes: inwardForm.notes };
-        await resolveAndSubmitCustomRows(inwardCustomRows, project.id, api.logInwardMaterial, extraFields);
-      } else {
-        if (!inwardForm.item_id || !inwardForm.qty_received) return setBusy(false);
-        await api.logInwardMaterial(project.id, inwardForm);
-      }
+      if (!inwardForm.item_id || !inwardForm.qty_received) return setBusy(false);
+      await api.logInwardMaterial(project.id, inwardForm);
       setShowInwardModal(false);
       setInwardForm({ item_id: '', qty_received: '', challan_number: '', challan_photo: '', notes: '' });
-      setInwardCustomRows([{ ...emptyCustomRow }]);
       loadInventory();
     } catch (err) {
       alert(err.message);
@@ -182,16 +105,10 @@ export default function ProjectInventory({ project, user, tasks }) {
     e.preventDefault();
     setBusy(true);
     try {
-      if (usageForm.item_id === 'others') {
-        const extraFields = { task_id: usageForm.task_id, installed_location: usageForm.installed_location, notes: usageForm.notes };
-        await resolveAndSubmitCustomRows(usageCustomRows, project.id, api.logMaterialUsage, extraFields);
-      } else {
-        if (!usageForm.item_id || !usageForm.qty_used) return setBusy(false);
-        await api.logMaterialUsage(project.id, usageForm);
-      }
+      if (!usageForm.item_id || !usageForm.qty_used) return setBusy(false);
+      await api.logMaterialUsage(project.id, usageForm);
       setShowUsageModal(false);
       setUsageForm({ item_id: '', task_id: '', qty_used: '', installed_location: '', notes: '' });
-      setUsageCustomRows([{ ...emptyCustomRow }]);
       loadInventory();
     } catch (err) {
       alert(err.message);
@@ -204,16 +121,10 @@ export default function ProjectInventory({ project, user, tasks }) {
     e.preventDefault();
     setBusy(true);
     try {
-      if (scrapForm.item_id === 'others') {
-        const extraFields = { reason: scrapForm.reason, photo_url: scrapForm.photo_url };
-        await resolveAndSubmitCustomRows(scrapCustomRows, project.id, api.logMaterialScrap, extraFields);
-      } else {
-        if (!scrapForm.item_id || !scrapForm.qty_scrapped || !scrapForm.reason) return setBusy(false);
-        await api.logMaterialScrap(project.id, scrapForm);
-      }
+      if (!scrapForm.item_id || !scrapForm.qty_scrapped || !scrapForm.reason) return setBusy(false);
+      await api.logMaterialScrap(project.id, scrapForm);
       setShowScrapModal(false);
       setScrapForm({ item_id: '', qty_scrapped: '', reason: '', photo_url: '' });
-      setScrapCustomRows([{ ...emptyCustomRow }]);
       loadInventory();
     } catch (err) {
       alert(err.message);
@@ -233,6 +144,21 @@ export default function ProjectInventory({ project, user, tasks }) {
       loadInventory();
     } catch (err) {
       alert(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleDeleteItem = async (item) => {
+    if (!confirm(`Are you sure you want to remove "${item.name}" from the inventory master catalog? This will delete the item and its records.`)) {
+      return;
+    }
+    setBusy(true);
+    try {
+      await api.deleteInventoryMaster(item.item_id);
+      loadInventory();
+    } catch (err) {
+      alert(err.message || 'Failed to delete item');
     } finally {
       setBusy(false);
     }
@@ -760,12 +686,13 @@ export default function ProjectInventory({ project, user, tasks }) {
                   <th className="p-3 text-right">Scrapped</th>
                   <th className="p-3 text-right">Store Balance</th>
                   <th className="p-3 text-center">Status</th>
+                  {user.role === 'admin' && <th className="p-3 text-center w-16">Action</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {filteredBalances.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="p-8 text-center text-gray-400 italic">
+                    <td colSpan={user.role === 'admin' ? 8 : 7} className="p-8 text-center text-gray-400 italic">
                       No materials found matching criteria.
                     </td>
                   </tr>
@@ -796,6 +723,19 @@ export default function ProjectInventory({ project, user, tasks }) {
                           <span className="text-[10px] px-2 py-0.5 rounded font-semibold bg-emerald-100 text-emerald-800">Healthy</span>
                         )}
                       </td>
+                      {user.role === 'admin' && (
+                        <td className="p-3 text-center">
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => handleDeleteItem(b)}
+                            className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                            title={`Delete ${b.name}`}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </td>
+                      )}
                     </tr>
                   ))
                 )}
@@ -975,7 +915,7 @@ export default function ProjectInventory({ project, user, tasks }) {
       {/* Modal: Log Inward Material */}
       {showInwardModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/30 backdrop-blur-sm" onClick={() => setShowInwardModal(false)}>
-          <div className={`bg-white rounded-xl shadow-xl border border-gray-200 w-full p-5 space-y-4 ${inwardForm.item_id === 'others' ? 'max-w-2xl' : 'max-w-md'}`} onClick={e => e.stopPropagation()}>
+          <div className="bg-white rounded-xl shadow-xl border border-gray-200 w-full max-w-md p-5 space-y-4" onClick={e => e.stopPropagation()}>
             <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
               <ArrowDownLeft className="w-5 h-5 text-emerald-600" />
               Log Inward Material (Arrival)
@@ -986,100 +926,17 @@ export default function ProjectInventory({ project, user, tasks }) {
                 <label className="block font-semibold text-gray-700 mb-1">Select Material *</label>
                 <select
                   value={inwardForm.item_id}
-                  onChange={e => { setInwardForm({ ...inwardForm, item_id: e.target.value }); e.target.value === 'others' ? setInwardCustomRows(buildOthersRows()) : setInwardCustomRows([{ ...emptyCustomRow }]); }}
+                  onChange={e => setInwardForm({ ...inwardForm, item_id: e.target.value })}
                   className="w-full p-2 border border-gray-300 rounded-lg"
                   required
                 >
                   <option value="">Choose item from catalog...</option>
-                  {data.balances.filter(b => b.category !== 'Others').map(b => (
+                  {data.balances.map(b => (
                     <option key={b.item_id} value={b.item_id}>{b.name} ({b.category})</option>
                   ))}
-                  <option value="others" className="font-semibold text-amber-700">⊕ Others (Custom Item)</option>
                 </select>
               </div>
 
-              {/* Dynamic table for "Others" custom items */}
-              {inwardForm.item_id === 'others' ? (
-                <>
-                  <div className="border border-amber-300 rounded-lg overflow-hidden bg-amber-50/50">
-                    <table className="w-full text-xs">
-                      <thead>
-                        <tr className="bg-amber-100 text-amber-800">
-                          <th className="p-2 text-left font-semibold">#</th>
-                          <th className="p-2 text-left font-semibold">Item Name *</th>
-                          <th className="p-2 text-left font-semibold w-24">Qty *</th>
-                          <th className="p-2 text-left font-semibold w-24">Unit</th>
-                          <th className="p-2 w-10"></th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {inwardCustomRows.map((row, i) => (
-                          <tr key={i} className="border-t border-amber-200">
-                            <td className="p-2 text-gray-500 font-mono">{i + 1}</td>
-                            <td className="p-2">
-                              <input type="text" placeholder="e.g. Cable Ties" value={row.name}
-                                onChange={e => updateCustomRow(inwardCustomRows, setInwardCustomRows, i, 'name', e.target.value)}
-                                className={`w-full p-1.5 border rounded focus:ring-2 focus:ring-amber-300 ${row.item_id ? 'bg-gray-100 border-gray-200 text-gray-700 font-semibold' : 'bg-white border-gray-300'}`}
-                                readOnly={!!row.item_id} required={!row.item_id} />
-                              {row.item_id != null && (
-                                <div className="mt-1 flex items-center gap-1">
-                                  <span className="bg-emerald-100 text-emerald-800 text-[10px] px-1.5 py-0.5 rounded font-bold border border-emerald-300">
-                                    In Stock: {row.in_stock ?? 0} {row.unit}
-                                  </span>
-                                </div>
-                              )}
-                            </td>
-                            <td className="p-2">
-                              <input type="number" step="any" min="0" placeholder="0" value={row.qty}
-                                onChange={e => updateCustomRow(inwardCustomRows, setInwardCustomRows, i, 'qty', e.target.value)}
-                                className="w-full p-1.5 border border-gray-300 rounded focus:ring-2 focus:ring-amber-300 bg-white" />
-                            </td>
-                            <td className="p-2">
-                              <select value={row.unit} onChange={e => updateCustomRow(inwardCustomRows, setInwardCustomRows, i, 'unit', e.target.value)}
-                                className="w-full p-1.5 border border-gray-300 rounded bg-white" disabled={!!row.item_id}>
-                                <option value="pcs">pcs</option>
-                                <option value="kg">kg</option>
-                                <option value="mtr">mtr</option>
-                                <option value="ltr">ltr</option>
-                                <option value="box">box</option>
-                                <option value="bundle">bundle</option>
-                                <option value="set">set</option>
-                                <option value="roll">roll</option>
-                              </select>
-                            </td>
-                            <td className="p-2 text-center">
-                              {(!row.item_id || isAdminOrManager) && (inwardCustomRows.length > 1 || row.item_id) && (
-                                <button type="button" onClick={() => handleDeleteCustomRow(inwardCustomRows, setInwardCustomRows, i, row)}
-                                  className="text-red-500 hover:text-red-700 font-bold text-lg leading-none p-1 rounded hover:bg-red-50"
-                                  title={row.item_id ? "Delete item from catalog (Admin/Manager only)" : "Remove row"}>×</button>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                    <button type="button" onClick={() => setInwardCustomRows([...inwardCustomRows, { ...emptyCustomRow }])}
-                      className="w-full p-2 text-amber-700 font-semibold hover:bg-amber-100 border-t border-amber-200 flex items-center justify-center gap-1 transition-colors">
-                      + Add Another Item
-                    </button>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block font-semibold text-gray-700 mb-1">Challan / Invoice #</label>
-                      <input type="text" placeholder="e.g. CH-9042" value={inwardForm.challan_number}
-                        onChange={e => setInwardForm({ ...inwardForm, challan_number: e.target.value })}
-                        className="w-full p-2 border border-gray-300 rounded-lg" />
-                    </div>
-                    <div>
-                      <label className="block font-semibold text-gray-700 mb-1">Notes / Supplier</label>
-                      <input type="text" placeholder="Optional delivery details" value={inwardForm.notes}
-                        onChange={e => setInwardForm({ ...inwardForm, notes: e.target.value })}
-                        className="w-full p-2 border border-gray-300 rounded-lg" />
-                    </div>
-                  </div>
-                </>
-              ) : (
                 <>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
@@ -1103,7 +960,7 @@ export default function ProjectInventory({ project, user, tasks }) {
                       className="w-full p-2 border border-gray-300 rounded-lg" />
                   </div>
                 </>
-              )}
+
 
               <div className="flex justify-end gap-2 pt-3">
                 <button type="button" onClick={() => setShowInwardModal(false)} className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg">Cancel</button>
@@ -1119,7 +976,7 @@ export default function ProjectInventory({ project, user, tasks }) {
       {/* Modal: Log Installation / Usage */}
       {showUsageModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/30 backdrop-blur-sm" onClick={() => setShowUsageModal(false)}>
-          <div className={`bg-white rounded-xl shadow-xl border border-gray-200 w-full p-5 space-y-4 ${usageForm.item_id === 'others' ? 'max-w-2xl' : 'max-w-md'}`} onClick={e => e.stopPropagation()}>
+          <div className="bg-white rounded-xl shadow-xl border border-gray-200 w-full max-w-md p-5 space-y-4" onClick={e => e.stopPropagation()}>
             <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
               <ArrowUpRight className="w-5 h-5 text-blue-600" />
               Record Material Installed / Used
@@ -1130,113 +987,33 @@ export default function ProjectInventory({ project, user, tasks }) {
                 <label className="block font-semibold text-gray-700 mb-1">Select Material *</label>
                 <select
                   value={usageForm.item_id}
-                  onChange={e => { setUsageForm({ ...usageForm, item_id: e.target.value }); e.target.value === 'others' ? setUsageCustomRows(buildOthersRows()) : setUsageCustomRows([{ ...emptyCustomRow }]); }}
+                  onChange={e => setUsageForm({ ...usageForm, item_id: e.target.value })}
                   className="w-full p-2 border border-gray-300 rounded-lg"
                   required
                 >
                   <option value="">Choose item...</option>
-                  {data.balances.filter(b => b.category !== 'Others').map(b => (
+                  {data.balances.map(b => (
                     <option key={b.item_id} value={b.item_id}>
                       {b.name} (Available: {b.in_stock} {b.unit})
                     </option>
                   ))}
-                  <option value="others" className="font-semibold text-amber-700">⊕ Others (Custom Item)</option>
                 </select>
               </div>
 
-              {usageForm.item_id === 'others' ? (
-                <>
-                  <div className="border border-amber-300 rounded-lg overflow-hidden bg-amber-50/50">
-                    <table className="w-full text-xs">
-                      <thead>
-                        <tr className="bg-amber-100 text-amber-800">
-                          <th className="p-2 text-left font-semibold">#</th>
-                          <th className="p-2 text-left font-semibold">Item Name *</th>
-                          <th className="p-2 text-left font-semibold w-24">Qty *</th>
-                          <th className="p-2 text-left font-semibold w-24">Unit</th>
-                          <th className="p-2 w-10"></th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {usageCustomRows.map((row, i) => (
-                          <tr key={i} className="border-t border-amber-200">
-                            <td className="p-2 text-gray-500 font-mono">{i + 1}</td>
-                            <td className="p-2">
-                              <input type="text" placeholder="e.g. Cable Ties" value={row.name}
-                                onChange={e => updateCustomRow(usageCustomRows, setUsageCustomRows, i, 'name', e.target.value)}
-                                className={`w-full p-1.5 border rounded focus:ring-2 focus:ring-amber-300 ${row.item_id ? 'bg-gray-100 border-gray-200 text-gray-700 font-semibold' : 'bg-white border-gray-300'}`}
-                                readOnly={!!row.item_id} required={!row.item_id} />
-                              {row.item_id != null && (
-                                <div className="mt-1 flex items-center gap-1">
-                                  <span className="bg-emerald-100 text-emerald-800 text-[10px] px-1.5 py-0.5 rounded font-bold border border-emerald-300">
-                                    In Stock: {row.in_stock ?? 0} {row.unit}
-                                  </span>
-                                </div>
-                              )}
-                            </td>
-                            <td className="p-2">
-                              <input type="number" step="any" min="0" placeholder="0" value={row.qty}
-                                onChange={e => updateCustomRow(usageCustomRows, setUsageCustomRows, i, 'qty', e.target.value)}
-                                className="w-full p-1.5 border border-gray-300 rounded focus:ring-2 focus:ring-amber-300 bg-white" />
-                            </td>
-                            <td className="p-2">
-                              <select value={row.unit} onChange={e => updateCustomRow(usageCustomRows, setUsageCustomRows, i, 'unit', e.target.value)}
-                                className="w-full p-1.5 border border-gray-300 rounded bg-white" disabled={!!row.item_id}>
-                                <option value="pcs">pcs</option><option value="kg">kg</option><option value="mtr">mtr</option>
-                                <option value="ltr">ltr</option><option value="box">box</option><option value="bundle">bundle</option>
-                                <option value="set">set</option><option value="roll">roll</option>
-                              </select>
-                            </td>
-                            <td className="p-2 text-center">
-                              {(!row.item_id || isAdminOrManager) && (usageCustomRows.length > 1 || row.item_id) && (
-                                <button type="button" onClick={() => handleDeleteCustomRow(usageCustomRows, setUsageCustomRows, i, row)}
-                                  className="text-red-500 hover:text-red-700 font-bold text-lg leading-none p-1 rounded hover:bg-red-50"
-                                  title={row.item_id ? "Delete item from catalog (Admin/Manager only)" : "Remove row"}>×</button>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                    <button type="button" onClick={() => setUsageCustomRows([...usageCustomRows, { ...emptyCustomRow }])}
-                      className="w-full p-2 text-amber-700 font-semibold hover:bg-amber-100 border-t border-amber-200 flex items-center justify-center gap-1 transition-colors">
-                      + Add Another Item
-                    </button>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block font-semibold text-gray-700 mb-1">Location / Floor</label>
-                      <input type="text" placeholder="e.g. Floor 3, Flat 302" value={usageForm.installed_location}
-                        onChange={e => setUsageForm({ ...usageForm, installed_location: e.target.value })}
-                        className="w-full p-2 border border-gray-300 rounded-lg" />
-                    </div>
-                    <div>
-                      <label className="block font-semibold text-gray-700 mb-1">Notes</label>
-                      <input type="text" placeholder="Optional" value={usageForm.notes}
-                        onChange={e => setUsageForm({ ...usageForm, notes: e.target.value })}
-                        className="w-full p-2 border border-gray-300 rounded-lg" />
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block font-semibold text-gray-700 mb-1">Quantity Used *</label>
-                      <input type="number" step="any" min="0.1" placeholder="e.g. 10" value={usageForm.qty_used}
-                        onChange={e => setUsageForm({ ...usageForm, qty_used: e.target.value })}
-                        className="w-full p-2 border border-gray-300 rounded-lg" required />
-                    </div>
-                    <div>
-                      <label className="block font-semibold text-gray-700 mb-1">Location / Floor</label>
-                      <input type="text" placeholder="e.g. Floor 3, Flat 302" value={usageForm.installed_location}
-                        onChange={e => setUsageForm({ ...usageForm, installed_location: e.target.value })}
-                        className="w-full p-2 border border-gray-300 rounded-lg" />
-                    </div>
-                  </div>
-                </>
-              )}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold text-gray-700 mb-1">Quantity Used *</label>
+                  <input type="number" step="any" min="0.1" placeholder="e.g. 10" value={usageForm.qty_used}
+                    onChange={e => setUsageForm({ ...usageForm, qty_used: e.target.value })}
+                    className="w-full p-2 border border-gray-300 rounded-lg" required />
+                </div>
+                <div>
+                  <label className="block font-semibold text-gray-700 mb-1">Location / Floor</label>
+                  <input type="text" placeholder="e.g. Floor 3, Flat 302" value={usageForm.installed_location}
+                    onChange={e => setUsageForm({ ...usageForm, installed_location: e.target.value })}
+                    className="w-full p-2 border border-gray-300 rounded-lg" />
+                </div>
+              </div>
 
               {tasks && tasks.length > 0 && (
                 <div>
@@ -1265,7 +1042,7 @@ export default function ProjectInventory({ project, user, tasks }) {
       {/* Modal: Log Scrap/Damage */}
       {showScrapModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/30 backdrop-blur-sm" onClick={() => setShowScrapModal(false)}>
-          <div className={`bg-white rounded-xl shadow-xl border border-gray-200 w-full p-5 space-y-4 ${scrapForm.item_id === 'others' ? 'max-w-2xl' : 'max-w-md'}`} onClick={e => e.stopPropagation()}>
+          <div className="bg-white rounded-xl shadow-xl border border-gray-200 w-full max-w-md p-5 space-y-4" onClick={e => e.stopPropagation()}>
             <h3 className="text-base font-bold text-red-600 flex items-center gap-2">
               <AlertTriangle className="w-5 h-5 text-red-600" />
               Report Material Scrap / Damage
@@ -1276,88 +1053,23 @@ export default function ProjectInventory({ project, user, tasks }) {
                 <label className="block font-semibold text-gray-700 mb-1">Select Damaged Item *</label>
                 <select
                   value={scrapForm.item_id}
-                  onChange={e => { setScrapForm({ ...scrapForm, item_id: e.target.value }); e.target.value === 'others' ? setScrapCustomRows(buildOthersRows()) : setScrapCustomRows([{ ...emptyCustomRow }]); }}
+                  onChange={e => setScrapForm({ ...scrapForm, item_id: e.target.value })}
                   className="w-full p-2 border border-gray-300 rounded-lg"
                   required
                 >
                   <option value="">Choose item...</option>
-                  {data.balances.filter(b => b.category !== 'Others').map(b => (
+                  {data.balances.map(b => (
                     <option key={b.item_id} value={b.item_id}>{b.name}</option>
                   ))}
-                  <option value="others" className="font-semibold text-amber-700">⊕ Others (Custom Item)</option>
                 </select>
               </div>
 
-              {scrapForm.item_id === 'others' ? (
-                <>
-                  <div className="border border-amber-300 rounded-lg overflow-hidden bg-amber-50/50">
-                    <table className="w-full text-xs">
-                      <thead>
-                        <tr className="bg-amber-100 text-amber-800">
-                          <th className="p-2 text-left font-semibold">#</th>
-                          <th className="p-2 text-left font-semibold">Item Name *</th>
-                          <th className="p-2 text-left font-semibold w-24">Qty *</th>
-                          <th className="p-2 text-left font-semibold w-24">Unit</th>
-                          <th className="p-2 w-10"></th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {scrapCustomRows.map((row, i) => (
-                          <tr key={i} className="border-t border-amber-200">
-                            <td className="p-2 text-gray-500 font-mono">{i + 1}</td>
-                            <td className="p-2">
-                              <input type="text" placeholder="e.g. Cable Ties" value={row.name}
-                                onChange={e => updateCustomRow(scrapCustomRows, setScrapCustomRows, i, 'name', e.target.value)}
-                                className={`w-full p-1.5 border rounded focus:ring-2 focus:ring-amber-300 ${row.item_id ? 'bg-gray-100 border-gray-200 text-gray-700 font-semibold' : 'bg-white border-gray-300'}`}
-                                readOnly={!!row.item_id} required={!row.item_id} />
-                              {row.item_id != null && (
-                                <div className="mt-1 flex items-center gap-1">
-                                  <span className="bg-emerald-100 text-emerald-800 text-[10px] px-1.5 py-0.5 rounded font-bold border border-emerald-300">
-                                    In Stock: {row.in_stock ?? 0} {row.unit}
-                                  </span>
-                                </div>
-                              )}
-                            </td>
-                            <td className="p-2">
-                              <input type="number" step="any" min="0" placeholder="0" value={row.qty}
-                                onChange={e => updateCustomRow(scrapCustomRows, setScrapCustomRows, i, 'qty', e.target.value)}
-                                className="w-full p-1.5 border border-gray-300 rounded focus:ring-2 focus:ring-amber-300 bg-white" />
-                            </td>
-                            <td className="p-2">
-                              <select value={row.unit} onChange={e => updateCustomRow(scrapCustomRows, setScrapCustomRows, i, 'unit', e.target.value)}
-                                className="w-full p-1.5 border border-gray-300 rounded bg-white" disabled={!!row.item_id}>
-                                <option value="pcs">pcs</option><option value="kg">kg</option><option value="mtr">mtr</option>
-                                <option value="ltr">ltr</option><option value="box">box</option><option value="bundle">bundle</option>
-                                <option value="set">set</option><option value="roll">roll</option>
-                              </select>
-                            </td>
-                            <td className="p-2 text-center">
-                              {(!row.item_id || isAdminOrManager) && (scrapCustomRows.length > 1 || row.item_id) && (
-                                <button type="button" onClick={() => handleDeleteCustomRow(scrapCustomRows, setScrapCustomRows, i, row)}
-                                  className="text-red-500 hover:text-red-700 font-bold text-lg leading-none p-1 rounded hover:bg-red-50"
-                                  title={row.item_id ? "Delete item from catalog (Admin/Manager only)" : "Remove row"}>×</button>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                    <button type="button" onClick={() => setScrapCustomRows([...scrapCustomRows, { ...emptyCustomRow }])}
-                      className="w-full p-2 text-amber-700 font-semibold hover:bg-amber-100 border-t border-amber-200 flex items-center justify-center gap-1 transition-colors">
-                      + Add Another Item
-                    </button>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div>
-                    <label className="block font-semibold text-gray-700 mb-1">Quantity Scrapped *</label>
-                    <input type="number" step="any" min="0.1" placeholder="e.g. 2" value={scrapForm.qty_scrapped}
-                      onChange={e => setScrapForm({ ...scrapForm, qty_scrapped: e.target.value })}
-                      className="w-full p-2 border border-gray-300 rounded-lg" required />
-                  </div>
-                </>
-              )}
+              <div>
+                <label className="block font-semibold text-gray-700 mb-1">Quantity Scrapped *</label>
+                <input type="number" step="any" min="0.1" placeholder="e.g. 2" value={scrapForm.qty_scrapped}
+                  onChange={e => setScrapForm({ ...scrapForm, qty_scrapped: e.target.value })}
+                  className="w-full p-2 border border-gray-300 rounded-lg" required />
+              </div>
 
               <div>
                 <label className="block font-semibold text-gray-700 mb-1">Reason for Damage / Scrap *</label>
@@ -1396,7 +1108,7 @@ export default function ProjectInventory({ project, user, tasks }) {
                   required
                 >
                   <option value="">Choose item...</option>
-                  {data.balances.filter(b => b.category !== 'Others').map(b => (
+                  {data.balances.map(b => (
                     <option key={b.item_id} value={b.item_id}>
                       {b.name} (Expected Store Balance: {b.in_stock} {b.unit})
                     </option>
