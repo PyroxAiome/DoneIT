@@ -235,6 +235,43 @@ const initDatabase = async () => {
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
 
+    -- ── Repeated Tasks & Periodic Review Tables ──────────────────
+    CREATE TABLE IF NOT EXISTS repeated_tasks (
+      id SERIAL PRIMARY KEY,
+      title TEXT NOT NULL,
+      description TEXT DEFAULT '',
+      frequency TEXT CHECK(frequency IN ('daily', 'weekly', 'biweekly', 'monthly')) DEFAULT 'weekly',
+      meeting_day TEXT DEFAULT 'Monday',
+      meeting_time TEXT DEFAULT '10:00 AM',
+      category TEXT DEFAULT 'General',
+      priority TEXT CHECK(priority IN ('low', 'medium', 'high', 'urgent')) DEFAULT 'medium',
+      status TEXT CHECK(status IN ('active', 'paused', 'completed')) DEFAULT 'active',
+      project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL,
+      creator_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS repeated_task_members (
+      id SERIAL PRIMARY KEY,
+      task_id INTEGER NOT NULL REFERENCES repeated_tasks(id) ON DELETE CASCADE,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      role_in_task TEXT DEFAULT 'reviewer',
+      added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(task_id, user_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS repeated_task_reviews (
+      id SERIAL PRIMARY KEY,
+      task_id INTEGER NOT NULL REFERENCES repeated_tasks(id) ON DELETE CASCADE,
+      logged_by INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      review_date DATE NOT NULL DEFAULT CURRENT_DATE,
+      discussion_notes TEXT NOT NULL,
+      action_items TEXT DEFAULT '',
+      status_outcome TEXT CHECK(status_outcome IN ('on_track', 'needs_attention', 'blocked', 'completed')) DEFAULT 'on_track',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
     -- Migration: remove legacy role check constraint (new roles added)
     ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
 

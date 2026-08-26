@@ -7,14 +7,16 @@ import TaskDetailModal from './TaskDetailModal';
 import TaskVerificationModal from './TaskVerificationModal';
 import {
   BarChart3, Users, CheckCircle, Plus, Search, Filter,
-  ListTodo, User, LayoutGrid, X, FolderGit2
+  ListTodo, User, LayoutGrid, X, FolderGit2, Repeat
 } from 'lucide-react';
 import ProjectsList from './ProjectsList';
 import ProjectDetail from './ProjectDetail';
+import RepeatedTasksList from './RepeatedTasksList';
 
 const tabs = [
   { id: 'projects', label: 'Projects', icon: FolderGit2 },
   { id: 'work', label: 'Work', icon: ListTodo },
+  { id: 'repeated_tasks', label: 'Repeated Tasks', icon: Repeat },
   { id: 'completed', label: 'Completed', icon: CheckCircle },
 ];
 
@@ -251,6 +253,12 @@ export default function ManagerDashboard({ user }) {
               onProjectSelect={(p) => setSelectedProject(p)}
             />
           )}
+        </div>
+      )}
+
+      {activeTab === 'repeated_tasks' && (
+        <div className="mt-4">
+          <RepeatedTasksList user={user} projects={[]} />
         </div>
       )}
 

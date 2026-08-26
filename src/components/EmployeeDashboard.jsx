@@ -5,13 +5,15 @@ import TaskModal from './TaskModal';
 import ConfirmDeleteModal from './ConfirmDeleteModal';
 import TaskDetailModal from './TaskDetailModal';
 import TaskVerificationModal from './TaskVerificationModal';
-import { Search, ListTodo, Filter, Plus, CheckCircle, Users, X, FolderGit2 } from 'lucide-react';
+import { Search, ListTodo, Filter, Plus, CheckCircle, Users, X, FolderGit2, Repeat } from 'lucide-react';
 import ProjectsList from './ProjectsList';
 import ProjectDetail from './ProjectDetail';
+import RepeatedTasksList from './RepeatedTasksList';
 
 const tabs = [
   { id: 'projects', label: 'Projects', icon: FolderGit2 },
   { id: 'work', label: 'Work', icon: ListTodo },
+  { id: 'repeated_tasks', label: 'Repeated Tasks', icon: Repeat },
   { id: 'completed', label: 'Completed', icon: CheckCircle },
   { id: 'team', label: 'Team', icon: Users },
 ];
@@ -229,6 +231,12 @@ export default function EmployeeDashboard({ user }) {
               onProjectSelect={(p) => setSelectedProject(p)}
             />
           )}
+        </div>
+      )}
+
+      {activeTab === 'repeated_tasks' && (
+        <div className="mt-4">
+          <RepeatedTasksList user={user} projects={[]} />
         </div>
       )}
 

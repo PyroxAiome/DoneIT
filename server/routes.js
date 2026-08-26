@@ -2228,4 +2228,292 @@ router.delete('/projects/:id/documents/:docId', auth, adminOrManager, async (req
   }
 });
 
+// ─── REPEATED TASKS & PERIODIC REVIEWS ─────────────────────────
+
+// List repeated tasks
+router.get('/repeated-tasks', auth, async (req, res) => {
+  try {
+    const isAdminOrMgr = req.user.role === 'admin' || req.user.role === 'manager';
+    let query = `
+      SELECT rt.*,
+             u.name as creator_name,
+             p.name as project_name,
+             COALESCE(
+               (SELECT json_agg(json_build_object(
+                 'user_id', rtm.user_id,
+                 'name', mu.name,
+                 'email', mu.email,
+                 'role', mu.role,
+                 'avatar_url', mu.avatar_url,
+                 'role_in_task', rtm.role_in_task
+               ))
+               FROM repeated_task_members rtm
+               JOIN users mu ON rtm.user_id = mu.id
+               WHERE rtm.task_id = rt.id),
+               '[]'::json
+             ) as members,
+             (SELECT COUNT(*) FROM repeated_task_reviews WHERE task_id = rt.id)::int as review_count,
+             (SELECT json_build_object(
+                 'id', rtr.id,
+                 'review_date', rtr.review_date,
+                 'discussion_notes', rtr.discussion_notes,
+                 'action_items', rtr.action_items,
+                 'status_outcome', rtr.status_outcome,
+                 'logged_by_name', ru.name,
+                 'created_at', rtr.created_at
+               )
+               FROM repeated_task_reviews rtr
+               JOIN users ru ON rtr.logged_by = ru.id
+               WHERE rtr.task_id = rt.id
+               ORDER BY rtr.review_date DESC, rtr.created_at DESC
+               LIMIT 1
+             ) as latest_review
+      FROM repeated_tasks rt
+      LEFT JOIN users u ON rt.creator_id = u.id
+      LEFT JOIN projects p ON rt.project_id = p.id
+    `;
+
+    // Non-admin/manager only see tasks they are a member of or created
+    let params = [];
+    if (!isAdminOrMgr) {
+      query += ` WHERE rt.creator_id = $1 OR EXISTS (SELECT 1 FROM repeated_task_members WHERE task_id = rt.id AND user_id = $1) `;
+      params.push(req.user.id);
+    }
+
+    query += ` ORDER BY rt.created_at DESC `;
+    const { rows } = await db.query(query, params);
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Create repeated task
+router.post('/repeated-tasks', auth, adminOrManager, async (req, res) => {
+  try {
+    const {
+      title,
+      description,
+      frequency,
+      meeting_day,
+      meeting_time,
+      category,
+      priority,
+      status,
+      project_id,
+      member_ids
+    } = req.body;
+
+    if (!title || !title.trim()) {
+      return res.status(400).json({ error: 'Title is required' });
+    }
+
+    const { rows: [task] } = await db.query(`
+      INSERT INTO repeated_tasks
+        (title, description, frequency, meeting_day, meeting_time, category, priority, status, project_id, creator_id)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      RETURNING *
+    `, [
+      title.trim(),
+      description || '',
+      frequency || 'weekly',
+      meeting_day || 'Monday',
+      meeting_time || '10:00 AM',
+      category || 'General',
+      priority || 'medium',
+      status || 'active',
+      project_id ? Number(project_id) : null,
+      req.user.id
+    ]);
+
+    // Insert assigned members if provided
+    if (Array.isArray(member_ids) && member_ids.length > 0) {
+      for (const userId of member_ids) {
+        if (userId) {
+          await db.query(`
+            INSERT INTO repeated_task_members (task_id, user_id, role_in_task)
+            VALUES ($1, $2, 'reviewer')
+            ON CONFLICT (task_id, user_id) DO NOTHING
+          `, [task.id, Number(userId)]);
+
+          // Send notification to assigned member
+          if (Number(userId) !== req.user.id) {
+            await createNotification(
+              Number(userId),
+              req.user.id,
+              `${req.user.name} added you to repeated task "${task.title}" (${task.frequency} review)`
+            );
+          }
+        }
+      }
+    }
+
+    res.status(201).json(task);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get single repeated task with full members & reviews history
+router.get('/repeated-tasks/:id', auth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { rows: [task] } = await db.query(`
+      SELECT rt.*,
+             u.name as creator_name,
+             p.name as project_name
+      FROM repeated_tasks rt
+      LEFT JOIN users u ON rt.creator_id = u.id
+      LEFT JOIN projects p ON rt.project_id = p.id
+      WHERE rt.id = $1
+    `, [id]);
+
+    if (!task) return res.status(404).json({ error: 'Repeated task not found' });
+
+    const { rows: members } = await db.query(`
+      SELECT rtm.*, u.name, u.email, u.role, u.department, u.avatar_url
+      FROM repeated_task_members rtm
+      JOIN users u ON rtm.user_id = u.id
+      WHERE rtm.task_id = $1
+      ORDER BY u.name ASC
+    `, [id]);
+
+    const { rows: reviews } = await db.query(`
+      SELECT rtr.*, u.name as logged_by_name, u.role as logged_by_role, u.avatar_url as logged_by_avatar
+      FROM repeated_task_reviews rtr
+      JOIN users u ON rtr.logged_by = u.id
+      WHERE rtr.task_id = $1
+      ORDER BY rtr.review_date DESC, rtr.created_at DESC
+    `, [id]);
+
+    res.json({ ...task, members, reviews });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Update repeated task
+router.put('/repeated-tasks/:id', auth, adminOrManager, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      title,
+      description,
+      frequency,
+      meeting_day,
+      meeting_time,
+      category,
+      priority,
+      status,
+      project_id,
+      member_ids
+    } = req.body;
+
+    if (!title || !title.trim()) {
+      return res.status(400).json({ error: 'Title is required' });
+    }
+
+    const { rows: [task] } = await db.query(`
+      UPDATE repeated_tasks
+      SET title = $1, description = $2, frequency = $3, meeting_day = $4,
+          meeting_time = $5, category = $6, priority = $7, status = $8,
+          project_id = $9, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $10
+      RETURNING *
+    `, [
+      title.trim(),
+      description || '',
+      frequency || 'weekly',
+      meeting_day || 'Monday',
+      meeting_time || '10:00 AM',
+      category || 'General',
+      priority || 'medium',
+      status || 'active',
+      project_id ? Number(project_id) : null,
+      id
+    ]);
+
+    if (!task) return res.status(404).json({ error: 'Repeated task not found' });
+
+    // Update members if passed
+    if (Array.isArray(member_ids)) {
+      await db.query(`DELETE FROM repeated_task_members WHERE task_id = $1`, [id]);
+      for (const userId of member_ids) {
+        if (userId) {
+          await db.query(`
+            INSERT INTO repeated_task_members (task_id, user_id, role_in_task)
+            VALUES ($1, $2, 'reviewer')
+            ON CONFLICT (task_id, user_id) DO NOTHING
+          `, [id, Number(userId)]);
+        }
+      }
+    }
+
+    res.json(task);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Delete repeated task
+router.delete('/repeated-tasks/:id', auth, adminOnly, async (req, res) => {
+  try {
+    const { id } = req.params;
+    await db.query(`DELETE FROM repeated_tasks WHERE id = $1`, [id]);
+    res.json({ success: true, message: 'Repeated task deleted' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Log a meeting discussion / review for a repeated task
+router.post('/repeated-tasks/:id/reviews', auth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { discussion_notes, action_items, status_outcome, review_date } = req.body;
+
+    if (!discussion_notes || !discussion_notes.trim()) {
+      return res.status(400).json({ error: 'Discussion notes are required' });
+    }
+
+    const { rows: [task] } = await db.query(`SELECT * FROM repeated_tasks WHERE id = $1`, [id]);
+    if (!task) return res.status(404).json({ error: 'Repeated task not found' });
+
+    const { rows: [review] } = await db.query(`
+      INSERT INTO repeated_task_reviews
+        (task_id, logged_by, review_date, discussion_notes, action_items, status_outcome)
+      VALUES ($1, $2, $3, $4, $5, $6)
+      RETURNING *
+    `, [
+      id,
+      req.user.id,
+      review_date || new Date().toISOString().split('T')[0],
+      discussion_notes.trim(),
+      action_items || '',
+      status_outcome || 'on_track'
+    ]);
+
+    // Send notifications to all task members
+    const { rows: members } = await db.query(
+      `SELECT user_id FROM repeated_task_members WHERE task_id = $1`,
+      [id]
+    );
+
+    for (const m of members) {
+      if (m.user_id !== req.user.id) {
+        await createNotification(
+          m.user_id,
+          req.user.id,
+          `${req.user.name} logged a review for repeated task "${task.title}" (${review.status_outcome.replace('_', ' ')})`
+        );
+      }
+    }
+
+    res.status(201).json(review);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 export default router;
+

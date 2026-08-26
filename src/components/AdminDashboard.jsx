@@ -9,19 +9,22 @@ import BulkImportModal from './BulkImportModal';
 import {
   LayoutDashboard, Briefcase, Users, Plus, Search, Grid3X3, List,
   UserPlus, Trash2, Filter, ListTodo, CheckCircle,
-  MessageSquare, X, FileSpreadsheet, Shield, Edit2, FolderGit2
+  MessageSquare, X, FileSpreadsheet, Shield, Edit2, FolderGit2, Repeat
 } from 'lucide-react';
 import ProjectsList from './ProjectsList';
 import ProjectDetail from './ProjectDetail';
+import RepeatedTasksList from './RepeatedTasksList';
 
 const tabs = [
   { id: 'overview', label: 'Overview', icon: LayoutDashboard },
   { id: 'projects', label: 'Projects', icon: FolderGit2 },
   { id: 'work', label: 'Work', icon: Briefcase },
+  { id: 'repeated_tasks', label: 'Repeated Tasks', icon: Repeat },
   { id: 'completed', label: 'Completed', icon: CheckCircle },
   { id: 'team', label: 'Team', icon: Users },
   { id: 'admin', label: 'Admin', icon: Shield },
-];const getPrioritySelectClass = (val) => {
+];
+const getPrioritySelectClass = (val) => {
   const base = "text-[10px] sm:text-xs border rounded-lg px-1.5 sm:px-2.5 py-0.5 sm:py-1 focus:outline-none focus:ring-1 focus:ring-amber-500 font-semibold transition-all ";
   switch(val) {
     case 'low': return base + 'text-slate-700 border-slate-300 bg-slate-100';
@@ -537,6 +540,10 @@ export default function AdminDashboard({ user }) {
             </div>
           )}
         </div>
+      )}
+
+      {activeTab === 'repeated_tasks' && (
+        <RepeatedTasksList user={user} projects={projects} />
       )}
 
       {activeTab === 'team' && (

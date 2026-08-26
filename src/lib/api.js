@@ -319,4 +319,32 @@ export const api = {
 
   deleteProjectDocument: (projectId, docId) =>
     request(`/projects/${projectId}/documents/${docId}`, { method: 'DELETE' }),
+
+  // Repeated / Routine Review Tasks APIs
+  getRepeatedTasks: () => request('/repeated-tasks'),
+
+  getRepeatedTask: (id) => request(`/repeated-tasks/${id}`),
+
+  createRepeatedTask: (data) =>
+    request('/repeated-tasks', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  updateRepeatedTask: (id, data) =>
+    request(`/repeated-tasks/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+
+  deleteRepeatedTask: (id) =>
+    request(`/repeated-tasks/${id}`, {
+      method: 'DELETE',
+    }),
+
+  logRepeatedTaskReview: (id, data) =>
+    request(`/repeated-tasks/${id}/reviews`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
 };
