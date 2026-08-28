@@ -202,7 +202,7 @@ export default function EmployeeDashboard({ user }) {
             <div className="flex items-center gap-2 flex-wrap">
               <p className="text-sm text-gray-500">Welcome back, {user.name.split(' ')[0]}</p>
               {quota && quota.isRestricted && (
-                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200/70" title="Weekly limit: 2 tasks, Monthly limit: 8 tasks. Managers/Admins can assign unlimited tasks to you.">
+                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200/70" title="Weekly limit: 2 tasks, Monthly limit: 10 tasks. Managers/Admins can assign unlimited tasks to you.">
                   Creation quota: {quota.weekCount}/{quota.weekLimit} this week &middot; {quota.monthCount}/{quota.monthLimit} this month
                 </span>
               )}
@@ -217,7 +217,7 @@ export default function EmployeeDashboard({ user }) {
                   ? 'bg-gray-200 text-gray-400 cursor-not-allowed px-3 py-1.5 rounded-lg border border-gray-300'
                   : 'btn-amber'
               }`}
-              title={quota?.isRestricted && !quota?.canCreate ? 'Weekly/Monthly task creation limit reached (max 2/week, 8/month). Please ask your Manager or Admin to assign tasks.' : ''}
+              title={quota?.isRestricted && !quota?.canCreate ? 'Weekly/Monthly task creation limit reached (max 2/week, 10/month). Please ask your Manager or Admin to assign tasks.' : ''}
             >
               <Plus className="w-4 h-4" /> New Task
             </button>

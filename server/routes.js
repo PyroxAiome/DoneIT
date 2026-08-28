@@ -360,7 +360,7 @@ router.delete('/users/:id', auth, adminOnly, async (req, res) => {
 // ─── TASKS ──────────────────────────────────────────────────────
 router.get('/tasks/quota', auth, async (req, res) => {
   try {
-    if (req.user.role !== 'employee') {
+    if (['admin', 'manager', 'site_manager'].includes(req.user.role)) {
       return res.json({ role: req.user.role, isRestricted: false });
     }
     const { rows: weekRows } = await db.query(`
@@ -376,13 +376,13 @@ router.get('/tasks/quota', auth, async (req, res) => {
     const monthCount = parseInt(monthRows[0]?.count || '0', 10);
 
     res.json({
-      role: 'employee',
+      role: req.user.role,
       isRestricted: true,
       weekCount,
       weekLimit: 2,
       monthCount,
-      monthLimit: 8,
-      canCreate: weekCount < 2 && monthCount < 8
+      monthLimit: 10,
+      canCreate: weekCount < 2 && monthCount < 10
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -519,7 +519,7 @@ router.post('/tasks', auth, async (req, res) => {
 
     if (!title) return res.status(400).json({ error: 'Title required' });
 
-    if (req.user.role === 'employee') {
+    if (!['admin', 'manager', 'site_manager'].includes(req.user.role)) {
       const { rows: weekRows } = await db.query(`
         SELECT COUNT(*) as count FROM tasks 
         WHERE creator_id = $1 AND created_at >= DATE_TRUNC('week', CURRENT_TIMESTAMP)
@@ -536,15 +536,15 @@ router.post('/tasks', auth, async (req, res) => {
         WHERE creator_id = $1 AND created_at >= DATE_TRUNC('month', CURRENT_TIMESTAMP)
       `, [req.user.id]);
       const monthCount = parseInt(monthRows[0]?.count || '0', 10);
-      if (monthCount >= 8) {
+      if (monthCount >= 10) {
         return res.status(403).json({ 
-          error: 'Monthly task creation limit reached (max 8 self-created tasks per month). Please ask your Manager or Admin to assign tasks.' 
+          error: 'Monthly task creation limit reached (max 10 self-created tasks per month). Please ask your Manager or Admin to assign tasks.' 
         });
       }
     }
 
     let assignees = [];
-    if (req.user.role === 'employee') {
+    if (!['admin', 'manager', 'site_manager'].includes(req.user.role)) {
       assignees = [req.user.id];
     } else if (assignee_ids && Array.isArray(assignee_ids) && assignee_ids.length > 0) {
       assignees = assignee_ids;
