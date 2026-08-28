@@ -294,6 +294,12 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
+  verifyPhysicalAudit: (projectId, auditId, action, rejection_reason = '') =>
+    request(`/projects/${projectId}/inventory/audits/${auditId}/verify`, {
+      method: 'PUT',
+      body: JSON.stringify({ action, rejection_reason }),
+    }),
+
   // Document Vault APIs
   getProjectDocuments: (id) => request(`/projects/${id}/documents`),
 

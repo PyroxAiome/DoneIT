@@ -7,7 +7,7 @@ import {
 import { api } from '../lib/api';
 
 export default function ProjectInventory({ project, user, tasks }) {
-  const [data, setData] = useState({ balances: [], receipts: [], pendingManagerReceipts: [], pendingAdminReceipts: [], usage: [], scrap: [] });
+  const [data, setData] = useState({ balances: [], receipts: [], pendingManagerReceipts: [], pendingAdminReceipts: [], pendingAudits: [], usage: [], scrap: [], audits: [] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [previewImage, setPreviewImage] = useState(null);
@@ -31,7 +31,6 @@ export default function ProjectInventory({ project, user, tasks }) {
   const [itemForm, setItemForm] = useState({ name: '', category: 'Panels', unit: 'pcs', description: '' });
   const [auditForm, setAuditForm] = useState({ item_id: '', physical_counted_qty: '', notes: '' });
 
-
   const [resubmitItem, setResubmitItem] = useState(null);
   const [resubmitForm, setResubmitForm] = useState({ qty_received: '', challan_number: '', challan_photo: '', notes: '' });
   const [busy, setBusy] = useState(false);
@@ -54,11 +53,38 @@ export default function ProjectInventory({ project, user, tasks }) {
     }
   };
 
+  const handleVerifyAudit = async (auditId, action) => {
+    let rejectionReason = '';
+    if (action === 'reject') {
+      rejectionReason = prompt('Please enter the reason for rejecting this physical stock audit:');
+      if (!rejectionReason) return;
+    } else {
+      if (!confirm('Are you sure you want to verify and confirm this stock audit count?')) return;
+    }
+
+    try {
+      await api.verifyPhysicalAudit(project.id, auditId, action, rejectionReason);
+      loadInventory();
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
   const loadInventory = async () => {
     try {
       setLoading(true);
       const res = await api.getProjectInventory(project.id);
-      setData(res);
+      setData({
+        balances: res.balances || [],
+        receipts: res.receipts || [],
+        pendingManagerReceipts: res.pendingManagerReceipts || [],
+        pendingAdminReceipts: res.pendingAdminReceipts || [],
+        pendingAudits: res.pendingAudits || [],
+        mySubmissions: res.mySubmissions || [],
+        usage: res.usage || [],
+        scrap: res.scrap || [],
+        audits: res.audits || []
+      });
     } catch (err) {
       setError(err.message);
     } finally {
@@ -260,28 +286,39 @@ export default function ProjectInventory({ project, user, tasks }) {
         </div>
       </div>
 
-      {/* TIER 1: Manager Inventory Verification Queue */}
-      {data.pendingManagerReceipts && data.pendingManagerReceipts.length > 0 && user.role === 'manager' && (
-        <div className="bg-amber-50/90 border-2 border-amber-300 rounded-xl p-5 shadow-sm space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-amber-900">
+      {/* VERIFICATION QUEUES FOR ADMIN & MANAGER */}
+      
+      {/* 1. Material Inward Arrivals Verification Queue */}
+      {((user.role === 'admin' && ((data.pendingAdminReceipts?.length || 0) > 0 || (data.pendingManagerReceipts?.length || 0) > 0)) ||
+        (user.role === 'manager' && (data.pendingManagerReceipts?.length || 0) > 0)) && (
+        <div className="bg-gradient-to-r from-amber-50/95 via-blue-50/70 to-emerald-50/60 border-2 border-amber-300 rounded-xl p-5 shadow-sm space-y-4">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div className="flex items-center gap-2 text-gray-900">
               <ShieldCheck className="w-5 h-5 text-amber-600 animate-pulse" />
               <h3 className="font-bold text-sm sm:text-base">
-                Tier 1: Manager Inventory Verification Queue ({data.pendingManagerReceipts.length} Pending)
+                Inward Material Verification Queue (
+                {user.role === 'admin' 
+                  ? (data.pendingAdminReceipts?.length || 0) + (data.pendingManagerReceipts?.length || 0)
+                  : data.pendingManagerReceipts?.length || 0} Pending)
               </h3>
             </div>
             <span className="text-xs bg-amber-200 text-amber-950 font-bold px-2.5 py-0.5 rounded-full">
-              Manager Verification Step
+              {user.role === 'admin' ? 'Admin Direct Approval / Sign-Off' : 'Tier 1: Manager Verification'}
             </span>
           </div>
-          <p className="text-xs text-amber-800">
-            Site Managers / QS uploaded these Inward Stock Arrivals with QS Mohar stamps. Verify quantities & stamp before sending to Admin for final sign-off.
+          <p className="text-xs text-gray-700">
+            {user.role === 'admin'
+              ? 'Review inward stock arrivals logged by team members and managers. Inspect Delivery Challan (DC) photos and click Approve to add stock to the live site ledger.'
+              : 'Site team members uploaded these Inward Stock Arrivals. Verify quantities & DC stamps before forwarding to Admin for final sign-off.'}
           </p>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {data.pendingManagerReceipts.map(r => (
-              <div key={r.id} className="bg-white rounded-lg border border-amber-200 p-4 space-y-3 shadow-xs">
-                <div className="flex items-start justify-between">
+            {[
+              ...(data.pendingAdminReceipts || []),
+              ...(user.role === 'admin' ? (data.pendingManagerReceipts || []) : (user.role === 'manager' ? (data.pendingManagerReceipts || []) : []))
+            ].map(r => (
+              <div key={r.id} className="bg-white rounded-lg border border-amber-200/90 p-4 space-y-3 shadow-xs">
+                <div className="flex items-start justify-between gap-2">
                   <div>
                     <h4 className="font-bold text-gray-900 text-sm">{r.item_name}</h4>
                     <p className="text-xs text-emerald-700 font-bold mt-0.5">
@@ -290,13 +327,29 @@ export default function ProjectInventory({ project, user, tasks }) {
                     <p className="text-[11px] text-gray-500 mt-1">
                       Logged by: <span className="font-semibold text-gray-700">{r.receiver_name}</span> · {new Date(r.created_at).toLocaleDateString()}
                     </p>
+                    {r.status === 'pending_admin' && (
+                      <span className="inline-block text-[10px] font-bold text-blue-700 bg-blue-50 border border-blue-200 rounded px-1.5 py-0.5 mt-1">
+                        Manager Verified by {r.manager_name}
+                      </span>
+                    )}
+                    {r.status === 'pending_manager' && (
+                      <span className="inline-block text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5 mt-1">
+                        Awaiting Initial Verification
+                      </span>
+                    )}
                   </div>
                   {r.challan_number && (
-                    <span className="font-mono text-xs bg-amber-100 text-amber-900 font-bold px-2 py-1 rounded">
+                    <span className="font-mono text-xs bg-amber-100 text-amber-900 font-bold px-2 py-1 rounded shrink-0">
                       DC #{r.challan_number}
                     </span>
                   )}
                 </div>
+
+                {r.notes && (
+                  <p className="text-xs text-gray-600 bg-gray-50 p-2 rounded border border-gray-100 italic">
+                    "{r.notes}"
+                  </p>
+                )}
 
                 {r.challan_photo ? (
                   <div 
@@ -305,11 +358,11 @@ export default function ProjectInventory({ project, user, tasks }) {
                   >
                     <img 
                       src={r.challan_photo} 
-                      alt="QS Mohar Stamped DC" 
+                      alt="Delivery Challan" 
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform" 
                     />
                     <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white gap-1.5 text-xs font-semibold">
-                      <Eye className="w-4 h-4" /> Inspect QS Stamp
+                      <Eye className="w-4 h-4" /> Inspect Delivery Challan
                     </div>
                   </div>
                 ) : (
@@ -318,13 +371,33 @@ export default function ProjectInventory({ project, user, tasks }) {
                   </div>
                 )}
 
-                <div className="flex gap-2 pt-2 border-t border-gray-100">
-                  <button
-                    onClick={() => handleVerifyReceipt(r.id, 'manager_verify')}
-                    className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-semibold hover:bg-blue-700 transition-colors shadow-xs"
-                  >
-                    <CheckCircle2 className="w-4 h-4" /> Manager Verify ➔ Send to Admin
-                  </button>
+                <div className="flex gap-2 pt-2 border-t border-gray-100 flex-wrap">
+                  {user.role === 'admin' ? (
+                    <>
+                      <button
+                        onClick={() => handleVerifyReceipt(r.id, 'admin_approve')}
+                        className="flex-1 flex items-center justify-center gap-1 py-1.5 px-2 bg-emerald-600 text-white rounded-lg text-xs font-semibold hover:bg-emerald-700 transition-colors shadow-xs"
+                      >
+                        <CheckCircle2 className="w-4 h-4" /> Final Approve & Add Stock
+                      </button>
+                      {r.status === 'pending_manager' && (
+                        <button
+                          onClick={() => handleVerifyReceipt(r.id, 'manager_verify')}
+                          className="flex items-center justify-center gap-1 py-1.5 px-2 bg-blue-600 text-white rounded-lg text-xs font-semibold hover:bg-blue-700 transition-colors"
+                          title="Verify as manager"
+                        >
+                          Pass to Tier 2
+                        </button>
+                      )}
+                    </>
+                  ) : (
+                    <button
+                      onClick={() => handleVerifyReceipt(r.id, 'manager_verify')}
+                      className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-semibold hover:bg-blue-700 transition-colors shadow-xs"
+                    >
+                      <CheckCircle2 className="w-4 h-4" /> Manager Verify ➔ Send to Admin
+                    </button>
+                  )}
                   <button
                     onClick={() => handleVerifyReceipt(r.id, 'reject')}
                     className="px-3 py-1.5 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg text-xs font-semibold border border-red-200 transition-colors"
@@ -338,69 +411,63 @@ export default function ProjectInventory({ project, user, tasks }) {
         </div>
       )}
 
-      {/* TIER 2: Admin Final Inventory Approval Queue */}
-      {data.pendingAdminReceipts && data.pendingAdminReceipts.length > 0 && user.role === 'admin' && (
-        <div className="bg-blue-50/90 border-2 border-blue-300 rounded-xl p-5 shadow-sm space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-blue-900">
-              <ShieldCheck className="w-5 h-5 text-blue-600 animate-pulse" />
+      {/* 2. Physical Stock Audit Verification Queue */}
+      {data.pendingAudits && data.pendingAudits.length > 0 && (user.role === 'admin' || user.role === 'manager') && (
+        <div className="bg-purple-50/90 border-2 border-purple-300 rounded-xl p-5 shadow-sm space-y-4">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div className="flex items-center gap-2 text-purple-900">
+              <ShieldAlert className="w-5 h-5 text-purple-600 animate-pulse" />
               <h3 className="font-bold text-sm sm:text-base">
-                Tier 2: Admin Final Inventory Approval Queue ({data.pendingAdminReceipts.length} Pending)
+                Physical Stock Audit Verification Queue ({data.pendingAudits.length} Pending)
               </h3>
             </div>
-            <span className="text-xs bg-blue-200 text-blue-950 font-bold px-2.5 py-0.5 rounded-full">
-              Final Admin Authorization
+            <span className="text-xs bg-purple-200 text-purple-950 font-bold px-2.5 py-0.5 rounded-full">
+              Audit Count Sign-Off
             </span>
           </div>
-          <p className="text-xs text-blue-800">
-            These Inward Stock Arrivals have been verified by Manager ({data.pendingAdminReceipts[0]?.manager_name || 'Manager'}). Click Final Approve to credit stock to live site inventory.
+          <p className="text-xs text-purple-800">
+            Physical stock counts submitted on-site requiring management verification and confirmation.
           </p>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {data.pendingAdminReceipts.map(r => (
-              <div key={r.id} className="bg-white rounded-lg border border-blue-200 p-4 space-y-3 shadow-xs">
+            {data.pendingAudits.map(a => (
+              <div key={a.id} className="bg-white rounded-lg border border-purple-200 p-4 space-y-3 shadow-xs">
                 <div className="flex items-start justify-between">
                   <div>
-                    <h4 className="font-bold text-gray-900 text-sm">{r.item_name}</h4>
-                    <p className="text-xs text-emerald-700 font-bold mt-0.5">
-                      Quantity: +{r.qty_received} {r.item_unit}
+                    <h4 className="font-bold text-gray-900 text-sm">{a.item_name}</h4>
+                    <p className="text-xs text-purple-900 font-bold mt-0.5">
+                      Physical Count: {a.physical_counted_qty} {a.item_unit} (Expected: {a.system_expected_qty} {a.item_unit})
                     </p>
                     <p className="text-[11px] text-gray-500 mt-1">
-                      Manager Verified by: <span className="font-semibold text-blue-700">{r.manager_name}</span> · {new Date(r.created_at).toLocaleDateString()}
+                      Audited by: <span className="font-semibold text-gray-700">{a.auditor_name}</span> · {new Date(a.created_at).toLocaleDateString()}
                     </p>
                   </div>
-                  {r.challan_number && (
-                    <span className="font-mono text-xs bg-blue-100 text-blue-900 font-bold px-2 py-1 rounded">
-                      DC #{r.challan_number}
-                    </span>
-                  )}
+                  <span className={`text-xs font-bold px-2 py-1 rounded ${
+                    a.discrepancy_qty === 0 
+                      ? 'bg-emerald-100 text-emerald-800' 
+                      : a.discrepancy_qty < 0 
+                      ? 'bg-red-100 text-red-700' 
+                      : 'bg-blue-100 text-blue-800'
+                  }`}>
+                    {a.discrepancy_qty === 0 ? 'Matched' : `${a.discrepancy_qty > 0 ? '+' : ''}${a.discrepancy_qty} ${a.item_unit}`}
+                  </span>
                 </div>
 
-                {r.challan_photo && (
-                  <div 
-                    onClick={() => setPreviewImage(r.challan_photo)}
-                    className="relative group cursor-pointer bg-gray-100 rounded-lg overflow-hidden h-32 border border-gray-200 flex items-center justify-center"
-                  >
-                    <img 
-                      src={r.challan_photo} 
-                      alt="QS Mohar Stamped DC" 
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform" 
-                    />
-                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white gap-1.5 text-xs font-semibold">
-                      <Eye className="w-4 h-4" /> Inspect QS Stamp
-                    </div>
-                  </div>
+                {a.notes && (
+                  <p className="text-xs text-gray-600 bg-gray-50 p-2 rounded border border-gray-100 italic">
+                    "{a.notes}"
+                  </p>
                 )}
 
                 <div className="flex gap-2 pt-2 border-t border-gray-100">
                   <button
-                    onClick={() => handleVerifyReceipt(r.id, 'admin_approve')}
+                    onClick={() => handleVerifyAudit(a.id, 'approve')}
                     className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-semibold hover:bg-emerald-700 transition-colors shadow-xs"
                   >
-                    <CheckCircle2 className="w-4 h-4" /> Final Approve & Add Stock
+                    <CheckCircle2 className="w-4 h-4" /> Confirm & Verify Audit
                   </button>
                   <button
-                    onClick={() => handleVerifyReceipt(r.id, 'reject')}
+                    onClick={() => handleVerifyAudit(a.id, 'reject')}
                     className="px-3 py-1.5 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg text-xs font-semibold border border-red-200 transition-colors"
                   >
                     <XCircle className="w-4 h-4" /> Reject
@@ -793,21 +860,111 @@ export default function ProjectInventory({ project, user, tasks }) {
                   <th className="p-3 text-right">Qty Received</th>
                   <th className="p-3">Challan / Invoice #</th>
                   <th className="p-3">Received By</th>
+                  <th className="p-3">Verification Status</th>
                   <th className="p-3">Notes</th>
+                  <th className="p-3 text-center">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {data.receipts.length === 0 ? (
-                  <tr><td colSpan={6} className="p-6 text-center text-gray-400 italic">No inward shipments logged yet.</td></tr>
+                  <tr><td colSpan={8} className="p-6 text-center text-gray-400 italic">No inward shipments logged yet.</td></tr>
                 ) : (
                   data.receipts.map(r => (
-                    <tr key={r.id} className="hover:bg-gray-50">
+                    <tr key={r.id} className="hover:bg-gray-50 transition-colors">
                       <td className="p-3 text-gray-500">{new Date(r.created_at).toLocaleDateString()}</td>
                       <td className="p-3 font-semibold text-gray-900">{r.item_name}</td>
                       <td className="p-3 text-right font-bold text-emerald-600">+{r.qty_received} {r.item_unit}</td>
-                      <td className="p-3 font-mono text-gray-700">{r.challan_number || '-'}</td>
+                      <td className="p-3 font-mono text-gray-700 font-bold">{r.challan_number || '-'}</td>
                       <td className="p-3 text-gray-600">{r.receiver_name || 'System'}</td>
-                      <td className="p-3 text-gray-500">{r.notes || '-'}</td>
+                      <td className="p-3">
+                        {r.status === 'approved' ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                            <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                            Approved
+                          </span>
+                        ) : r.status === 'pending_admin' ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800 animate-pulse">
+                            <ShieldCheck className="w-3 h-3 text-blue-600" />
+                            Awaiting Admin Approval
+                          </span>
+                        ) : r.status === 'pending_manager' ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 animate-pulse">
+                            <ShieldAlert className="w-3 h-3 text-amber-600" />
+                            Awaiting Verification
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-700" title={r.rejection_reason || ''}>
+                            <XCircle className="w-3 h-3 text-red-600" />
+                            Rejected {r.rejection_reason ? `(${r.rejection_reason})` : ''}
+                          </span>
+                        )}
+                      </td>
+                      <td className="p-3 text-gray-500 max-w-xs truncate">{r.notes || '-'}</td>
+                      <td className="p-3 text-center">
+                        <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                          {r.challan_photo && (
+                            <button
+                              onClick={() => setPreviewImage(r.challan_photo)}
+                              className="p-1 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                              title="Inspect Delivery Challan photo"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </button>
+                          )}
+                          {user.role === 'admin' && r.status !== 'approved' && (
+                            <>
+                              <button
+                                onClick={() => handleVerifyReceipt(r.id, 'admin_approve')}
+                                className="px-2 py-0.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px] rounded shadow-xs"
+                                title="Final Approve and add stock"
+                              >
+                                Approve
+                              </button>
+                              <button
+                                onClick={() => handleVerifyReceipt(r.id, 'reject')}
+                                className="px-2 py-0.5 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 font-bold text-[10px] rounded"
+                                title="Reject receipt"
+                              >
+                                Reject
+                              </button>
+                            </>
+                          )}
+                          {user.role === 'manager' && r.status === 'pending_manager' && (
+                            <>
+                              <button
+                                onClick={() => handleVerifyReceipt(r.id, 'manager_verify')}
+                                className="px-2 py-0.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-[10px] rounded shadow-xs"
+                                title="Manager verify"
+                              >
+                                Verify
+                              </button>
+                              <button
+                                onClick={() => handleVerifyReceipt(r.id, 'reject')}
+                                className="px-2 py-0.5 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 font-bold text-[10px] rounded"
+                                title="Reject receipt"
+                              >
+                                Reject
+                              </button>
+                            </>
+                          )}
+                          {r.status === 'rejected' && r.received_by === user.id && (
+                            <button
+                              onClick={() => {
+                                setResubmitItem(r);
+                                setResubmitForm({
+                                  qty_received: r.qty_received,
+                                  challan_number: r.challan_number || '',
+                                  challan_photo: r.challan_photo || '',
+                                  notes: r.notes || ''
+                                });
+                              }}
+                              className="px-2 py-0.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-[10px] rounded"
+                            >
+                              Fix & Resubmit
+                            </button>
+                          )}
+                        </div>
+                      </td>
                     </tr>
                   ))
                 )}
@@ -945,6 +1102,89 @@ export default function ProjectInventory({ project, user, tasks }) {
                   })}
                 </tbody>
               </table>
+            </div>
+
+            {/* Audit History Log Table */}
+            <div className="mt-6 space-y-2">
+              <h4 className="text-xs font-bold text-gray-800 uppercase tracking-wider">
+                Physical Stock Audit History & Verification Log
+              </h4>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="bg-gray-50 border-b border-gray-200 text-gray-500 font-semibold uppercase tracking-wider">
+                      <th className="p-3">Audit Date</th>
+                      <th className="p-3">Material</th>
+                      <th className="p-3 text-right">Physical Count</th>
+                      <th className="p-3 text-right">System Expected</th>
+                      <th className="p-3 text-right">Discrepancy</th>
+                      <th className="p-3">Auditor</th>
+                      <th className="p-3">Status</th>
+                      <th className="p-3">Notes</th>
+                      {(user.role === 'admin' || user.role === 'manager') && <th className="p-3 text-center">Actions</th>}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {(!data.audits || data.audits.length === 0) ? (
+                      <tr><td colSpan={9} className="p-6 text-center text-gray-400 italic">No physical audits logged yet.</td></tr>
+                    ) : (
+                      data.audits.map(a => (
+                        <tr key={a.id} className="hover:bg-gray-50 transition-colors">
+                          <td className="p-3 text-gray-500">{new Date(a.created_at).toLocaleDateString()}</td>
+                          <td className="p-3 font-semibold text-gray-900">{a.item_name}</td>
+                          <td className="p-3 text-right font-bold text-purple-900">{a.physical_counted_qty} {a.item_unit}</td>
+                          <td className="p-3 text-right text-gray-600">{a.system_expected_qty} {a.item_unit}</td>
+                          <td className="p-3 text-right font-bold">
+                            <span className={a.discrepancy_qty === 0 ? 'text-emerald-700' : a.discrepancy_qty < 0 ? 'text-red-600' : 'text-blue-600'}>
+                              {a.discrepancy_qty > 0 ? `+${a.discrepancy_qty}` : a.discrepancy_qty} {a.item_unit}
+                            </span>
+                          </td>
+                          <td className="p-3 text-gray-700">{a.auditor_name || 'System'}</td>
+                          <td className="p-3">
+                            {a.status === 'verified' ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                Verified {a.verifier_name ? `by ${a.verifier_name}` : ''}
+                              </span>
+                            ) : a.status === 'rejected' ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-700" title={a.rejection_reason || ''}>
+                                <XCircle className="w-3 h-3 text-red-600" />
+                                Rejected {a.rejection_reason ? `(${a.rejection_reason})` : ''}
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 animate-pulse">
+                                <ShieldAlert className="w-3 h-3 text-amber-600" />
+                                Awaiting Verification
+                              </span>
+                            )}
+                          </td>
+                          <td className="p-3 text-gray-500 max-w-xs truncate">{a.notes || '-'}</td>
+                          {(user.role === 'admin' || user.role === 'manager') && (
+                            <td className="p-3 text-center">
+                              {a.status === 'pending' && (
+                                <div className="flex items-center justify-center gap-1.5">
+                                  <button
+                                    onClick={() => handleVerifyAudit(a.id, 'approve')}
+                                    className="px-2 py-0.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px] rounded shadow-xs"
+                                  >
+                                    Approve
+                                  </button>
+                                  <button
+                                    onClick={() => handleVerifyAudit(a.id, 'reject')}
+                                    className="px-2 py-0.5 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 font-bold text-[10px] rounded"
+                                  >
+                                    Reject
+                                  </button>
+                                </div>
+                              )}
+                            </td>
+                          )}
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         )}

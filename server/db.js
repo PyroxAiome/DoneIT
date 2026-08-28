@@ -47,6 +47,16 @@ const initDatabase = async () => {
     console.log('users mentor_id column migration note:', e.message);
   }
 
+  // ── Add verification columns to project_physical_audits ──────────────
+  try {
+    await pool.query('ALTER TABLE project_physical_audits ADD COLUMN IF NOT EXISTS status TEXT DEFAULT \'pending\'');
+    await pool.query('ALTER TABLE project_physical_audits ADD COLUMN IF NOT EXISTS verified_by INTEGER REFERENCES users(id) ON DELETE SET NULL');
+    await pool.query('ALTER TABLE project_physical_audits ADD COLUMN IF NOT EXISTS verified_at TIMESTAMP');
+    await pool.query('ALTER TABLE project_physical_audits ADD COLUMN IF NOT EXISTS rejection_reason TEXT DEFAULT \'\'');
+  } catch (e) {
+    console.log('project_physical_audits verification columns migration note:', e.message);
+  }
+
   await pool.query(`
     CREATE TABLE IF NOT EXISTS users (
       id SERIAL PRIMARY KEY,

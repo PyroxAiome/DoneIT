@@ -1879,10 +1879,12 @@ router.get('/projects/:id/inventory', auth, async (req, res) => {
       WHERE s.project_id = $1 ORDER BY s.created_at DESC
     `, [id]);
     const { rows: audits } = await db.query(`
-      SELECT a.*, im.name as item_name, im.unit as item_unit, u.name as auditor_name
+      SELECT a.*, im.name as item_name, im.unit as item_unit, 
+             u.name as auditor_name, v.name as verifier_name
       FROM project_physical_audits a
       JOIN inventory_master im ON a.item_id = im.id
       LEFT JOIN users u ON a.audited_by = u.id
+      LEFT JOIN users v ON a.verified_by = v.id
       WHERE a.project_id = $1 ORDER BY a.created_at DESC
     `, [id]);
 
@@ -1933,9 +1935,10 @@ router.get('/projects/:id/inventory', auth, async (req, res) => {
 
     const pendingManagerReceipts = receipts.filter(r => r.status === 'pending_manager');
     const pendingAdminReceipts = receipts.filter(r => r.status === 'pending_admin');
+    const pendingAudits = audits.filter(a => a.status === 'pending');
     const mySubmissions = receipts.filter(r => r.received_by === req.user.id && ['pending_manager', 'pending_admin', 'rejected'].includes(r.status));
 
-    res.json({ balances, receipts, pendingManagerReceipts, pendingAdminReceipts, mySubmissions, usage, scrap, audits });
+    res.json({ balances, receipts, pendingManagerReceipts, pendingAdminReceipts, pendingAudits, mySubmissions, usage, scrap, audits });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -2029,8 +2032,8 @@ router.put('/projects/:id/inventory/receipts/:receiptId/verify', auth, adminOrMa
     let params = [];
 
     if (action === 'manager_verify') {
-      if (req.user.role !== 'manager') {
-        return res.status(403).json({ error: 'Tier 1 Verification must be performed by a Manager first' });
+      if (req.user.role !== 'manager' && req.user.role !== 'admin') {
+        return res.status(403).json({ error: 'Tier 1 Verification must be performed by a Manager or Admin' });
       }
       queryText = `
         UPDATE project_material_receipts
@@ -2116,13 +2119,64 @@ router.post('/projects/:id/inventory/physical-audit', auth, async (req, res) => 
     const counted = Number(physical_counted_qty);
     const discrepancy = counted - expected;
 
+    const initialStatus = req.user.role === 'admin' ? 'verified' : 'pending';
+
     const { rows } = await db.query(`
       INSERT INTO project_physical_audits 
-        (project_id, item_id, system_expected_qty, physical_counted_qty, discrepancy_qty, audited_by, notes)
-      VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *
-    `, [id, item_id, expected, counted, discrepancy, req.user.id, notes || '']);
+        (project_id, item_id, system_expected_qty, physical_counted_qty, discrepancy_qty, audited_by, notes, status, verified_by, verified_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *
+    `, [
+      id, 
+      item_id, 
+      expected, 
+      counted, 
+      discrepancy, 
+      req.user.id, 
+      notes || '',
+      initialStatus,
+      initialStatus === 'verified' ? req.user.id : null,
+      initialStatus === 'verified' ? new Date() : null
+    ]);
 
     res.status(201).json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Audit Verification Endpoint (Manager or Admin)
+router.put('/projects/:id/inventory/audits/:auditId/verify', auth, adminOrManager, async (req, res) => {
+  try {
+    const { id, auditId } = req.params;
+    const { action, rejection_reason } = req.body; // 'approve' | 'reject'
+    if (!['approve', 'reject'].includes(action)) {
+      return res.status(400).json({ error: 'Action must be approve or reject' });
+    }
+
+    let queryText = '';
+    let params = [];
+
+    if (action === 'approve') {
+      queryText = `
+        UPDATE project_physical_audits
+        SET status = 'verified', verified_by = $1, verified_at = CURRENT_TIMESTAMP
+        WHERE id = $2 AND project_id = $3
+        RETURNING *
+      `;
+      params = [req.user.id, auditId, id];
+    } else {
+      queryText = `
+        UPDATE project_physical_audits
+        SET status = 'rejected', rejection_reason = $1, verified_by = $2, verified_at = CURRENT_TIMESTAMP
+        WHERE id = $3 AND project_id = $4
+        RETURNING *
+      `;
+      params = [rejection_reason || 'Rejected by verifier', req.user.id, auditId, id];
+    }
+
+    const { rows } = await db.query(queryText, params);
+    if (rows.length === 0) return res.status(404).json({ error: 'Audit record not found' });
+    res.json(rows[0]);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
