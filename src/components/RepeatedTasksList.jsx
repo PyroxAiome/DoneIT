@@ -24,7 +24,15 @@ export default function RepeatedTasksList({ user }) {
     setError('');
     try {
       const data = await api.getRepeatedTasks();
-      setTasks(Array.isArray(data) ? data : []);
+      const myTasks = Array.isArray(data) ? data.filter(t => {
+        if (user?.role === 'admin') return true;
+        if (Number(t.creator_id) === Number(user?.id)) return true;
+        if (Array.isArray(t.members)) {
+          return t.members.some(m => Number(m.user_id || m.id) === Number(user?.id));
+        }
+        return false;
+      }) : [];
+      setTasks(myTasks);
     } catch (err) {
       setError(err.message || 'Failed to load repeated tasks');
     } finally {

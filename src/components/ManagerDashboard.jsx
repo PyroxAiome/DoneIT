@@ -92,10 +92,15 @@ export default function ManagerDashboard({ user }) {
       api.getEmployees(),
       api.getRepeatedTasks().catch(() => [])
     ]).then(([s, t, e, rt]) => {
-      setStats(s);
-      setTasks(t);
-      setEmployees(e);
-      setRepeatedTasksCount(Array.isArray(rt) ? rt.length : 0);
+      const myRt = Array.isArray(rt) ? rt.filter(item => {
+        if (user?.role === 'admin') return true;
+        if (Number(item.creator_id) === Number(user?.id)) return true;
+        if (Array.isArray(item.members)) {
+          return item.members.some(m => Number(m.user_id || m.id) === Number(user?.id));
+        }
+        return false;
+      }) : [];
+      setRepeatedTasksCount(myRt.length);
       if (employeeFilter) {
         setSelectedEmp(e.find(emp => emp.id === Number(employeeFilter)) || null);
       } else {
