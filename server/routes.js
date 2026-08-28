@@ -428,7 +428,7 @@ router.get('/tasks', auth, async (req, res) => {
     if (req.query.project_id) {
       sql += ` AND t.project_id = $${paramIdx++}`;
       params.push(req.query.project_id);
-    } else {
+    } else if (req.query.general_only === 'true') {
       sql += ` AND t.project_id IS NULL`;
     }
 
@@ -454,9 +454,8 @@ router.get('/tasks', auth, async (req, res) => {
       }
     }
 
-    // Deduplicate group task copies for Admin, Manager, and Project views
-    // Only apply when not filtering by a specific employee/assignee
-    if (!req.query.assignee_id) {
+    // Deduplicate group task copies for Admin and Manager views (when not filtering a specific employee)
+    if (!req.query.assignee_id && (req.user.role === 'admin' || req.user.role === 'manager')) {
       sql += ' AND (t.parent_id IS NULL OR t.id = t.parent_id)';
     }
 

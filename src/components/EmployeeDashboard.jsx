@@ -184,7 +184,9 @@ export default function EmployeeDashboard({ user }) {
             <div>
               <h2 className="text-sm sm:text-base font-bold text-gray-900">
                 {selectedEmp.name}'s Profile / Work
-                <span className="text-red-500 font-semibold text-xs ml-1.5 bg-red-50 px-1.5 py-0.5 rounded border border-red-200/50">Read Only</span>
+                {Number(selectedEmp.id) !== Number(user.id) && (
+                  <span className="text-red-500 font-semibold text-xs ml-1.5 bg-red-50 px-1.5 py-0.5 rounded border border-red-200/50">Read Only</span>
+                )}
               </h2>
               <p className="text-[9px] sm:text-[11px] text-gray-400 mt-0.5 uppercase font-semibold">{selectedEmp.role} &middot; {selectedEmp.department} &middot; {selectedEmp.email}</p>
             </div>
@@ -252,45 +254,6 @@ export default function EmployeeDashboard({ user }) {
         </div>
       )}
 
-      {/* Mentored Interns Widget for Assigned Supervisors/Employees */}
-      {!selectedEmp && employees.filter(e => Number(e.mentor_id) === Number(user.id)).length > 0 && (
-        <div className="bg-gradient-to-r from-amber-50/80 via-white to-amber-50/50 border border-amber-200/80 rounded-2xl p-4 space-y-3 shadow-xs">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="font-bold text-gray-900 text-sm flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse" />
-                Assigned Interns Under You ({employees.filter(e => Number(e.mentor_id) === Number(user.id)).length})
-              </h3>
-              <p className="text-xs text-gray-500 mt-0.5">
-                Track your mentored interns' tasks, progress, daily logs, and work updates.
-              </p>
-            </div>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {employees.filter(e => Number(e.mentor_id) === Number(user.id)).map(intern => (
-              <div
-                key={intern.id}
-                onClick={() => handleViewEmployeeTasks(intern)}
-                className="bg-white p-3 rounded-xl border border-gray-200 shadow-xs hover:border-amber-400 hover:shadow-md transition-all cursor-pointer flex items-center justify-between group"
-              >
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <div className="w-8 h-8 rounded-full bg-amber-500 text-white flex items-center justify-center font-bold text-xs uppercase flex-shrink-0">
-                    {intern.name ? intern.name.charAt(0) : 'I'}
-                  </div>
-                  <div className="min-w-0">
-                    <p className="font-bold text-gray-900 text-xs truncate group-hover:text-amber-600 transition-colors">{intern.name}</p>
-                    <p className="text-[10px] text-gray-400 truncate">{intern.task_count} tasks &middot; {intern.avg_progress}% avg</p>
-                  </div>
-                </div>
-                <span className="text-[11px] font-bold text-amber-600 flex-shrink-0 pl-2">
-                  View Work →
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
       {activeTab === 'projects' && (
         <div className="space-y-6 mt-4">
           {selectedProject ? (
@@ -314,8 +277,47 @@ export default function EmployeeDashboard({ user }) {
         </div>
       )}
 
-      {activeTab === 'team' && !selectedEmp ? (
+      {activeTab === 'team' && !selectedEmp && (
         <div className="space-y-4">
+          {/* Mentored Interns Widget for Assigned Supervisors/Employees */}
+          {employees.filter(e => Number(e.mentor_id) === Number(user.id)).length > 0 && (
+            <div className="bg-gradient-to-r from-amber-50/80 via-white to-amber-50/50 border border-amber-200/80 rounded-2xl p-4 space-y-3 shadow-xs">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-bold text-gray-900 text-sm flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse" />
+                    Assigned Interns Under You ({employees.filter(e => Number(e.mentor_id) === Number(user.id)).length})
+                  </h3>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    Track your mentored interns' tasks, progress, daily logs, and work updates.
+                  </p>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {employees.filter(e => Number(e.mentor_id) === Number(user.id)).map(intern => (
+                  <div
+                    key={intern.id}
+                    onClick={() => handleViewEmployeeTasks(intern)}
+                    className="bg-white p-3 rounded-xl border border-gray-200 shadow-xs hover:border-amber-400 hover:shadow-md transition-all cursor-pointer flex items-center justify-between group"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-8 h-8 rounded-full bg-amber-500 text-white flex items-center justify-center font-bold text-xs uppercase flex-shrink-0">
+                        {intern.name ? intern.name.charAt(0) : 'I'}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-bold text-gray-900 text-xs truncate group-hover:text-amber-600 transition-colors">{intern.name}</p>
+                        <p className="text-[10px] text-gray-400 truncate">{intern.task_count} tasks &middot; {intern.avg_progress}% avg</p>
+                      </div>
+                    </div>
+                    <span className="text-[11px] font-bold text-amber-600 flex-shrink-0 pl-2">
+                      View Work →
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
             {employees.filter(e => !['admin', 'manager'].includes(e.role)).map((emp) => {
               const isSelf = emp.id === user.id;
@@ -365,7 +367,9 @@ export default function EmployeeDashboard({ user }) {
             })}
           </div>
         </div>
-      ) : activeTab !== 'projects' ? (
+      )}
+
+      {(activeTab === 'work' || activeTab === 'completed' || selectedEmp) && activeTab !== 'projects' && activeTab !== 'repeated_tasks' && (
         <>
           <div className="flex items-center gap-3 flex-wrap">
             <div className="relative flex-1 min-w-[200px] max-w-sm">
@@ -440,7 +444,7 @@ export default function EmployeeDashboard({ user }) {
             </div>
           )}
         </>
-      ) : null}
+      )}
 
       <TaskModal isOpen={showTaskModal} onClose={() => { setShowTaskModal(false); setEditTask(null); }} onSaved={fetchTasksOnly} task={editTask} onVerificationNeeded={setVerificationTask} />
       <TaskDetailModal isOpen={!!detailTask} onClose={() => setDetailTask(null)} task={detailTask} onTaskUpdated={fetchTasksOnly} readOnly={isReadOnly} />
