@@ -40,6 +40,13 @@ const initDatabase = async () => {
     console.log('users_role_check drop note:', e.message);
   }
 
+  // ── Add mentor_id column to users for intern supervisor relationship ───
+  try {
+    await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS mentor_id INTEGER REFERENCES users(id) ON DELETE SET NULL');
+  } catch (e) {
+    console.log('users mentor_id column migration note:', e.message);
+  }
+
   await pool.query(`
     CREATE TABLE IF NOT EXISTS users (
       id SERIAL PRIMARY KEY,
@@ -49,6 +56,7 @@ const initDatabase = async () => {
       role TEXT NOT NULL DEFAULT 'employee',
       department TEXT DEFAULT 'Engineering',
       avatar_url TEXT DEFAULT '',
+      mentor_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
 

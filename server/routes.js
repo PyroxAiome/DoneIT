@@ -242,7 +242,7 @@ const ALLOWED_ROLES = [
 router.get('/employees', auth, async (req, res) => {
   try {
     const { rows: users } = await db.query(`
-      SELECT u.id, u.name, u.email, u.role, u.department, u.avatar_url, u.created_at,
+      SELECT u.id, u.name, u.email, u.role, u.department, u.avatar_url, u.mentor_id, m.name as mentor_name, u.created_at,
         (
           SELECT COUNT(DISTINCT t.id)
           FROM tasks t
@@ -256,6 +256,7 @@ router.get('/employees', auth, async (req, res) => {
           ), 0
         ) as avg_progress
       FROM users u
+      LEFT JOIN users m ON u.mentor_id = m.id
       ORDER BY u.name
     `);
 
@@ -267,7 +268,7 @@ router.get('/employees', auth, async (req, res) => {
 
 router.post('/users', auth, adminOnly, async (req, res) => {
   try {
-    const { name, email, password, role, department } = req.body;
+    const { name, email, password, role, department, mentor_id } = req.body;
     if (!name || !email || !password || !role) {
       return res.status(400).json({ error: 'Name, email, password, and role required' });
     }
@@ -280,11 +281,16 @@ router.post('/users', auth, adminOnly, async (req, res) => {
     }
     const hash = bcrypt.hashSync(password, 10);
     const result = await db.query(
-      'INSERT INTO users (name, email, password_hash, role, department) VALUES ($1, $2, $3, $4, $5) RETURNING id',
-      [name, email, hash, role, department || 'General']
+      'INSERT INTO users (name, email, password_hash, role, department, mentor_id) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id',
+      [name, email, hash, role, department || 'General', mentor_id ? Number(mentor_id) : null]
     );
 
-    const { rows: userRows } = await db.query('SELECT id, name, email, role, department, avatar_url, created_at FROM users WHERE id = $1', [result.rows[0].id]);
+    const { rows: userRows } = await db.query(`
+      SELECT u.id, u.name, u.email, u.role, u.department, u.avatar_url, u.mentor_id, m.name as mentor_name, u.created_at
+      FROM users u
+      LEFT JOIN users m ON u.mentor_id = m.id
+      WHERE u.id = $1
+    `, [result.rows[0].id]);
     res.status(201).json(userRows[0]);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -294,7 +300,7 @@ router.post('/users', auth, adminOnly, async (req, res) => {
 router.put('/users/:id', auth, adminOnly, async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, email, password, role, department } = req.body;
+    const { name, email, password, role, department, mentor_id } = req.body;
     if (!name || !email || !role) {
       return res.status(400).json({ error: 'Name, email, and role are required' });
     }
@@ -307,22 +313,29 @@ router.put('/users/:id', auth, adminOnly, async (req, res) => {
       return res.status(409).json({ error: 'Email already in use' });
     }
 
+    const targetMentorId = mentor_id ? Number(mentor_id) : null;
+
     if (password && password.trim() !== '') {
       const hash = bcrypt.hashSync(password, 10);
       await db.query(`
         UPDATE users
-        SET name = $1, email = $2, password_hash = $3, role = $4, department = $5
-        WHERE id = $6
-      `, [name, email, hash, role, department || 'General', id]);
+        SET name = $1, email = $2, password_hash = $3, role = $4, department = $5, mentor_id = $6
+        WHERE id = $7
+      `, [name, email, hash, role, department || 'General', targetMentorId, id]);
     } else {
       await db.query(`
         UPDATE users
-        SET name = $1, email = $2, role = $3, department = $4
-        WHERE id = $5
-      `, [name, email, role, department || 'General', id]);
+        SET name = $1, email = $2, role = $3, department = $4, mentor_id = $5
+        WHERE id = $6
+      `, [name, email, role, department || 'General', targetMentorId, id]);
     }
 
-    const { rows: updatedRows } = await db.query('SELECT id, name, email, role, department, avatar_url, created_at FROM users WHERE id = $1', [id]);
+    const { rows: updatedRows } = await db.query(`
+      SELECT u.id, u.name, u.email, u.role, u.department, u.avatar_url, u.mentor_id, m.name as mentor_name, u.created_at
+      FROM users u
+      LEFT JOIN users m ON u.mentor_id = m.id
+      WHERE u.id = $1
+    `, [id]);
     if (!updatedRows[0]) return res.status(404).json({ error: 'User not found' });
     res.json(updatedRows[0]);
   } catch (err) {
@@ -447,9 +460,25 @@ router.get('/tasks', auth, async (req, res) => {
       sql += ' AND (t.parent_id IS NULL OR t.id = t.parent_id)';
     }
 
-    if (req.user.role === 'employee' && !req.query.assignee_id && !req.query.project_id) {
-      sql += ` AND t.assignee_id = $${paramIdx++}`;
+    // Role-specific task visibility restrictions:
+    if (req.user.role === 'intern') {
+      // Interns CAN ONLY EVER see their own tasks
+      sql += ` AND (t.assignee_id = $${paramIdx} OR t.creator_id = $${paramIdx})`;
       params.push(req.user.id);
+      paramIdx++;
+    } else if (req.user.role !== 'admin' && req.user.role !== 'manager') {
+      // Employees / Mentors
+      if (req.query.assignee_id) {
+        const targetId = Number(req.query.assignee_id);
+        if (targetId !== Number(req.user.id)) {
+          sql += ` AND t.assignee_id IN (SELECT id FROM users WHERE id = $${paramIdx} AND mentor_id = $${paramIdx + 1})`;
+          params.push(targetId, req.user.id);
+          paramIdx += 2;
+        }
+      } else if (!req.query.project_id) {
+        sql += ` AND t.assignee_id = $${paramIdx++}`;
+        params.push(req.user.id);
+      }
     }
 
     sql += ' ORDER BY t.created_at DESC';
@@ -477,6 +506,13 @@ router.get('/tasks/:id', auth, async (req, res) => {
     `, [req.params.id]);
     const task = rows[0];
     if (!task) return res.status(404).json({ error: 'Task not found' });
+
+    if (req.user.role === 'intern') {
+      if (task.assignee_id !== req.user.id && task.creator_id !== req.user.id) {
+        return res.status(403).json({ error: 'Access denied: Interns can only view their own tasks' });
+      }
+    }
+
     await enrichTask(task);
     res.json(task);
   } catch (err) {

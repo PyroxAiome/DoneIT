@@ -566,6 +566,11 @@ export default function AdminDashboard({ user }) {
                     <div>
                       <p className="text-sm font-medium text-gray-800">{emp.name}</p>
                       <p className="text-[10px] text-amber-700 font-semibold uppercase">{emp.role ? emp.role.replace('_', ' ') : ''}</p>
+                      {emp.role === 'intern' && (
+                        <p className="text-[10px] text-indigo-600 font-medium mt-0.5">
+                          Mentor: {emp.mentor_name || <span className="text-gray-400 italic">Not Assigned</span>}
+                        </p>
+                      )}
                     </div>
                   </div>
                   {emp.role !== 'admin' && (
@@ -697,6 +702,7 @@ export default function AdminDashboard({ user }) {
         onCreated={fetchAll} 
         onUpdated={fetchAll}
         editingUser={editingUser}
+        employees={employees}
       />
       <TaskDetailModal isOpen={!!detailTask} onClose={() => setDetailTask(null)} task={detailTask} onTaskUpdated={fetchAll} />
       <ConfirmDeleteModal isOpen={!!deleteTask} onClose={() => setDeleteTask(null)} onConfirm={handleDeleteTask}

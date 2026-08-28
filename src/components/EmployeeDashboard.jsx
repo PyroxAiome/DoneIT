@@ -84,11 +84,25 @@ export default function EmployeeDashboard({ user }) {
       }
       const parts = hash.substring(1).split('/');
       const tabId = parts[0];
+
+      // Interns cannot access team tab
+      if (tabId === 'team' && user?.role === 'intern') {
+        window.location.hash = 'work';
+        setActiveTab('work');
+        return;
+      }
+
       if (['projects', 'work', 'repeated_tasks', 'completed', 'team'].includes(tabId)) {
         setActiveTab(tabId);
         if (tabId !== 'projects') setSelectedProject(null);
       }
       if (parts[1] === 'employee' && parts[2]) {
+        // Interns cannot view other employees
+        if (user?.role === 'intern') {
+          setEmployeeFilter(null);
+          setSelectedEmp(null);
+          return;
+        }
         const empId = Number(parts[2]);
         setEmployeeFilter(empId);
         if (employees && employees.length > 0) {
@@ -104,7 +118,7 @@ export default function EmployeeDashboard({ user }) {
     window.addEventListener('hashchange', handleHashChange);
     handleHashChange();
     return () => window.removeEventListener('hashchange', handleHashChange);
-  }, [employees]);
+  }, [employees, user]);
 
   useEffect(() => {
     fetchTasksOnly();
@@ -213,7 +227,11 @@ export default function EmployeeDashboard({ user }) {
       {!selectedEmp && (
         <div className="flex gap-1 bg-gray-200 p-1 rounded-xl w-full overflow-x-auto scrollbar-none shrink-0">
           {tabs
-            .filter(tab => tab.id !== 'repeated_tasks' || (user?.role === 'admin' || repeatedTasksCount > 0))
+            .filter(tab => {
+              if (tab.id === 'team' && user?.role === 'intern') return false;
+              if (tab.id === 'repeated_tasks' && !(user?.role === 'admin' || repeatedTasksCount > 0)) return false;
+              return true;
+            })
             .map((tab) => {
             const Icon = tab.icon;
             return (
@@ -231,6 +249,45 @@ export default function EmployeeDashboard({ user }) {
               </button>
             );
           })}
+        </div>
+      )}
+
+      {/* Mentored Interns Widget for Assigned Supervisors/Employees */}
+      {!selectedEmp && employees.filter(e => Number(e.mentor_id) === Number(user.id)).length > 0 && (
+        <div className="bg-gradient-to-r from-amber-50/80 via-white to-amber-50/50 border border-amber-200/80 rounded-2xl p-4 space-y-3 shadow-xs">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="font-bold text-gray-900 text-sm flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse" />
+                Assigned Interns Under You ({employees.filter(e => Number(e.mentor_id) === Number(user.id)).length})
+              </h3>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Track your mentored interns' tasks, progress, daily logs, and work updates.
+              </p>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {employees.filter(e => Number(e.mentor_id) === Number(user.id)).map(intern => (
+              <div
+                key={intern.id}
+                onClick={() => handleViewEmployeeTasks(intern)}
+                className="bg-white p-3 rounded-xl border border-gray-200 shadow-xs hover:border-amber-400 hover:shadow-md transition-all cursor-pointer flex items-center justify-between group"
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-8 h-8 rounded-full bg-amber-500 text-white flex items-center justify-center font-bold text-xs uppercase flex-shrink-0">
+                    {intern.name ? intern.name.charAt(0) : 'I'}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="font-bold text-gray-900 text-xs truncate group-hover:text-amber-600 transition-colors">{intern.name}</p>
+                    <p className="text-[10px] text-gray-400 truncate">{intern.task_count} tasks &middot; {intern.avg_progress}% avg</p>
+                  </div>
+                </div>
+                <span className="text-[11px] font-bold text-amber-600 flex-shrink-0 pl-2">
+                  View Work →
+                </span>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
