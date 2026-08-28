@@ -466,15 +466,8 @@ router.get('/tasks', auth, async (req, res) => {
       params.push(req.user.id);
       paramIdx++;
     } else if (req.user.role !== 'admin' && req.user.role !== 'manager') {
-      // Employees / Mentors
-      if (req.query.assignee_id) {
-        const targetId = Number(req.query.assignee_id);
-        if (targetId !== Number(req.user.id)) {
-          sql += ` AND t.assignee_id IN (SELECT id FROM users WHERE id = $${paramIdx} AND mentor_id = $${paramIdx + 1})`;
-          params.push(targetId, req.user.id);
-          paramIdx += 2;
-        }
-      } else if (!req.query.project_id) {
+      // Regular team members viewing their personal workspace (without specific assignee or project filter)
+      if (!req.query.assignee_id && !req.query.project_id) {
         sql += ` AND t.assignee_id = $${paramIdx++}`;
         params.push(req.user.id);
       }
