@@ -2273,9 +2273,9 @@ router.get('/repeated-tasks', auth, async (req, res) => {
       LEFT JOIN projects p ON rt.project_id = p.id
     `;
 
-    // Non-admin/manager only see tasks they are a member of or created
+    // Only admin sees all tasks; all other users only see tasks they are assigned to or created
     let params = [];
-    if (!isAdminOrMgr) {
+    if (req.user.role !== 'admin') {
       query += ` WHERE rt.creator_id = $1 OR EXISTS (SELECT 1 FROM repeated_task_members WHERE task_id = rt.id AND user_id = $1) `;
       params.push(req.user.id);
     }
@@ -2385,6 +2385,14 @@ router.get('/repeated-tasks/:id', auth, async (req, res) => {
       WHERE rtr.task_id = $1
       ORDER BY rtr.review_date DESC, rtr.created_at DESC
     `, [id]);
+
+    // Check authorization: Admin or assigned members/creator only
+    if (req.user.role !== 'admin') {
+      const isMember = members.some(m => Number(m.user_id) === Number(req.user.id)) || Number(task.creator_id) === Number(req.user.id);
+      if (!isMember) {
+        return res.status(403).json({ error: 'Access denied: You are not assigned to this repeated task' });
+      }
+    }
 
     res.json({ ...task, members, reviews });
   } catch (err) {

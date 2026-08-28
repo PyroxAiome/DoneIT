@@ -62,6 +62,7 @@ export default function ManagerDashboard({ user }) {
   const [verificationTask, setVerificationTask] = useState(null);
   const [myTasksOnly, setMyTasksOnly] = useState(false);
   const [selectedProject, setSelectedProject] = useState(null);
+  const [repeatedTasksCount, setRepeatedTasksCount] = useState(0);
 
   const fetchTasksOnly = () => {
     setLoading(true);
@@ -89,10 +90,12 @@ export default function ManagerDashboard({ user }) {
       api.getDashboardStats(),
       api.getTasks(params),
       api.getEmployees(),
-    ]).then(([s, t, e]) => {
+      api.getRepeatedTasks().catch(() => [])
+    ]).then(([s, t, e, rt]) => {
       setStats(s);
       setTasks(t);
       setEmployees(e);
+      setRepeatedTasksCount(Array.isArray(rt) ? rt.length : 0);
       if (employeeFilter) {
         setSelectedEmp(e.find(emp => emp.id === Number(employeeFilter)) || null);
       } else {
@@ -176,7 +179,9 @@ export default function ManagerDashboard({ user }) {
       </div>
 
       <div className="flex gap-1 bg-gray-200 p-1 rounded-xl w-full overflow-x-auto scrollbar-none shrink-0">
-        {tabs.map((tab) => {
+        {tabs
+          .filter(tab => tab.id !== 'repeated_tasks' || (user?.role === 'admin' || repeatedTasksCount > 0))
+          .map((tab) => {
           const Icon = tab.icon;
           return (
             <button

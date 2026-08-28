@@ -35,6 +35,7 @@ export default function EmployeeDashboard({ user }) {
   const [editTask, setEditTask] = useState(null);
   const [verificationTask, setVerificationTask] = useState(null);
   const [selectedProject, setSelectedProject] = useState(null);
+  const [repeatedTasksCount, setRepeatedTasksCount] = useState(0);
 
   const fetchTasksOnly = () => {
     setLoading(true);
@@ -55,6 +56,10 @@ export default function EmployeeDashboard({ user }) {
   useEffect(() => {
     api.getEmployees(true)
       .then(setEmployees)
+      .catch(() => {});
+
+    api.getRepeatedTasks()
+      .then(rt => setRepeatedTasksCount(Array.isArray(rt) ? rt.length : 0))
       .catch(() => {});
   }, []);
 
@@ -197,7 +202,9 @@ export default function EmployeeDashboard({ user }) {
       {/* Tabs list (hidden in employee profile drilldown) */}
       {!selectedEmp && (
         <div className="flex gap-1 bg-gray-200 p-1 rounded-xl w-full overflow-x-auto scrollbar-none shrink-0">
-          {tabs.map((tab) => {
+          {tabs
+            .filter(tab => tab.id !== 'repeated_tasks' || (user?.role === 'admin' || repeatedTasksCount > 0))
+            .map((tab) => {
             const Icon = tab.icon;
             return (
               <button
