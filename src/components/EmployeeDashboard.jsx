@@ -5,7 +5,7 @@ import TaskModal from './TaskModal';
 import ConfirmDeleteModal from './ConfirmDeleteModal';
 import TaskDetailModal from './TaskDetailModal';
 import TaskVerificationModal from './TaskVerificationModal';
-import { Search, ListTodo, Filter, Plus, CheckCircle, Users, X, FolderGit2, Repeat } from 'lucide-react';
+import { Search, ListTodo, Filter, Plus, CheckCircle, Users, X, FolderGit2, Repeat, ShieldCheck } from 'lucide-react';
 import ProjectsList from './ProjectsList';
 import ProjectDetail from './ProjectDetail';
 import RepeatedTasksList from './RepeatedTasksList';
@@ -13,6 +13,7 @@ import RepeatedTasksList from './RepeatedTasksList';
 const tabs = [
   { id: 'projects', label: 'Projects', icon: FolderGit2 },
   { id: 'work', label: 'Work', icon: ListTodo },
+  { id: 'to_verify', label: 'To Verify', icon: ShieldCheck },
   { id: 'repeated_tasks', label: 'Repeated Tasks', icon: Repeat },
   { id: 'completed', label: 'Completed', icon: CheckCircle },
   { id: 'team', label: 'Team', icon: Users },
@@ -39,7 +40,8 @@ export default function EmployeeDashboard({ user }) {
 
   const fetchTasksOnly = () => {
     setLoading(true);
-    const params = { assignee_id: employeeFilter || user.id };
+    const params = {};
+    if (employeeFilter) params.assignee_id = employeeFilter;
     if (statusFilter) params.status = statusFilter;
     if (categoryFilter) params.category = categoryFilter;
     if (search) params.search = search;
@@ -92,7 +94,7 @@ export default function EmployeeDashboard({ user }) {
         return;
       }
 
-      if (['projects', 'work', 'repeated_tasks', 'completed', 'team'].includes(tabId)) {
+      if (['projects', 'work', 'to_verify', 'repeated_tasks', 'completed', 'team'].includes(tabId)) {
         setActiveTab(tabId);
         if (tabId !== 'projects') setSelectedProject(null);
       }
@@ -150,8 +152,15 @@ export default function EmployeeDashboard({ user }) {
 
   const isReadOnly = employeeFilter !== null && Number(employeeFilter) !== user.id;
 
+  const verifyTasks = tasks.filter(t => Number(t.verifier_id) === Number(user.id));
+  const pendingVerifyCount = verifyTasks.filter(t => t.status === 'under_review').length;
+
   const displayedTasks = tasks.filter(t => {
     if (selectedEmp) return true; // Show all tasks for the colleague (no active/completed sub-filtering)
+    if (activeTab === 'to_verify') {
+      if (statusFilter) return Number(t.verifier_id) === Number(user.id) && t.status === statusFilter;
+      return Number(t.verifier_id) === Number(user.id);
+    }
     if (statusFilter) return true;
     if (activeTab === 'completed') {
       return t.status === 'completed';
@@ -159,7 +168,10 @@ export default function EmployeeDashboard({ user }) {
       return t.status !== 'completed';
     }
   }).sort((a, b) => {
-    if (activeTab === 'work') {
+    if (activeTab === 'to_verify') {
+      if (a.status === 'under_review' && b.status !== 'under_review') return -1;
+      if (a.status !== 'under_review' && b.status === 'under_review') return 1;
+    } else if (activeTab === 'work') {
       if (a.status === 'in_progress' && b.status !== 'in_progress') return -1;
       if (a.status !== 'in_progress' && b.status === 'in_progress') return 1;
     }
@@ -231,6 +243,7 @@ export default function EmployeeDashboard({ user }) {
           {tabs
             .filter(tab => {
               if (tab.id === 'team' && user?.role === 'intern') return false;
+              if (tab.id === 'to_verify' && verifyTasks.length === 0) return false;
               if (tab.id === 'repeated_tasks' && !(user?.role === 'admin' || repeatedTasksCount > 0)) return false;
               return true;
             })
@@ -248,6 +261,16 @@ export default function EmployeeDashboard({ user }) {
               >
                 <Icon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 {tab.label}
+                {tab.id === 'to_verify' && pendingVerifyCount > 0 && (
+                  <span className="px-1.5 py-0.2 rounded-full bg-amber-500 text-white font-bold text-[10px] animate-pulse">
+                    {pendingVerifyCount}
+                  </span>
+                )}
+                {tab.id === 'to_verify' && pendingVerifyCount === 0 && verifyTasks.length > 0 && (
+                  <span className="px-1.5 py-0.2 rounded-full bg-gray-300 text-gray-700 font-semibold text-[10px]">
+                    {verifyTasks.length}
+                  </span>
+                )}
               </button>
             );
           })}
@@ -369,7 +392,7 @@ export default function EmployeeDashboard({ user }) {
         </div>
       )}
 
-      {(activeTab === 'work' || activeTab === 'completed' || selectedEmp) && activeTab !== 'projects' && activeTab !== 'repeated_tasks' && (
+      {(activeTab === 'work' || activeTab === 'to_verify' || activeTab === 'completed' || selectedEmp) && activeTab !== 'projects' && activeTab !== 'repeated_tasks' && (
         <>
           <div className="flex items-center gap-3 flex-wrap">
             <div className="relative flex-1 min-w-[200px] max-w-sm">

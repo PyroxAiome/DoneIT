@@ -269,8 +269,13 @@ export default function TaskCard({ task, compact, onEdit, onDelete, onSelect, on
             Verified: {task.completer_name || task.verifier_name || 'Admin'}
           </span>
         ) : task.verifier_name ? (
-          <span className="text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200/60 font-medium text-[9px]" title={`Task verifier: ${task.verifier_name} (${task.verifier_role || 'Verifier'})`}>
-            🛡️ Verifier: {task.verifier_name}
+          <span className={`px-1.5 py-0.5 rounded border font-medium text-[9px] ${
+            Number(task.verifier_id) === Number(user?.id)
+              ? (task.status === 'under_review' ? 'bg-amber-100 text-amber-900 border-amber-300 font-bold animate-pulse' : 'bg-purple-100 text-purple-900 border-purple-300 font-semibold')
+              : 'text-purple-700 bg-purple-50 border-purple-200/60'
+          }`} title={`Task verifier: ${task.verifier_name} (${task.verifier_role || 'Verifier'})`}>
+            🛡️ Verifier: {Number(task.verifier_id) === Number(user?.id) ? 'You' : task.verifier_name}
+            {Number(task.verifier_id) === Number(user?.id) && task.status === 'under_review' ? ' (Review)' : ''}
           </span>
         ) : null}
       </div>

@@ -466,15 +466,23 @@ router.get('/tasks', auth, async (req, res) => {
 
     // Role-specific task visibility restrictions:
     if (req.user.role === 'intern') {
-      // Interns CAN ONLY EVER see their own tasks
-      sql += ` AND (t.assignee_id = $${paramIdx} OR t.creator_id = $${paramIdx})`;
+      // Interns see their own tasks + tasks assigned to them to verify
+      sql += ` AND (t.assignee_id = $${paramIdx} OR t.creator_id = $${paramIdx} OR t.verifier_id = $${paramIdx})`;
       params.push(req.user.id);
       paramIdx++;
     } else if (req.user.role !== 'admin' && req.user.role !== 'manager') {
       // Regular team members viewing their personal workspace (without specific assignee or project filter)
-      if (!req.query.assignee_id && !req.query.project_id) {
-        sql += ` AND t.assignee_id = $${paramIdx++}`;
+      if (req.query.assignee_id) {
+        const targetId = Number(req.query.assignee_id);
+        if (targetId !== Number(req.user.id)) {
+          sql += ` AND (t.assignee_id IN (SELECT id FROM users WHERE id = $${paramIdx} AND mentor_id = $${paramIdx + 1}) OR t.verifier_id = $${paramIdx + 1})`;
+          params.push(targetId, req.user.id);
+          paramIdx += 2;
+        }
+      } else if (!req.query.project_id) {
+        sql += ` AND (t.assignee_id = $${paramIdx} OR t.creator_id = $${paramIdx} OR t.verifier_id = $${paramIdx})`;
         params.push(req.user.id);
+        paramIdx++;
       }
     }
 
@@ -510,7 +518,7 @@ router.get('/tasks/:id', auth, async (req, res) => {
     if (!task) return res.status(404).json({ error: 'Task not found' });
 
     if (req.user.role === 'intern') {
-      if (task.assignee_id !== req.user.id && task.creator_id !== req.user.id) {
+      if (task.assignee_id !== req.user.id && task.creator_id !== req.user.id && task.verifier_id !== req.user.id) {
         return res.status(403).json({ error: 'Access denied: Interns can only view their own tasks' });
       }
     }
