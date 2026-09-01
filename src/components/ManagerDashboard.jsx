@@ -87,30 +87,36 @@ export default function ManagerDashboard({ user }) {
     if (priorityFilter) params.priority = priorityFilter;
     if (search) params.search = search;
     if (employeeFilter) params.assignee_id = employeeFilter;
-    Promise.all([
+    Promise.allSettled([
       api.getDashboardStats(),
       api.getTasks(params),
       api.getEmployees(),
       api.getRepeatedTasks().catch(() => [])
-    ]).then(([s, t, e, rt]) => {
-      setStats(s);
-      setTasks(t);
-      setEmployees(e || []);
-      const myRt = Array.isArray(rt) ? rt.filter(item => {
-        if (user?.role === 'admin') return true;
-        if (Number(item.creator_id) === Number(user?.id)) return true;
-        if (Array.isArray(item.members)) {
-          return item.members.some(m => Number(m.user_id || m.id) === Number(user?.id));
+    ]).then(([sRes, tRes, eRes, rtRes]) => {
+      if (sRes.status === 'fulfilled') setStats(sRes.value);
+      if (tRes.status === 'fulfilled') setTasks(tRes.value);
+      if (eRes.status === 'fulfilled') {
+        const e = eRes.value || [];
+        setEmployees(e);
+        if (employeeFilter) {
+          setSelectedEmp(e.find(emp => emp.id === Number(employeeFilter)) || null);
+        } else {
+          setSelectedEmp(null);
         }
-        return false;
-      }) : [];
-      setRepeatedTasksCount(myRt.length);
-      if (employeeFilter) {
-        setSelectedEmp(e.find(emp => emp.id === Number(employeeFilter)) || null);
-      } else {
-        setSelectedEmp(null);
       }
-    }).catch(() => {}).finally(() => setLoading(false));
+      if (rtRes.status === 'fulfilled') {
+        const rt = rtRes.value;
+        const myRt = Array.isArray(rt) ? rt.filter(item => {
+          if (user?.role === 'admin') return true;
+          if (Number(item.creator_id) === Number(user?.id)) return true;
+          if (Array.isArray(item.members)) {
+            return item.members.some(m => Number(m.user_id || m.id) === Number(user?.id));
+          }
+          return false;
+        }) : [];
+        setRepeatedTasksCount(myRt.length);
+      }
+    }).finally(() => setLoading(false));
   };
 
   useEffect(() => {

@@ -397,7 +397,7 @@ router.get('/tasks', auth, async (req, res) => {
         u.name as assignee_name, u.email as assignee_email,
         c.name as creator_name, c.role as creator_role, c.department as creator_department, 
         e.name as last_edited_by_name,
-        v.name as verifier_name, v.role as verifier_role, v.department as verifier_department, v.phone as verifier_phone,
+        v.name as verifier_name, v.role as verifier_role, v.department as verifier_department,
         comp.name as completer_name
       FROM tasks t
       LEFT JOIN users u ON t.assignee_id = u.id
@@ -496,7 +496,7 @@ router.get('/tasks/:id', auth, async (req, res) => {
       SELECT t.*, u.name as assignee_name, u.email as assignee_email,
         c.name as creator_name, c.role as creator_role, c.department as creator_department, 
         e.name as last_edited_by_name,
-        v.name as verifier_name, v.role as verifier_role, v.department as verifier_department, v.phone as verifier_phone,
+        v.name as verifier_name, v.role as verifier_role, v.department as verifier_department,
         comp.name as completer_name
       FROM tasks t
       LEFT JOIN users u ON t.assignee_id = u.id
@@ -609,7 +609,7 @@ router.post('/tasks', auth, async (req, res) => {
       const { rows } = await db.query(`
         SELECT t.*, u.name as assignee_name, c.name as creator_name, c.role as creator_role, c.department as creator_department, 
           e.name as last_edited_by_name,
-          v.name as verifier_name, v.role as verifier_role, v.department as verifier_department, v.phone as verifier_phone,
+          v.name as verifier_name, v.role as verifier_role, v.department as verifier_department,
           comp.name as completer_name
         FROM tasks t
         LEFT JOIN users u ON t.assignee_id = u.id
@@ -913,7 +913,7 @@ router.put('/tasks/:id', auth, async (req, res) => {
       SELECT t.*, u.name as assignee_name, u.email as assignee_email,
         c.name as creator_name, c.role as creator_role, c.department as creator_department, 
         e.name as last_edited_by_name,
-        v.name as verifier_name, v.role as verifier_role, v.department as verifier_department, v.phone as verifier_phone,
+        v.name as verifier_name, v.role as verifier_role, v.department as verifier_department,
         comp.name as completer_name
       FROM tasks t
       LEFT JOIN users u ON t.assignee_id = u.id

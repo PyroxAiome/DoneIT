@@ -149,20 +149,23 @@ export default function AdminDashboard({ user }) {
       }
     }
 
-    Promise.all([
+    Promise.allSettled([
       api.getDashboardStats(),
       api.getTasks(params),
       api.getEmployees(true),
-    ]).then(([s, t, e]) => {
-      setStats(s);
-      setTasks(t);
-      setEmployees(e);
-      if (employeeFilter) {
-        setSelectedEmp(e.find(emp => emp.id === Number(employeeFilter)) || null);
-      } else {
-        setSelectedEmp(null);
+    ]).then(([sRes, tRes, eRes]) => {
+      if (sRes.status === 'fulfilled') setStats(sRes.value);
+      if (tRes.status === 'fulfilled') setTasks(tRes.value);
+      if (eRes.status === 'fulfilled') {
+        const e = eRes.value;
+        setEmployees(e);
+        if (employeeFilter) {
+          setSelectedEmp(e.find(emp => emp.id === Number(employeeFilter)) || null);
+        } else {
+          setSelectedEmp(null);
+        }
       }
-    }).catch(() => {}).finally(() => setLoading(false));
+    }).finally(() => setLoading(false));
   };
 
   useEffect(() => {
