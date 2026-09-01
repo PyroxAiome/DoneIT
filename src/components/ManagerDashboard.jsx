@@ -18,6 +18,7 @@ const tabs = [
   { id: 'work', label: 'Work', icon: ListTodo },
   { id: 'repeated_tasks', label: 'Repeated Tasks', icon: Repeat },
   { id: 'completed', label: 'Completed', icon: CheckCircle },
+  { id: 'team', label: 'Team', icon: Users },
 ];
 
 const getPrioritySelectClass = (val) => {
@@ -92,6 +93,9 @@ export default function ManagerDashboard({ user }) {
       api.getEmployees(),
       api.getRepeatedTasks().catch(() => [])
     ]).then(([s, t, e, rt]) => {
+      setStats(s);
+      setTasks(t);
+      setEmployees(e || []);
       const myRt = Array.isArray(rt) ? rt.filter(item => {
         if (user?.role === 'admin') return true;
         if (Number(item.creator_id) === Number(user?.id)) return true;
@@ -108,6 +112,40 @@ export default function ManagerDashboard({ user }) {
       }
     }).catch(() => {}).finally(() => setLoading(false));
   };
+
+  useEffect(() => {
+    const handleHashChange = () => {
+      const hash = window.location.hash;
+      if (!hash || hash === '#' || hash === '#work') {
+        setActiveTab('work');
+        setEmployeeFilter(null);
+        setSelectedEmp(null);
+        return;
+      }
+      const parts = hash.substring(1).split('/');
+      const tabId = parts[0];
+
+      if (['projects', 'work', 'repeated_tasks', 'completed', 'team'].includes(tabId)) {
+        setActiveTab(tabId);
+        if (tabId !== 'projects') setSelectedProject(null);
+      }
+      if (parts[1] === 'employee' && parts[2]) {
+        const empId = Number(parts[2]);
+        setEmployeeFilter(empId);
+        if (employees && employees.length > 0) {
+          const emp = employees.find(e => e.id === empId);
+          if (emp) setSelectedEmp(emp);
+        }
+      } else {
+        setEmployeeFilter(null);
+        setSelectedEmp(null);
+      }
+    };
+
+    window.addEventListener('hashchange', handleHashChange);
+    handleHashChange();
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, [employees]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -133,6 +171,7 @@ export default function ManagerDashboard({ user }) {
   }, []);
 
   const clearEmployeeFilter = () => {
+    window.location.hash = 'team';
     setEmployeeFilter(null);
     setSelectedEmp(null);
     setStatusFilter('');
@@ -140,7 +179,15 @@ export default function ManagerDashboard({ user }) {
   };
 
   const handleViewEmployeeTasks = (emp) => {
-    setEmployeeFilter(emp.id);
+    window.location.hash = `work/employee/${emp.id}`;
+  };
+
+  const handleViewEmployeeTasksByStatus = (emp, status) => {
+    const targetTab = status === 'completed' ? 'completed' : 'work';
+    window.location.hash = `${targetTab}/employee/${emp.id}`;
+    if (status !== 'completed') {
+      setStatusFilter(status);
+    }
   };
 
   const handleDeleteTask = async () => {
@@ -175,81 +222,93 @@ export default function ManagerDashboard({ user }) {
   ] : [];
 
   const statusOptions = ['', 'todo', 'in_progress', 'under_review'];
+  const priorityOptions = ['', 'low', 'medium', 'high', 'urgent'];
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-lg font-semibold text-gray-900">Manager Dashboard</h2>
-        <p className="text-sm text-gray-500">Team overview & task management</p>
-      </div>
+      {selectedEmp ? (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between bg-white border border-gray-200 rounded-xl p-3 sm:p-4 shadow-sm">
+            <div>
+              <h2 className="text-sm sm:text-base font-bold text-gray-900">{selectedEmp.name}'s Profile / Work</h2>
+              <p className="text-[9px] sm:text-[11px] text-gray-400 mt-0.5 uppercase font-semibold">{selectedEmp.role ? selectedEmp.role.replace('_', ' ') : ''} &middot; {selectedEmp.department} &middot; {selectedEmp.email}</p>
+            </div>
+            <button onClick={clearEmployeeFilter} className="bg-gray-800 hover:bg-gray-700 text-white text-[10px] sm:text-xs font-semibold px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg transition-all shadow-sm">
+              Back to Team
+            </button>
+          </div>
 
-      <div className="flex gap-1 bg-gray-200 p-1 rounded-xl w-full overflow-x-auto scrollbar-none shrink-0">
-        {tabs
-          .filter(tab => tab.id !== 'repeated_tasks' || (user?.role === 'admin' || repeatedTasksCount > 0))
-          .map((tab) => {
-          const Icon = tab.icon;
-          return (
+          <div className="flex gap-1 bg-gray-200 p-1 rounded-xl w-fit">
             <button
-              key={tab.id}
-              onClick={() => { 
-                setActiveTab(tab.id); 
-                setStatusFilter(''); 
-                setPriorityFilter('');
-                if (tab.id !== 'projects') setSelectedProject(null);
-              }}
-              className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-all whitespace-nowrap ${
-                activeTab === tab.id
-                  ? 'bg-white text-gray-900 shadow-sm'
-                  : 'text-gray-500 hover:text-gray-700'
+              onClick={() => { window.location.hash = `work/employee/${selectedEmp.id}`; }}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                activeTab === 'work' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
               }`}
             >
-              <Icon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-              {tab.label}
+              Active Tasks
             </button>
-          );
-        })}
-      </div>
-
-      {stats && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          {metricCards.map((m) => (
-            <div key={m.label} className="card flex items-center gap-3">
-              <m.icon className={`w-5 h-5 ${m.color}`} />
-              <div>
-                <p className="text-xs text-gray-500">{m.label}</p>
-                <p className="text-xl font-semibold text-gray-900">{m.value}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {employees.length > 0 && (
-        <div className="card">
-          <h3 className="text-sm font-medium text-gray-700 mb-3">Team Members</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {employees.map((emp) => (
-              <div key={emp.id} onClick={() => handleViewEmployeeTasks(emp)} className={`flex items-center gap-3 bg-white shadow-sm border rounded-xl px-4 py-3 cursor-pointer hover:border-amber-300 transition-all ${employeeFilter === emp.id ? 'ring-2 ring-amber-500 border-amber-500' : 'border-gray-200'}`}>
-                <div className="w-8 h-8 rounded-full bg-white border border-gray-200 flex items-center justify-center text-sm font-medium text-gray-500">
-                  {emp.name.charAt(0)}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-800 truncate">{emp.name}</p>
-                  <p className="text-[10px] text-gray-400">{emp.department} &middot; {emp.task_count} tasks</p>
-                </div>
-                <div className="text-right">
-                  <div className="h-1.5 w-16 bg-gray-100 rounded-full overflow-hidden ml-auto">
-                    <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${emp.avg_progress}%` }} />
-                  </div>
-                  <p className="text-[10px] text-gray-400 mt-0.5">{emp.avg_progress}%</p>
-                </div>
-              </div>
-            ))}
+            <button
+              onClick={() => { window.location.hash = `completed/employee/${selectedEmp.id}`; }}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                activeTab === 'completed' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              Completed Tasks
+            </button>
           </div>
         </div>
+      ) : (
+        <div className="space-y-6">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">Manager Dashboard</h2>
+            <p className="text-sm text-gray-500">Team overview & task management</p>
+          </div>
+
+          <div className="flex gap-1 bg-gray-200 p-1 rounded-xl w-full overflow-x-auto scrollbar-none shrink-0">
+            {tabs
+              .filter(tab => tab.id !== 'repeated_tasks' || (user?.role === 'admin' || repeatedTasksCount > 0))
+              .map((tab) => {
+              const Icon = tab.icon;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => { 
+                    window.location.hash = tab.id;
+                    setActiveTab(tab.id); 
+                    setStatusFilter(''); 
+                    setPriorityFilter('');
+                    if (tab.id !== 'projects') setSelectedProject(null);
+                  }}
+                  className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-all whitespace-nowrap ${
+                    activeTab === tab.id
+                      ? 'bg-white text-gray-900 shadow-sm'
+                      : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  <Icon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                  {tab.label}
+                </button>
+              );
+            })}
+          </div>
+
+          {stats && (
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              {metricCards.map((m) => (
+                <div key={m.label} className="card flex items-center gap-3">
+                  <m.icon className={`w-5 h-5 ${m.color}`} />
+                  <div>
+                    <p className="text-xs text-gray-500">{m.label}</p>
+                    <p className="text-xl font-semibold text-gray-900">{m.value}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       )}
 
-      {activeTab === 'projects' && (
+      {activeTab === 'projects' && !selectedEmp && (
         <div className="space-y-6 mt-4">
           {selectedProject ? (
             <ProjectDetail
@@ -266,105 +325,202 @@ export default function ManagerDashboard({ user }) {
         </div>
       )}
 
-      {activeTab === 'repeated_tasks' && (
+      {activeTab === 'repeated_tasks' && !selectedEmp && (
         <div className="mt-4">
           <RepeatedTasksList user={user} projects={[]} />
         </div>
       )}
 
-      {(activeTab === 'work' || activeTab === 'completed') && (
+      {activeTab === 'team' && !selectedEmp && (
+        <div className="space-y-4">
+          {/* Mentored Interns Widget for Assigned Supervisors/Managers */}
+          {employees.filter(e => Number(e.mentor_id) === Number(user.id)).length > 0 && (
+            <div className="bg-gradient-to-r from-amber-50/80 via-white to-amber-50/50 border border-amber-200/80 rounded-2xl p-4 space-y-3 shadow-xs">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-bold text-gray-900 text-sm flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse" />
+                    Assigned Interns Under You ({employees.filter(e => Number(e.mentor_id) === Number(user.id)).length})
+                  </h3>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    Track your mentored interns' tasks, progress, daily logs, and work updates.
+                  </p>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {employees.filter(e => Number(e.mentor_id) === Number(user.id)).map(intern => (
+                  <div
+                    key={intern.id}
+                    onClick={() => handleViewEmployeeTasks(intern)}
+                    className="bg-white p-3 rounded-xl border border-gray-200 shadow-xs hover:border-amber-400 hover:shadow-md transition-all cursor-pointer flex items-center justify-between group"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-8 h-8 rounded-full bg-amber-500 text-white flex items-center justify-center font-bold text-xs uppercase flex-shrink-0">
+                        {intern.name ? intern.name.charAt(0) : 'I'}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-bold text-gray-900 text-xs truncate group-hover:text-amber-600 transition-colors">{intern.name}</p>
+                        <p className="text-[10px] text-gray-400 truncate">{intern.task_count} tasks &middot; {intern.avg_progress}% avg</p>
+                      </div>
+                    </div>
+                    <span className="text-[11px] font-bold text-amber-600 flex-shrink-0 pl-2">
+                      View Work →
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+            {employees.filter(e => e.role !== 'admin').map((emp) => {
+              const isSelf = emp.id === user.id;
+              return (
+                <div key={emp.id} className={`bg-white border border-gray-200 rounded-xl p-4 hover:shadow-md hover:border-gray-300 transition-all cursor-pointer ${isSelf ? 'ring-1 ring-amber-500/30' : ''}`}
+                  onClick={() => handleViewEmployeeTasks(emp)}>
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-full bg-gray-100 border border-gray-200 flex items-center justify-center text-sm font-medium text-gray-500">
+                        {emp.name.charAt(0)}
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-gray-800">{emp.name} {isSelf && <span className="text-[10px] text-amber-600 bg-amber-50 px-1 py-0.2 rounded ml-1 font-semibold">You</span>}</p>
+                        <p className="text-[10px] text-amber-700 font-semibold uppercase">{emp.role ? emp.role.replace('_', ' ') : ''}</p>
+                        {emp.role === 'intern' && (
+                          <p className="text-[10px] text-indigo-600 font-medium mt-0.5">
+                            Mentor: {emp.mentor_name || <span className="text-gray-400 italic">Not Assigned</span>}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-3 flex items-center gap-2">
+                    <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                      <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${emp.avg_progress}%` }} />
+                    </div>
+                    <span className="text-[11px] text-gray-500">{emp.avg_progress}%</span>
+                  </div>
+                  <p className="text-xs text-gray-400 mt-1.5">{emp.task_count} task{emp.task_count !== 1 ? 's' : ''}</p>
+                  <div className="flex gap-2 mt-4 pt-3 border-t border-gray-100">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleViewEmployeeTasksByStatus(emp, 'in_progress');
+                      }}
+                      className="flex-1 text-center py-1.5 px-2 bg-amber-50 hover:bg-amber-100 text-amber-700 text-[10px] font-semibold rounded-lg transition-colors border border-amber-200/50"
+                    >
+                      Active Tasks
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleViewEmployeeTasksByStatus(emp, 'completed');
+                      }}
+                      className="flex-1 text-center py-1.5 px-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-[10px] font-semibold rounded-lg transition-colors border border-emerald-200/50"
+                    >
+                      Completed
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {(activeTab === 'work' || activeTab === 'completed' || selectedEmp) && activeTab !== 'projects' && activeTab !== 'repeated_tasks' && (
         <>
           <div className="flex items-center gap-3 flex-wrap">
             <div className="relative flex-1 min-w-[200px] max-w-sm">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <input value={searchText} onChange={(e) => setSearchText(e.target.value)} className="input-field pl-9" placeholder="Search tasks..." />
-        </div>
-        
-        {activeTab === 'work' && (
-          <div className="flex items-center gap-1.5">
-            <span className="text-[10px] uppercase font-semibold text-gray-400">Status:</span>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className={getStatusSelectClass(statusFilter)}
-            >
-              <option value="" className="text-gray-500 font-normal">All Statuses</option>
-              <option value="todo" className="text-gray-600 font-semibold bg-gray-50">To Do</option>
-              <option value="in_progress" className="text-blue-600 font-semibold bg-blue-50">In Progress</option>
-              <option value="under_review" className="text-purple-600 font-semibold bg-purple-50">Under Review</option>
-              <option value="completed" className="text-emerald-600 font-semibold bg-emerald-50">Completed</option>
-            </select>
+              <input value={searchText} onChange={(e) => setSearchText(e.target.value)} className="input-field pl-9" placeholder="Search tasks..." />
+            </div>
+            
+            {activeTab === 'work' && (
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] uppercase font-semibold text-gray-400">Status:</span>
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className={getStatusSelectClass(statusFilter)}
+                >
+                  <option value="" className="text-gray-500 font-normal">All Statuses</option>
+                  <option value="todo" className="text-gray-600 font-semibold bg-gray-50">To Do</option>
+                  <option value="in_progress" className="text-blue-600 font-semibold bg-blue-50">In Progress</option>
+                  <option value="under_review" className="text-purple-600 font-semibold bg-purple-50">Under Review</option>
+                  <option value="completed" className="text-emerald-600 font-semibold bg-emerald-50">Completed</option>
+                </select>
+              </div>
+            )}
+
+            {activeTab === 'work' && (
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] uppercase font-semibold text-gray-400">Priority:</span>
+                <select
+                  value={priorityFilter}
+                  onChange={(e) => setPriorityFilter(e.target.value)}
+                  className={getPrioritySelectClass(priorityFilter)}
+                >
+                  <option value="" className="text-gray-500 font-normal">All Priorities</option>
+                  <option value="low" className="text-slate-700 font-semibold bg-slate-100">Low</option>
+                  <option value="medium" className="text-blue-700 font-semibold bg-blue-50">Medium</option>
+                  <option value="high" className="text-orange-700 font-semibold bg-orange-50">High</option>
+                  <option value="urgent" className="text-red-700 font-semibold bg-red-50">Urgent</option>
+                </select>
+              </div>
+            )}
+
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] uppercase font-semibold text-gray-400">Category:</span>
+              <select
+                value={categoryFilter}
+                onChange={(e) => setCategoryFilter(e.target.value)}
+                className="text-[10px] sm:text-xs bg-white border border-gray-200 rounded-lg px-1.5 sm:px-2.5 py-0.5 sm:py-1 text-gray-500 hover:text-gray-700 focus:outline-none focus:ring-1 focus:ring-amber-500 font-semibold"
+              >
+                <option value="">All Categories</option>
+                <option value="General">General</option>
+                <option value="Software">Software</option>
+                <option value="Electronics">Electronics</option>
+                <option value="Mechanical">Mechanical</option>
+                <option value="Production">Production</option>
+              </select>
+            </div>
+            {employeeFilter && (
+              <span className="text-xs flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 animate-fade-in">
+                {selectedEmp?.name}
+                <button onClick={clearEmployeeFilter} className="hover:bg-amber-100 rounded p-0.5"><X className="w-3.5 h-3.5" /></button>
+              </span>
+            )}
+            {myTasksOnly && (
+              <span className="text-xs flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 animate-fade-in">
+                My Tasks & Creations
+                <button onClick={() => setMyTasksOnly(false)} className="hover:bg-amber-100 rounded p-0.5"><X className="w-3.5 h-3.5" /></button>
+              </span>
+            )}
+            {activeTab === 'work' && (
+              <button onClick={() => { setEditTask(null); setShowTaskModal(true); }} className="btn-amber text-sm flex items-center gap-2">
+                <Plus className="w-4 h-4" /> New Task
+              </button>
+            )}
           </div>
-        )}
 
-        {activeTab === 'work' && (
-          <div className="flex items-center gap-1.5">
-            <span className="text-[10px] uppercase font-semibold text-gray-400">Priority:</span>
-            <select
-              value={priorityFilter}
-              onChange={(e) => setPriorityFilter(e.target.value)}
-              className={getPrioritySelectClass(priorityFilter)}
-            >
-              <option value="" className="text-gray-500 font-normal">All Priorities</option>
-              <option value="low" className="text-slate-700 font-semibold bg-slate-100">Low</option>
-              <option value="medium" className="text-blue-700 font-semibold bg-blue-50">Medium</option>
-              <option value="high" className="text-orange-700 font-semibold bg-orange-50">High</option>
-              <option value="urgent" className="text-red-700 font-semibold bg-red-50">Urgent</option>
-            </select>
-          </div>
-        )}
-
-        <div className="flex items-center gap-1.5">
-          <span className="text-[10px] uppercase font-semibold text-gray-400">Category:</span>
-          <select
-            value={categoryFilter}
-            onChange={(e) => setCategoryFilter(e.target.value)}
-            className="text-[10px] sm:text-xs bg-white border border-gray-200 rounded-lg px-1.5 sm:px-2.5 py-0.5 sm:py-1 text-gray-500 hover:text-gray-700 focus:outline-none focus:ring-1 focus:ring-amber-500 font-semibold"
-          >
-            <option value="">All Categories</option>
-            <option value="General">General</option>
-            <option value="Software">Software</option>
-            <option value="Electronics">Electronics</option>
-            <option value="Mechanical">Mechanical</option>
-            <option value="Production">Production</option>
-          </select>
-        </div>
-        {employeeFilter && (
-          <span className="text-xs flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 animate-fade-in">
-            {selectedEmp?.name}
-            <button onClick={clearEmployeeFilter} className="hover:bg-amber-100 rounded p-0.5"><X className="w-3.5 h-3.5" /></button>
-          </span>
-        )}
-        {myTasksOnly && (
-          <span className="text-xs flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 animate-fade-in">
-            My Tasks & Creations
-            <button onClick={() => setMyTasksOnly(false)} className="hover:bg-amber-100 rounded p-0.5"><X className="w-3.5 h-3.5" /></button>
-          </span>
-        )}
-        {activeTab === 'work' && (
-          <button onClick={() => { setEditTask(null); setShowTaskModal(true); }} className="btn-amber text-sm flex items-center gap-2">
-            <Plus className="w-4 h-4" /> New Task
-          </button>
-        )}
-      </div>
-
-      {loading ? (
-        <div className="flex justify-center py-12">
-          <div className="animate-spin w-6 h-6 border-2 border-gray-300 border-t-gray-600 rounded-full" />
-        </div>
-      ) : displayedTasks.length === 0 ? (
-        <div className="card text-center py-12">
-          <LayoutGrid className="w-10 h-10 text-gray-300 mx-auto mb-3" />
-          <p className="text-gray-500 text-sm">No tasks found</p>
-        </div>
-      ) : (
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {displayedTasks.map((task) => (
-            <TaskCard key={task.id} task={task} onEdit={fetchAll} onDelete={setDeleteTask} onSelect={(t) => { setEditTask(t); setShowTaskModal(true); }} onViewDetail={setDetailTask} onVerificationNeeded={setVerificationTask} />
-          ))}
-        </div>
-      )}
-      </>
+          {loading ? (
+            <div className="flex justify-center py-12">
+              <div className="animate-spin w-6 h-6 border-2 border-gray-300 border-t-gray-600 rounded-full" />
+            </div>
+          ) : displayedTasks.length === 0 ? (
+            <div className="card text-center py-12">
+              <LayoutGrid className="w-10 h-10 text-gray-300 mx-auto mb-3" />
+              <p className="text-gray-500 text-sm">No tasks found</p>
+            </div>
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              {displayedTasks.map((task) => (
+                <TaskCard key={task.id} task={task} onEdit={fetchAll} onDelete={setDeleteTask} onSelect={(t) => { setEditTask(t); setShowTaskModal(true); }} onViewDetail={setDetailTask} onVerificationNeeded={setVerificationTask} />
+              ))}
+            </div>
+          )}
+        </>
       )}
 
       <TaskModal isOpen={showTaskModal} onClose={() => { setShowTaskModal(false); setEditTask(null); }} onSaved={fetchAll} task={editTask} employees={employees} onVerificationNeeded={setVerificationTask} />
