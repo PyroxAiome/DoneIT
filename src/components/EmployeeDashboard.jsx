@@ -201,14 +201,14 @@ export default function EmployeeDashboard({ user }) {
             <h2 className="text-lg font-semibold text-gray-900">My Workspace</h2>
             <div className="flex items-center gap-2 flex-wrap">
               <p className="text-sm text-gray-500">Welcome back, {user.name.split(' ')[0]}</p>
-              {quota && quota.isRestricted && (
+              {user?.role !== 'intern' && quota && quota.isRestricted && (
                 <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200/70" title="Weekly limit: 2 tasks, Monthly limit: 10 tasks. Managers/Admins can assign unlimited tasks to you.">
                   Creation quota: {quota.weekCount}/{quota.weekLimit} this week &middot; {quota.monthCount}/{quota.monthLimit} this month
                 </span>
               )}
             </div>
           </div>
-          {activeTab === 'work' && !isReadOnly && (
+          {activeTab === 'work' && !isReadOnly && user?.role !== 'intern' && (
             <button
               onClick={() => { setEditTask(null); setShowTaskModal(true); }}
               disabled={quota?.isRestricted && !quota?.canCreate}
@@ -436,8 +436,15 @@ export default function EmployeeDashboard({ user }) {
                   readOnly={isReadOnly}
                   onEdit={fetchTasksOnly}
                   onDelete={setDeleteTarget}
-                  onSelect={(t) => { setEditTask(t); setShowTaskModal(true); }}
                   onViewDetail={setDetailTask}
+                  onSelect={(t) => { 
+                    if (user?.role === 'intern') {
+                      setDetailTask(t);
+                    } else {
+                      setEditTask(t); 
+                      setShowTaskModal(true); 
+                    }
+                  }}
                   onVerificationNeeded={setVerificationTask}
                 />
               ))}

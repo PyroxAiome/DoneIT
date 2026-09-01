@@ -519,6 +519,12 @@ router.post('/tasks', auth, async (req, res) => {
 
     if (!title) return res.status(400).json({ error: 'Title required' });
 
+    if (req.user.role === 'intern') {
+      return res.status(403).json({ 
+        error: 'Interns cannot create tasks. Tasks must be assigned by a mentor or manager.' 
+      });
+    }
+
     if (!['admin', 'manager', 'site_manager'].includes(req.user.role)) {
       const { rows: weekRows } = await db.query(`
         SELECT COUNT(*) as count FROM tasks 
@@ -696,6 +702,20 @@ router.put('/tasks/:id', auth, async (req, res) => {
     const { rows: taskRows } = await db.query('SELECT * FROM tasks WHERE id = $1', [id]);
     const task = taskRows[0];
     if (!task) return res.status(404).json({ error: 'Task not found' });
+
+    if (req.user.role === 'intern') {
+      if (task.assignee_id !== req.user.id) {
+        return res.status(403).json({ error: 'Not authorized to update this task' });
+      }
+      const allowedForIntern = ['status', 'progress_percent', 'logical_explanation'];
+      const attemptedFields = Object.keys(req.body);
+      const hasDisallowed = attemptedFields.some(f => !allowedForIntern.includes(f));
+      if (hasDisallowed) {
+        return res.status(403).json({ 
+          error: 'Interns can only update task status, progress, and explanations. Task definition cannot be edited by interns.' 
+        });
+      }
+    }
 
     if (req.user.role === 'employee' && task.assignee_id !== req.user.id) {
       return res.status(403).json({ error: 'Not authorized to update this task' });
@@ -914,6 +934,10 @@ router.delete('/tasks/:id', auth, async (req, res) => {
 
     if (task.status === 'completed' && req.user.role !== 'admin') {
       return res.status(403).json({ error: 'Only admins can delete completed tasks' });
+    }
+
+    if (req.user.role === 'intern') {
+      return res.status(403).json({ error: 'Interns are not authorized to delete tasks' });
     }
 
     if (req.user.role === 'employee' && task.creator_id !== req.user.id) {

@@ -37,6 +37,7 @@ const statusStyles = {
 
 const canModifyTask = (user, task) => {
   if (!user) return false;
+  if (user.role === 'intern') return false; // Interns cannot edit task definition
   if (user.role === 'admin') return true;
   if (user.role === 'manager') {
     return task.creator_id === user.id || (!['admin', 'manager'].includes(task.creator_role) && task.creator_department === user.department);
@@ -46,6 +47,7 @@ const canModifyTask = (user, task) => {
 
 const canDeleteTask = (user, task) => {
   if (!user) return false;
+  if (user.role === 'intern') return false; // Interns cannot delete tasks
   if (task.status === 'completed') {
     return user.role === 'admin';
   }
@@ -197,22 +199,26 @@ export default function TaskCard({ task, compact, onEdit, onDelete, onSelect, on
                 <>
                   <div className="fixed inset-0 z-10" onClick={(e) => { e.stopPropagation(); setShowMenu(false); }} />
                   <div className="absolute right-0 top-8 w-48 bg-white border border-gray-200 rounded-xl shadow-lg py-1 z-20" onClick={(e) => e.stopPropagation()}>
-                    <div className="px-3 py-1.5 text-[10px] text-gray-400 uppercase tracking-wider">Set Priority</div>
-                    {['urgent', 'high', 'medium', 'low'].filter(p => p !== task.priority).map(p => (
-                      <button key={p} onClick={() => { api.updateTask(task.id, { priority: p }).then(() => onEdit?.()); setShowMenu(false); }} className="w-full text-left px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 capitalize">{p}</button>
+                    {user?.role !== 'intern' && (
+                      <>
+                        <div className="px-3 py-1.5 text-[10px] text-gray-400 uppercase tracking-wider">Set Priority</div>
+                        {['urgent', 'high', 'medium', 'low'].filter(p => p !== task.priority).map(p => (
+                          <button key={p} onClick={() => { api.updateTask(task.id, { priority: p }).then(() => onEdit?.()); setShowMenu(false); }} className="w-full text-left px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 capitalize">{p}</button>
+                        ))}
+                        <div className="border-t border-gray-100 my-1" />
+                      </>
+                    )}
+                    <div className="px-3 py-1.5 text-[10px] text-gray-400 uppercase tracking-wider">Set Status</div>
+                    {statusActions.map(s => (
+                      <button key={s} onClick={() => handleStatusChange(s)} className="w-full text-left px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50">{statusLabels[s]}</button>
                     ))}
-                    <>
-                      <div className="border-t border-gray-100 my-1" />
-                      <div className="px-3 py-1.5 text-[10px] text-gray-400 uppercase tracking-wider">Set Status</div>
-                      {statusActions.map(s => (
-                        <button key={s} onClick={() => handleStatusChange(s)} className="w-full text-left px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50">{statusLabels[s]}</button>
-                      ))}
-                    </>
-                    <div className="border-t border-gray-100 my-1" />
                     {canModifyTask(user, task) && (
-                      <button onClick={() => { onSelect?.(task); setShowMenu(false); }} className="w-full text-left px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2">
-                        <Edit3 className="w-3.5 h-3.5" /> Edit Task
-                      </button>
+                      <>
+                        <div className="border-t border-gray-100 my-1" />
+                        <button onClick={() => { onSelect?.(task); setShowMenu(false); }} className="w-full text-left px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2">
+                          <Edit3 className="w-3.5 h-3.5" /> Edit Task
+                        </button>
+                      </>
                     )}
                     {canDeleteTask(user, task) && (
                       <button onClick={() => { onDelete?.(task); setShowMenu(false); }} className="w-full text-left px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2">
