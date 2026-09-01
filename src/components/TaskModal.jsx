@@ -3,6 +3,24 @@ import { api } from '../lib/api';
 import { X, AlertCircle, Check } from 'lucide-react';
 import { useAuth } from '../App';
 
+const roleLabels = {
+  admin: 'Admin',
+  manager: 'Manager',
+  site_manager: 'Site Manager / QS',
+  software_engineer: 'Software Engineer',
+  electronics_engineer: 'Electronics Engineer',
+  mechanical_engineer: 'Mechanical Engineer',
+  production_engineer: 'Production Engineer',
+  intern: 'Intern',
+  hr: 'HR',
+  employee: 'Employee'
+};
+
+const getRoleDisplay = (emp) => {
+  if (!emp) return '';
+  return roleLabels[emp.role] || (emp.role ? emp.role.replace('_', ' ') : 'Employee');
+};
+
 export default function TaskModal({ isOpen, onClose, onSaved, task, employees, onVerificationNeeded, projectId }) {
   const currentUser = useAuth();
   const isEdit = !!task;
@@ -215,7 +233,7 @@ export default function TaskModal({ isOpen, onClose, onSaved, task, employees, o
                 <select value={form.assignee_id} onChange={handleChange('assignee_id')} className="input-field">
                   <option value="" disabled>Select Assignee</option>
                   {assigneeList.map((emp) => (
-                    <option key={emp.id} value={emp.id}>{emp.name}</option>
+                    <option key={emp.id} value={emp.id}>{emp.name} ({getRoleDisplay(emp)})</option>
                   ))}
                 </select>
               ) : (
@@ -239,7 +257,7 @@ export default function TaskModal({ isOpen, onClose, onSaved, task, employees, o
                             }}
                             className="rounded text-amber-500 focus:ring-amber-500 border-gray-300"
                           />
-                          <span className="truncate">{emp.name} <span className="text-[10px] text-gray-400">({emp.department})</span></span>
+                          <span className="truncate">{emp.name} <span className="text-[10px] text-gray-400">({getRoleDisplay(emp)})</span></span>
                         </label>
                       );
                     })
@@ -273,7 +291,7 @@ export default function TaskModal({ isOpen, onClose, onSaved, task, employees, o
                 <option value="">Default (Admin / System)</option>
                 {verifierCandidates.map((emp) => (
                   <option key={emp.id} value={emp.id}>
-                    {emp.name} ({emp.role === 'admin' ? 'Admin' : emp.role === 'manager' ? 'Manager' : emp.department || 'Team Member'})
+                    {emp.name} ({getRoleDisplay(emp)})
                   </option>
                 ))}
               </select>
