@@ -57,6 +57,34 @@ const initDatabase = async () => {
     console.log('project_physical_audits verification columns migration note:', e.message);
   }
 
+  // ── Add verification columns to project_material_usage ───────────────
+  try {
+    await pool.query('ALTER TABLE project_material_usage ADD COLUMN IF NOT EXISTS status TEXT DEFAULT \'approved\'');
+    await pool.query('ALTER TABLE project_material_usage ADD COLUMN IF NOT EXISTS manager_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL');
+    await pool.query('ALTER TABLE project_material_usage ADD COLUMN IF NOT EXISTS admin_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL');
+    await pool.query('ALTER TABLE project_material_usage ADD COLUMN IF NOT EXISTS verified_at TIMESTAMP DEFAULT NULL');
+    await pool.query('ALTER TABLE project_material_usage ADD COLUMN IF NOT EXISTS admin_verified_at TIMESTAMP DEFAULT NULL');
+    await pool.query('ALTER TABLE project_material_usage ADD COLUMN IF NOT EXISTS rejection_reason TEXT DEFAULT \'\'');
+    await pool.query('ALTER TABLE project_material_usage DROP CONSTRAINT IF EXISTS project_material_usage_status_check');
+    await pool.query('ALTER TABLE project_material_usage ADD CONSTRAINT project_material_usage_status_check CHECK(status IN (\'pending_manager\', \'pending_admin\', \'approved\', \'rejected\'))');
+  } catch (e) {
+    console.log('project_material_usage verification migration note:', e.message);
+  }
+
+  // ── Add verification columns to project_material_scrap ───────────────
+  try {
+    await pool.query('ALTER TABLE project_material_scrap ADD COLUMN IF NOT EXISTS status TEXT DEFAULT \'approved\'');
+    await pool.query('ALTER TABLE project_material_scrap ADD COLUMN IF NOT EXISTS manager_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL');
+    await pool.query('ALTER TABLE project_material_scrap ADD COLUMN IF NOT EXISTS admin_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL');
+    await pool.query('ALTER TABLE project_material_scrap ADD COLUMN IF NOT EXISTS verified_at TIMESTAMP DEFAULT NULL');
+    await pool.query('ALTER TABLE project_material_scrap ADD COLUMN IF NOT EXISTS admin_verified_at TIMESTAMP DEFAULT NULL');
+    await pool.query('ALTER TABLE project_material_scrap ADD COLUMN IF NOT EXISTS rejection_reason TEXT DEFAULT \'\'');
+    await pool.query('ALTER TABLE project_material_scrap DROP CONSTRAINT IF EXISTS project_material_scrap_status_check');
+    await pool.query('ALTER TABLE project_material_scrap ADD CONSTRAINT project_material_scrap_status_check CHECK(status IN (\'pending_manager\', \'pending_admin\', \'approved\', \'rejected\'))');
+  } catch (e) {
+    console.log('project_material_scrap verification migration note:', e.message);
+  }
+
   await pool.query(`
     CREATE TABLE IF NOT EXISTS users (
       id SERIAL PRIMARY KEY,
@@ -213,7 +241,13 @@ const initDatabase = async () => {
       qty_used REAL NOT NULL CHECK(qty_used > 0),
       installed_location TEXT DEFAULT '',
       notes TEXT DEFAULT '',
+      status TEXT DEFAULT 'pending_manager' CHECK(status IN ('pending_manager', 'pending_admin', 'approved', 'rejected')),
       logged_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      manager_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      admin_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      verified_at TIMESTAMP DEFAULT NULL,
+      admin_verified_at TIMESTAMP DEFAULT NULL,
+      rejection_reason TEXT DEFAULT '',
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
 
@@ -224,7 +258,13 @@ const initDatabase = async () => {
       qty_scrapped REAL NOT NULL CHECK(qty_scrapped > 0),
       reason TEXT NOT NULL,
       photo_url TEXT DEFAULT '',
+      status TEXT DEFAULT 'pending_manager' CHECK(status IN ('pending_manager', 'pending_admin', 'approved', 'rejected')),
       logged_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      manager_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      admin_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      verified_at TIMESTAMP DEFAULT NULL,
+      admin_verified_at TIMESTAMP DEFAULT NULL,
+      rejection_reason TEXT DEFAULT '',
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
 
@@ -248,7 +288,11 @@ const initDatabase = async () => {
       system_expected_qty REAL NOT NULL,
       physical_counted_qty REAL NOT NULL,
       discrepancy_qty REAL NOT NULL,
+      status TEXT DEFAULT 'pending' CHECK(status IN ('pending', 'verified', 'rejected')),
       audited_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      verified_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      verified_at TIMESTAMP DEFAULT NULL,
+      rejection_reason TEXT DEFAULT '',
       notes TEXT DEFAULT '',
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );

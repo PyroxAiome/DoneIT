@@ -288,6 +288,30 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
+  verifyMaterialUsage: (projectId, usageId, action, rejection_reason = '') =>
+    request(`/projects/${projectId}/inventory/usage/${usageId}/verify`, {
+      method: 'PUT',
+      body: JSON.stringify({ action, rejection_reason }),
+    }),
+
+  resubmitMaterialUsage: (projectId, usageId, data) =>
+    request(`/projects/${projectId}/inventory/usage/${usageId}/resubmit`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+
+  verifyMaterialScrap: (projectId, scrapId, action, rejection_reason = '') =>
+    request(`/projects/${projectId}/inventory/scrap/${scrapId}/verify`, {
+      method: 'PUT',
+      body: JSON.stringify({ action, rejection_reason }),
+    }),
+
+  resubmitMaterialScrap: (projectId, scrapId, data) =>
+    request(`/projects/${projectId}/inventory/scrap/${scrapId}/resubmit`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+
   logPhysicalAudit: (projectId, data) =>
     request(`/projects/${projectId}/inventory/physical-audit`, {
       method: 'POST',

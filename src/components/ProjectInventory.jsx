@@ -7,7 +7,21 @@ import {
 import { api } from '../lib/api';
 
 export default function ProjectInventory({ project, user, tasks }) {
-  const [data, setData] = useState({ balances: [], receipts: [], pendingManagerReceipts: [], pendingAdminReceipts: [], pendingAudits: [], usage: [], scrap: [], audits: [] });
+  const [data, setData] = useState({ 
+    balances: [], 
+    receipts: [], 
+    pendingManagerReceipts: [], 
+    pendingAdminReceipts: [], 
+    pendingManagerUsage: [],
+    pendingAdminUsage: [],
+    pendingManagerScrap: [],
+    pendingAdminScrap: [],
+    pendingAudits: [], 
+    mySubmissions: { receipts: [], usage: [], scrap: [], audits: [] },
+    usage: [], 
+    scrap: [], 
+    audits: [] 
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [previewImage, setPreviewImage] = useState(null);
@@ -31,8 +45,16 @@ export default function ProjectInventory({ project, user, tasks }) {
   const [itemForm, setItemForm] = useState({ name: '', category: 'Panels', unit: 'pcs', description: '' });
   const [auditForm, setAuditForm] = useState({ item_id: '', physical_counted_qty: '', notes: '' });
 
+  // Resubmission Modals State
   const [resubmitItem, setResubmitItem] = useState(null);
   const [resubmitForm, setResubmitForm] = useState({ qty_received: '', challan_number: '', challan_photo: '', notes: '' });
+
+  const [resubmitUsageItem, setResubmitUsageItem] = useState(null);
+  const [resubmitUsageForm, setResubmitUsageForm] = useState({ qty_used: '', installed_location: '', notes: '' });
+
+  const [resubmitScrapItem, setResubmitScrapItem] = useState(null);
+  const [resubmitScrapForm, setResubmitScrapForm] = useState({ qty_scrapped: '', reason: '', photo_url: '' });
+
   const [busy, setBusy] = useState(false);
 
   const handleVerifyReceipt = async (receiptId, action) => {
@@ -47,6 +69,42 @@ export default function ProjectInventory({ project, user, tasks }) {
 
     try {
       await api.verifyDeliveryChallan(project.id, receiptId, action, rejectionReason);
+      loadInventory();
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
+  const handleVerifyUsage = async (usageId, action) => {
+    let rejectionReason = '';
+    if (action === 'reject') {
+      rejectionReason = prompt('Please enter the reason for rejecting this installation/usage entry:');
+      if (!rejectionReason) return;
+    } else {
+      const label = action === 'manager_verify' ? 'Manager Verification (Pass to Admin)' : 'FINAL ADMIN APPROVAL & DEDUCT STOCK';
+      if (!confirm(`Are you sure you want to proceed with: ${label}?`)) return;
+    }
+
+    try {
+      await api.verifyMaterialUsage(project.id, usageId, action, rejectionReason);
+      loadInventory();
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
+  const handleVerifyScrap = async (scrapId, action) => {
+    let rejectionReason = '';
+    if (action === 'reject') {
+      rejectionReason = prompt('Please enter the reason for rejecting this damage/scrap entry:');
+      if (!rejectionReason) return;
+    } else {
+      const label = action === 'manager_verify' ? 'Manager Verification (Pass to Admin)' : 'FINAL ADMIN APPROVAL & WRITE OFF SCRAP';
+      if (!confirm(`Are you sure you want to proceed with: ${label}?`)) return;
+    }
+
+    try {
+      await api.verifyMaterialScrap(project.id, scrapId, action, rejectionReason);
       loadInventory();
     } catch (err) {
       alert(err.message);
@@ -79,8 +137,12 @@ export default function ProjectInventory({ project, user, tasks }) {
         receipts: res.receipts || [],
         pendingManagerReceipts: res.pendingManagerReceipts || [],
         pendingAdminReceipts: res.pendingAdminReceipts || [],
+        pendingManagerUsage: res.pendingManagerUsage || [],
+        pendingAdminUsage: res.pendingAdminUsage || [],
+        pendingManagerScrap: res.pendingManagerScrap || [],
+        pendingAdminScrap: res.pendingAdminScrap || [],
         pendingAudits: res.pendingAudits || [],
-        mySubmissions: res.mySubmissions || [],
+        mySubmissions: res.mySubmissions || { receipts: [], usage: [], scrap: [], audits: [] },
         usage: res.usage || [],
         scrap: res.scrap || [],
         audits: res.audits || []
@@ -241,9 +303,40 @@ export default function ProjectInventory({ project, user, tasks }) {
       await api.resubmitMaterialReceipt(project.id, resubmitItem.id, resubmitForm);
       setResubmitItem(null);
       setResubmitForm({ qty_received: '', challan_number: '', challan_photo: '', notes: '' });
-      loadInventory();
     } catch (err) {
       alert(err.message || 'Failed to resubmit material receipt');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleResubmitUsageSubmit = async (e) => {
+    e.preventDefault();
+    if (!resubmitUsageItem) return;
+    setBusy(true);
+    try {
+      await api.resubmitMaterialUsage(project.id, resubmitUsageItem.id, resubmitUsageForm);
+      setResubmitUsageItem(null);
+      setResubmitUsageForm({ qty_used: '', installed_location: '', notes: '' });
+      loadInventory();
+    } catch (err) {
+      alert(err.message || 'Failed to resubmit material usage');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleResubmitScrapSubmit = async (e) => {
+    e.preventDefault();
+    if (!resubmitScrapItem) return;
+    setBusy(true);
+    try {
+      await api.resubmitMaterialScrap(project.id, resubmitScrapItem.id, resubmitScrapForm);
+      setResubmitScrapItem(null);
+      setResubmitScrapForm({ qty_scrapped: '', reason: '', photo_url: '' });
+      loadInventory();
+    } catch (err) {
+      alert(err.message || 'Failed to resubmit scrap');
     } finally {
       setBusy(false);
     }
@@ -319,7 +412,7 @@ export default function ProjectInventory({ project, user, tasks }) {
               </h3>
             </div>
             <span className="text-xs bg-amber-200 text-amber-950 font-bold px-2.5 py-0.5 rounded-full">
-              {user.role === 'admin' ? 'Admin Direct Approval / Sign-Off' : 'Tier 1: Manager Verification'}
+              {user.role === 'admin' ? 'Admin Direct Approval' : 'Tier 1: Manager Verification'}
             </span>
           </div>
           <p className="text-xs text-gray-700">
@@ -427,7 +520,224 @@ export default function ProjectInventory({ project, user, tasks }) {
         </div>
       )}
 
-      {/* 2. Physical Stock Audit Verification Queue */}
+      {/* 2. Installation / Usage Verification Queue */}
+      {((user.role === 'admin' && ((data.pendingAdminUsage?.length || 0) > 0 || (data.pendingManagerUsage?.length || 0) > 0)) ||
+        (user.role === 'manager' && (data.pendingManagerUsage?.length || 0) > 0)) && (
+        <div className="bg-gradient-to-r from-blue-50/95 via-sky-50/70 to-indigo-50/60 border-2 border-blue-300 rounded-xl p-5 shadow-sm space-y-4">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div className="flex items-center gap-2 text-gray-900">
+              <ArrowUpRight className="w-5 h-5 text-blue-600 animate-pulse" />
+              <h3 className="font-bold text-sm sm:text-base">
+                Installation & Material Usage Verification Queue (
+                {user.role === 'admin' 
+                  ? (data.pendingAdminUsage?.length || 0) + (data.pendingManagerUsage?.length || 0)
+                  : data.pendingManagerUsage?.length || 0} Pending)
+              </h3>
+            </div>
+            <span className="text-xs bg-blue-200 text-blue-950 font-bold px-2.5 py-0.5 rounded-full">
+              {user.role === 'admin' ? 'Admin Direct Approval' : 'Tier 1: Manager Verification'}
+            </span>
+          </div>
+          <p className="text-xs text-gray-700">
+            {user.role === 'admin'
+              ? 'Review material installation reports logged on-site. Click Approve to deduct materials from store balance.'
+              : 'Site team members logged these installation entries. Verify location & quantities before forwarding to Admin.'}
+          </p>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {[
+              ...(data.pendingAdminUsage || []),
+              ...(user.role === 'admin' ? (data.pendingManagerUsage || []) : (user.role === 'manager' ? (data.pendingManagerUsage || []) : []))
+            ].map(u => (
+              <div key={u.id} className="bg-white rounded-lg border border-blue-200 p-4 space-y-3 shadow-xs">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <h4 className="font-bold text-gray-900 text-sm">{u.item_name}</h4>
+                    <p className="text-xs text-blue-700 font-bold mt-0.5">
+                      Quantity Used: -{u.qty_used} {u.item_unit}
+                    </p>
+                    <p className="text-[11px] text-gray-500 mt-1">
+                      Location: <span className="font-semibold text-gray-700">{u.installed_location || 'General Site'}</span>
+                    </p>
+                    {u.task_title && (
+                      <p className="text-[11px] text-gray-500">
+                        Linked Task: <span className="font-medium text-gray-700">{u.task_title}</span>
+                      </p>
+                    )}
+                    <p className="text-[11px] text-gray-400 mt-0.5">
+                      Logged by: <span className="font-semibold text-gray-700">{u.logger_name}</span> · {new Date(u.created_at).toLocaleDateString()}
+                    </p>
+                    {u.status === 'pending_admin' && (
+                      <span className="inline-block text-[10px] font-bold text-blue-700 bg-blue-50 border border-blue-200 rounded px-1.5 py-0.5 mt-1">
+                        Manager Verified by {u.manager_name}
+                      </span>
+                    )}
+                    {u.status === 'pending_manager' && (
+                      <span className="inline-block text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5 mt-1">
+                        Awaiting Manager Verification
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {u.notes && (
+                  <p className="text-xs text-gray-600 bg-gray-50 p-2 rounded border border-gray-100 italic">
+                    "{u.notes}"
+                  </p>
+                )}
+
+                <div className="flex gap-2 pt-2 border-t border-gray-100 flex-wrap">
+                  {user.role === 'admin' ? (
+                    <>
+                      <button
+                        onClick={() => handleVerifyUsage(u.id, 'admin_approve')}
+                        className="flex-1 flex items-center justify-center gap-1 py-1.5 px-2 bg-emerald-600 text-white rounded-lg text-xs font-semibold hover:bg-emerald-700 transition-colors shadow-xs"
+                      >
+                        <CheckCircle2 className="w-4 h-4" /> Final Approve & Deduct Stock
+                      </button>
+                      {u.status === 'pending_manager' && (
+                        <button
+                          onClick={() => handleVerifyUsage(u.id, 'manager_verify')}
+                          className="flex items-center justify-center gap-1 py-1.5 px-2 bg-blue-600 text-white rounded-lg text-xs font-semibold hover:bg-blue-700 transition-colors"
+                          title="Pass to Tier 2"
+                        >
+                          Pass to Tier 2
+                        </button>
+                      )}
+                    </>
+                  ) : (
+                    <button
+                      onClick={() => handleVerifyUsage(u.id, 'manager_verify')}
+                      className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-semibold hover:bg-blue-700 transition-colors shadow-xs"
+                    >
+                      <CheckCircle2 className="w-4 h-4" /> Manager Verify ➔ Send to Admin
+                    </button>
+                  )}
+                  <button
+                    onClick={() => handleVerifyUsage(u.id, 'reject')}
+                    className="px-3 py-1.5 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg text-xs font-semibold border border-red-200 transition-colors"
+                  >
+                    <XCircle className="w-4 h-4" /> Reject
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 3. Damage & Scrap Verification Queue */}
+      {((user.role === 'admin' && ((data.pendingAdminScrap?.length || 0) > 0 || (data.pendingManagerScrap?.length || 0) > 0)) ||
+        (user.role === 'manager' && (data.pendingManagerScrap?.length || 0) > 0)) && (
+        <div className="bg-gradient-to-r from-red-50/95 via-rose-50/70 to-pink-50/60 border-2 border-red-300 rounded-xl p-5 shadow-sm space-y-4">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div className="flex items-center gap-2 text-gray-900">
+              <AlertTriangle className="w-5 h-5 text-red-600 animate-pulse" />
+              <h3 className="font-bold text-sm sm:text-base">
+                Damaged & Scrap Material Verification Queue (
+                {user.role === 'admin' 
+                  ? (data.pendingAdminScrap?.length || 0) + (data.pendingManagerScrap?.length || 0)
+                  : data.pendingManagerScrap?.length || 0} Pending)
+              </h3>
+            </div>
+            <span className="text-xs bg-red-200 text-red-950 font-bold px-2.5 py-0.5 rounded-full">
+              {user.role === 'admin' ? 'Admin Direct Approval' : 'Tier 1: Manager Verification'}
+            </span>
+          </div>
+          <p className="text-xs text-gray-700">
+            {user.role === 'admin'
+              ? 'Review scrapped/damaged material reports. Inspect photo proof and approve to write off items from store ledger.'
+              : 'Site team members logged damaged/scrap materials. Verify damage reason & photos before sending to Admin.'}
+          </p>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {[
+              ...(data.pendingAdminScrap || []),
+              ...(user.role === 'admin' ? (data.pendingManagerScrap || []) : (user.role === 'manager' ? (data.pendingManagerScrap || []) : []))
+            ].map(s => (
+              <div key={s.id} className="bg-white rounded-lg border border-red-200 p-4 space-y-3 shadow-xs">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <h4 className="font-bold text-gray-900 text-sm">{s.item_name}</h4>
+                    <p className="text-xs text-red-600 font-bold mt-0.5">
+                      Quantity Scrapped: -{s.qty_scrapped} {s.item_unit}
+                    </p>
+                    <p className="text-[11px] text-gray-700 mt-1">
+                      Reason: <span className="font-semibold">{s.reason}</span>
+                    </p>
+                    <p className="text-[11px] text-gray-400 mt-0.5">
+                      Logged by: <span className="font-semibold text-gray-700">{s.logger_name}</span> · {new Date(s.created_at).toLocaleDateString()}
+                    </p>
+                    {s.status === 'pending_admin' && (
+                      <span className="inline-block text-[10px] font-bold text-blue-700 bg-blue-50 border border-blue-200 rounded px-1.5 py-0.5 mt-1">
+                        Manager Verified by {s.manager_name}
+                      </span>
+                    )}
+                    {s.status === 'pending_manager' && (
+                      <span className="inline-block text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5 mt-1">
+                        Awaiting Manager Verification
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {s.photo_url && (
+                  <div 
+                    onClick={() => setPreviewImage(s.photo_url)}
+                    className="relative group cursor-pointer bg-gray-100 rounded-lg overflow-hidden h-32 border border-gray-200 flex items-center justify-center"
+                  >
+                    <img 
+                      src={s.photo_url} 
+                      alt="Scrap Photo" 
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform" 
+                    />
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white gap-1.5 text-xs font-semibold">
+                      <Eye className="w-4 h-4" /> Inspect Damage Photo
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex gap-2 pt-2 border-t border-gray-100 flex-wrap">
+                  {user.role === 'admin' ? (
+                    <>
+                      <button
+                        onClick={() => handleVerifyScrap(s.id, 'admin_approve')}
+                        className="flex-1 flex items-center justify-center gap-1 py-1.5 px-2 bg-emerald-600 text-white rounded-lg text-xs font-semibold hover:bg-emerald-700 transition-colors shadow-xs"
+                      >
+                        <CheckCircle2 className="w-4 h-4" /> Final Approve & Write Off Stock
+                      </button>
+                      {s.status === 'pending_manager' && (
+                        <button
+                          onClick={() => handleVerifyScrap(s.id, 'manager_verify')}
+                          className="flex items-center justify-center gap-1 py-1.5 px-2 bg-blue-600 text-white rounded-lg text-xs font-semibold hover:bg-blue-700 transition-colors"
+                          title="Pass to Tier 2"
+                        >
+                          Pass to Tier 2
+                        </button>
+                      )}
+                    </>
+                  ) : (
+                    <button
+                      onClick={() => handleVerifyScrap(s.id, 'manager_verify')}
+                      className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-semibold hover:bg-blue-700 transition-colors shadow-xs"
+                    >
+                      <CheckCircle2 className="w-4 h-4" /> Manager Verify ➔ Send to Admin
+                    </button>
+                  )}
+                  <button
+                    onClick={() => handleVerifyScrap(s.id, 'reject')}
+                    className="px-3 py-1.5 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg text-xs font-semibold border border-red-200 transition-colors"
+                  >
+                    <XCircle className="w-4 h-4" /> Reject
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 4. Physical Stock Audit Verification Queue */}
       {data.pendingAudits && data.pendingAudits.length > 0 && (user.role === 'admin' || user.role === 'manager') && (
         <div className="bg-purple-50/90 border-2 border-purple-300 rounded-xl p-5 shadow-sm space-y-4">
           <div className="flex items-center justify-between flex-wrap gap-2">
@@ -1001,20 +1311,102 @@ export default function ProjectInventory({ project, user, tasks }) {
                   <th className="p-3">Location / Floor</th>
                   <th className="p-3">Linked Task</th>
                   <th className="p-3">Logged By</th>
+                  <th className="p-3">Verification Status</th>
+                  <th className="p-3">Notes</th>
+                  <th className="p-3 text-center">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {data.usage.length === 0 ? (
-                  <tr><td colSpan={6} className="p-6 text-center text-gray-400 italic">No installation usage logged yet.</td></tr>
+                  <tr><td colSpan={9} className="p-6 text-center text-gray-400 italic">No installation usage logged yet.</td></tr>
                 ) : (
                   data.usage.map(u => (
-                    <tr key={u.id} className="hover:bg-gray-50">
+                    <tr key={u.id} className="hover:bg-gray-50 transition-colors">
                       <td className="p-3 text-gray-500">{new Date(u.created_at).toLocaleDateString()}</td>
                       <td className="p-3 font-semibold text-gray-900">{u.item_name}</td>
                       <td className="p-3 text-right font-bold text-blue-600">-{u.qty_used} {u.item_unit}</td>
                       <td className="p-3 text-gray-800 font-medium">{u.installed_location || '-'}</td>
                       <td className="p-3 text-gray-600">{u.task_title || '-'}</td>
                       <td className="p-3 text-gray-600">{u.logger_name || 'System'}</td>
+                      <td className="p-3">
+                        {u.status === 'approved' ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                            <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                            Approved
+                          </span>
+                        ) : u.status === 'pending_admin' ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800 animate-pulse">
+                            <ShieldCheck className="w-3 h-3 text-blue-600" />
+                            Awaiting Admin Approval
+                          </span>
+                        ) : u.status === 'pending_manager' ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 animate-pulse">
+                            <ShieldAlert className="w-3 h-3 text-amber-600" />
+                            Awaiting Verification
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-700" title={u.rejection_reason || ''}>
+                            <XCircle className="w-3 h-3 text-red-600" />
+                            Rejected {u.rejection_reason ? `(${u.rejection_reason})` : ''}
+                          </span>
+                        )}
+                      </td>
+                      <td className="p-3 text-gray-500 max-w-xs truncate">{u.notes || '-'}</td>
+                      <td className="p-3 text-center">
+                        <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                          {user.role === 'admin' && u.status !== 'approved' && (
+                            <>
+                              <button
+                                onClick={() => handleVerifyUsage(u.id, 'admin_approve')}
+                                className="px-2 py-0.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px] rounded shadow-xs"
+                                title="Approve usage and deduct stock"
+                              >
+                                Approve
+                              </button>
+                              <button
+                                onClick={() => handleVerifyUsage(u.id, 'reject')}
+                                className="px-2 py-0.5 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 font-bold text-[10px] rounded"
+                                title="Reject entry"
+                              >
+                                Reject
+                              </button>
+                            </>
+                          )}
+                          {user.role === 'manager' && u.status === 'pending_manager' && (
+                            <>
+                              <button
+                                onClick={() => handleVerifyUsage(u.id, 'manager_verify')}
+                                className="px-2 py-0.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-[10px] rounded shadow-xs"
+                                title="Manager verify"
+                              >
+                                Verify
+                              </button>
+                              <button
+                                onClick={() => handleVerifyUsage(u.id, 'reject')}
+                                className="px-2 py-0.5 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 font-bold text-[10px] rounded"
+                                title="Reject entry"
+                              >
+                                Reject
+                              </button>
+                            </>
+                          )}
+                          {u.status === 'rejected' && u.logged_by === user.id && (
+                            <button
+                              onClick={() => {
+                                setResubmitUsageItem(u);
+                                setResubmitUsageForm({
+                                  qty_used: u.qty_used,
+                                  installed_location: u.installed_location || '',
+                                  notes: u.notes || ''
+                                });
+                              }}
+                              className="px-2 py-0.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-[10px] rounded"
+                            >
+                              Fix & Resubmit
+                            </button>
+                          )}
+                        </div>
+                      </td>
                     </tr>
                   ))
                 )}
@@ -1034,19 +1426,108 @@ export default function ProjectInventory({ project, user, tasks }) {
                   <th className="p-3 text-right">Qty Scrapped</th>
                   <th className="p-3">Reason</th>
                   <th className="p-3">Logged By</th>
+                  <th className="p-3">Verification Status</th>
+                  <th className="p-3 text-center">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {data.scrap.length === 0 ? (
-                  <tr><td colSpan={5} className="p-6 text-center text-gray-400 italic">No damaged or scrapped material logged.</td></tr>
+                  <tr><td colSpan={7} className="p-6 text-center text-gray-400 italic">No damaged or scrapped material logged.</td></tr>
                 ) : (
                   data.scrap.map(s => (
-                    <tr key={s.id} className="hover:bg-gray-50">
+                    <tr key={s.id} className="hover:bg-gray-50 transition-colors">
                       <td className="p-3 text-gray-500">{new Date(s.created_at).toLocaleDateString()}</td>
                       <td className="p-3 font-semibold text-gray-900">{s.item_name}</td>
                       <td className="p-3 text-right font-bold text-red-600">-{s.qty_scrapped} {s.item_unit}</td>
                       <td className="p-3 text-gray-700 italic">{s.reason}</td>
                       <td className="p-3 text-gray-600">{s.logger_name || 'System'}</td>
+                      <td className="p-3">
+                        {s.status === 'approved' ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                            <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                            Approved
+                          </span>
+                        ) : s.status === 'pending_admin' ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800 animate-pulse">
+                            <ShieldCheck className="w-3 h-3 text-blue-600" />
+                            Awaiting Admin Approval
+                          </span>
+                        ) : s.status === 'pending_manager' ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 animate-pulse">
+                            <ShieldAlert className="w-3 h-3 text-amber-600" />
+                            Awaiting Verification
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-700" title={s.rejection_reason || ''}>
+                            <XCircle className="w-3 h-3 text-red-600" />
+                            Rejected {s.rejection_reason ? `(${s.rejection_reason})` : ''}
+                          </span>
+                        )}
+                      </td>
+                      <td className="p-3 text-center">
+                        <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                          {s.photo_url && (
+                            <button
+                              onClick={() => setPreviewImage(s.photo_url)}
+                              className="p-1 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                              title="Inspect Scrap photo"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </button>
+                          )}
+                          {user.role === 'admin' && s.status !== 'approved' && (
+                            <>
+                              <button
+                                onClick={() => handleVerifyScrap(s.id, 'admin_approve')}
+                                className="px-2 py-0.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px] rounded shadow-xs"
+                                title="Approve scrap write-off"
+                              >
+                                Approve
+                              </button>
+                              <button
+                                onClick={() => handleVerifyScrap(s.id, 'reject')}
+                                className="px-2 py-0.5 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 font-bold text-[10px] rounded"
+                                title="Reject entry"
+                              >
+                                Reject
+                              </button>
+                            </>
+                          )}
+                          {user.role === 'manager' && s.status === 'pending_manager' && (
+                            <>
+                              <button
+                                onClick={() => handleVerifyScrap(s.id, 'manager_verify')}
+                                className="px-2 py-0.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-[10px] rounded shadow-xs"
+                                title="Manager verify"
+                              >
+                                Verify
+                              </button>
+                              <button
+                                onClick={() => handleVerifyScrap(s.id, 'reject')}
+                                className="px-2 py-0.5 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 font-bold text-[10px] rounded"
+                                title="Reject entry"
+                              >
+                                Reject
+                              </button>
+                            </>
+                          )}
+                          {s.status === 'rejected' && s.logged_by === user.id && (
+                            <button
+                              onClick={() => {
+                                setResubmitScrapItem(s);
+                                setResubmitScrapForm({
+                                  qty_scrapped: s.qty_scrapped,
+                                  reason: s.reason || '',
+                                  photo_url: s.photo_url || ''
+                                });
+                              }}
+                              className="px-2 py-0.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-[10px] rounded"
+                            >
+                              Fix & Resubmit
+                            </button>
+                          )}
+                        </div>
+                      </td>
                     </tr>
                   ))
                 )}
@@ -1594,7 +2075,7 @@ export default function ProjectInventory({ project, user, tasks }) {
         </div>
       )}
 
-      {/* MODAL: Fix & Resubmit Rejected Submission */}
+      {/* MODAL: Fix & Resubmit Rejected Inward Receipt */}
       {resubmitItem && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-xl max-w-md w-full p-5 space-y-4 shadow-xl border border-amber-200">
@@ -1658,6 +2139,128 @@ export default function ProjectInventory({ project, user, tasks }) {
                 <button type="button" onClick={() => setResubmitItem(null)} className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg font-medium">Cancel</button>
                 <button type="submit" disabled={busy} className="px-4 py-1.5 bg-amber-600 text-white rounded-lg font-semibold hover:bg-amber-700">
                   {busy ? 'Resubmitting...' : 'Resubmit for Verification'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: Fix & Resubmit Rejected Usage / Installation */}
+      {resubmitUsageItem && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl max-w-md w-full p-5 space-y-4 shadow-xl border border-blue-200">
+            <div className="flex items-center justify-between border-b pb-3 border-gray-100">
+              <h3 className="font-bold text-gray-900 text-sm">Fix & Resubmit Usage: {resubmitUsageItem.item_name}</h3>
+              <button onClick={() => setResubmitUsageItem(null)} className="text-gray-400 hover:text-gray-600">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="bg-red-50 border border-red-200 rounded p-3 text-xs text-red-900">
+              <p className="font-bold">Original Rejection Reason:</p>
+              <p className="mt-0.5">{resubmitUsageItem.rejection_reason || 'Incomplete details or invalid installation report'}</p>
+            </div>
+
+            <form onSubmit={handleResubmitUsageSubmit} className="space-y-3 text-xs">
+              <div>
+                <label className="block font-semibold text-gray-700 mb-1">Quantity Used / Installed *</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={resubmitUsageForm.qty_used}
+                  onChange={e => setResubmitUsageForm({ ...resubmitUsageForm, qty_used: e.target.value })}
+                  className="w-full p-2 border border-gray-300 rounded-lg"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-gray-700 mb-1">Location / Floor</label>
+                <input
+                  type="text"
+                  value={resubmitUsageForm.installed_location}
+                  onChange={e => setResubmitUsageForm({ ...resubmitUsageForm, installed_location: e.target.value })}
+                  className="w-full p-2 border border-gray-300 rounded-lg"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-gray-700 mb-1">Notes / Clarifications</label>
+                <textarea
+                  value={resubmitUsageForm.notes}
+                  onChange={e => setResubmitUsageForm({ ...resubmitUsageForm, notes: e.target.value })}
+                  className="w-full p-2 border border-gray-300 rounded-lg"
+                  rows={2}
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-gray-100">
+                <button type="button" onClick={() => setResubmitUsageItem(null)} className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg font-medium">Cancel</button>
+                <button type="submit" disabled={busy} className="px-4 py-1.5 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700">
+                  {busy ? 'Resubmitting...' : 'Resubmit Usage'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: Fix & Resubmit Rejected Scrap */}
+      {resubmitScrapItem && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl max-w-md w-full p-5 space-y-4 shadow-xl border border-red-200">
+            <div className="flex items-center justify-between border-b pb-3 border-gray-100">
+              <h3 className="font-bold text-gray-900 text-sm">Fix & Resubmit Scrap: {resubmitScrapItem.item_name}</h3>
+              <button onClick={() => setResubmitScrapItem(null)} className="text-gray-400 hover:text-gray-600">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="bg-red-50 border border-red-200 rounded p-3 text-xs text-red-900">
+              <p className="font-bold">Original Rejection Reason:</p>
+              <p className="mt-0.5">{resubmitScrapItem.rejection_reason || 'Incomplete reason or unclear photo'}</p>
+            </div>
+
+            <form onSubmit={handleResubmitScrapSubmit} className="space-y-3 text-xs">
+              <div>
+                <label className="block font-semibold text-gray-700 mb-1">Quantity Scrapped *</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={resubmitScrapForm.qty_scrapped}
+                  onChange={e => setResubmitScrapForm({ ...resubmitScrapForm, qty_scrapped: e.target.value })}
+                  className="w-full p-2 border border-gray-300 rounded-lg"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-gray-700 mb-1">Reason for Damage / Scrap *</label>
+                <textarea
+                  value={resubmitScrapForm.reason}
+                  onChange={e => setResubmitScrapForm({ ...resubmitScrapForm, reason: e.target.value })}
+                  className="w-full p-2 border border-gray-300 rounded-lg"
+                  rows={2}
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-gray-700 mb-1">Photo URL of Damaged Material</label>
+                <input
+                  type="text"
+                  placeholder="https://..."
+                  value={resubmitScrapForm.photo_url}
+                  onChange={e => setResubmitScrapForm({ ...resubmitScrapForm, photo_url: e.target.value })}
+                  className="w-full p-2 border border-gray-300 rounded-lg"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-gray-100">
+                <button type="button" onClick={() => setResubmitScrapItem(null)} className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg font-medium">Cancel</button>
+                <button type="submit" disabled={busy} className="px-4 py-1.5 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700">
+                  {busy ? 'Resubmitting...' : 'Resubmit Scrap'}
                 </button>
               </div>
             </form>
