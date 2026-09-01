@@ -244,23 +244,35 @@ export default function TaskCard({ task, compact, onEdit, onDelete, onSelect, on
         )}
       </div>
 
-      <div className="mt-2 sm:mt-2.5 pt-1 sm:pt-1.5 border-t border-dashed border-gray-100 flex items-center gap-1.5 text-[9px] sm:text-[10px] text-gray-400">
-        {task.creator_id === task.assignee_id ? (
-          <span className="bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded font-medium">Self Assigned</span>
-        ) : (
-          <span>
-            Assigned by <span className="font-bold text-gray-900">{task.creator_name || 'System'}</span>
-            {task.creator_role && (
-              <span className={`text-[8px] sm:text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded font-semibold ml-1.5 ${
-                task.creator_role === 'admin' 
-                  ? 'bg-red-50 text-red-600 border border-red-100' 
-                  : 'bg-blue-50 text-blue-600 border border-blue-100'
-              }`}>
-                {task.creator_role}
-              </span>
-            )}
+      <div className="mt-2 sm:mt-2.5 pt-1 sm:pt-1.5 border-t border-dashed border-gray-100 flex items-center justify-between gap-1.5 text-[9px] sm:text-[10px] text-gray-400 flex-wrap">
+        <div>
+          {task.creator_id === task.assignee_id ? (
+            <span className="bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded font-medium">Self Assigned</span>
+          ) : (
+            <span>
+              Assigned by <span className="font-bold text-gray-900">{task.creator_name || 'System'}</span>
+              {task.creator_role && (
+                <span className={`text-[8px] sm:text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded font-semibold ml-1.5 ${
+                  task.creator_role === 'admin' 
+                    ? 'bg-red-50 text-red-600 border border-red-100' 
+                    : 'bg-blue-50 text-blue-600 border border-blue-100'
+                }`}>
+                  {task.creator_role}
+                </span>
+              )}
+            </span>
+          )}
+        </div>
+
+        {task.status === 'completed' ? (
+          <span className="text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200/60 font-medium text-[9px]">
+            Verified: {task.completer_name || task.verifier_name || 'Admin'}
           </span>
-        )}
+        ) : task.verifier_name ? (
+          <span className="text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200/60 font-medium text-[9px]" title={`Task verifier: ${task.verifier_name} (${task.verifier_role || 'Verifier'})`}>
+            🛡️ Verifier: {task.verifier_name}
+          </span>
+        ) : null}
       </div>
 
       <div className="flex items-center justify-between mt-2 sm:mt-2.5 pt-1.5 sm:pt-2 border-t border-gray-100">

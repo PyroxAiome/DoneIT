@@ -307,28 +307,76 @@ export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated, 
           </button>
         </div>
 
-        {/* Admin Verification / WhatsApp Review Call Banner */}
+        {/* Verifier Sign-off & WhatsApp Review Call Banner */}
         {(taskData?.status === 'under_review' || task.status === 'under_review') && (
-          <div className="mx-5 mt-4 p-3.5 bg-amber-50 border border-amber-200/80 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="flex items-start gap-2.5">
-              <div className="p-1.5 bg-amber-500 text-white rounded-lg shrink-0 mt-0.5 shadow-xs">
-                <MessageSquare className="w-4 h-4" />
+          <div className="mx-5 mt-4 p-4 bg-amber-50/90 border border-amber-200 rounded-xl space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-start gap-2.5">
+                <div className="p-1.5 bg-amber-500 text-white rounded-lg shrink-0 mt-0.5 shadow-xs">
+                  <MessageSquare className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-amber-950 uppercase tracking-wide">
+                    {taskData?.verifier_name ? `Assigned Verifier: ${taskData.verifier_name} (${taskData.verifier_role || 'Verifier'})` : 'Task Review & Verification Required'}
+                  </h4>
+                  <p className="text-xs text-amber-800 mt-0.5 leading-normal">
+                    {user?.role === 'admin' || (taskData?.verifier_id && Number(taskData.verifier_id) === Number(user.id))
+                      ? 'You are authorized as the Verifier to review all work logs, daily achievements, and explanations, and approve this task as completed.'
+                      : `To complete this task, please message or call ${taskData?.verifier_name || 'Admin'} to request a review meeting.`}
+                  </p>
+                </div>
               </div>
-              <div>
-                <h4 className="text-xs font-bold text-amber-950 uppercase tracking-wide">Call / Message Admin for Task Review</h4>
-                <p className="text-xs text-amber-800 mt-0.5 leading-normal">
-                  To complete this task, please call or message the Admin on WhatsApp to request a review meeting.
-                </p>
+
+              <div className="flex items-center gap-2 shrink-0">
+                {(user?.role === 'admin' || (taskData?.verifier_id && Number(taskData.verifier_id) === Number(user.id))) && (
+                  <button
+                    onClick={async () => {
+                      setSaving(true);
+                      try {
+                        const updated = await api.updateTask(task.id, { status: 'completed' });
+                        setTaskData(updated);
+                        onTaskUpdated?.();
+                      } catch (err) {
+                        alert(err.message);
+                      } finally {
+                        setSaving(false);
+                      }
+                    }}
+                    disabled={saving}
+                    className="btn-amber bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-3.5 py-2 flex items-center justify-center gap-1.5 shrink-0 shadow-xs whitespace-nowrap"
+                  >
+                    <Check className="w-4 h-4" />
+                    Verify & Mark Completed
+                  </button>
+                )}
+
+                <a
+                  href={`https://wa.me/?text=${encodeURIComponent(`Hi ${taskData?.verifier_name || 'Admin'}, I would like to request a meeting to review and complete my task: "${taskData?.title || task.title}"`)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 text-xs font-semibold px-3 py-2 rounded-xl flex items-center justify-center gap-1.5 shrink-0 shadow-xs whitespace-nowrap transition-colors"
+                >
+                  💬 Message on WhatsApp
+                </a>
               </div>
             </div>
-            <a
-              href={`https://wa.me/?text=${encodeURIComponent(`Hi Admin, I would like to request a meeting to review and complete my task: "${taskData?.title || task.title}"`)}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="btn-amber text-xs font-semibold px-3 py-1.5 flex items-center justify-center gap-1.5 shrink-0 shadow-xs whitespace-nowrap"
-            >
-              💬 Message Admin on WhatsApp
-            </a>
+          </div>
+        )}
+
+        {/* Task Completed Verification Info Banner */}
+        {(taskData?.status === 'completed' || task.status === 'completed') && (
+          <div className="mx-5 mt-4 p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-emerald-500" />
+              <span className="font-semibold text-emerald-950">
+                Verified & Completed by {taskData?.completer_name || taskData?.verifier_name || 'Admin'}
+              </span>
+            </div>
+            {(taskData?.verified_at || taskData?.updated_at) && (
+              <span className="text-emerald-700 text-[11px]">
+                {new Date(taskData.verified_at || taskData.updated_at).toLocaleDateString([], { dateStyle: 'medium' })}
+              </span>
+            )}
           </div>
         )}
 

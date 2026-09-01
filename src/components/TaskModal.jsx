@@ -9,24 +9,32 @@ export default function TaskModal({ isOpen, onClose, onSaved, task, employees, o
   const [form, setForm] = useState({
     title: '', description: '', color: 'slate', status: 'todo', priority: 'medium',
     category: 'General', assignee_id: '', start_date: '', due_date: '', estimated_hours: '',
+    verifier_id: '',
   });
   const [selectedAssigneeIds, setSelectedAssigneeIds] = useState([]);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [allUsersList, setAllUsersList] = useState([]);
+
+  useEffect(() => {
+    if (isOpen) {
+      api.getEmployees(true).then(setAllUsersList).catch(() => {});
+    }
+  }, [isOpen]);
 
   const assigneeList = [];
   const seenIds = new Set();
   
-  if (employees) {
-    employees.forEach(emp => {
-      if (emp.role !== 'admin' || (currentUser && emp.id === currentUser.id)) {
-        if (!seenIds.has(emp.id)) {
-          assigneeList.push(emp);
-          seenIds.add(emp.id);
-        }
+  const sourceEmployees = (employees && employees.length > 0) ? employees : allUsersList;
+
+  sourceEmployees.forEach(emp => {
+    if (emp.role !== 'admin' || (currentUser && emp.id === currentUser.id)) {
+      if (!seenIds.has(emp.id)) {
+        assigneeList.push(emp);
+        seenIds.add(emp.id);
       }
-    });
-  }
+    }
+  });
 
   if (currentUser && !seenIds.has(currentUser.id)) {
     assigneeList.push({
@@ -39,6 +47,9 @@ export default function TaskModal({ isOpen, onClose, onSaved, task, employees, o
   }
 
   assigneeList.sort((a, b) => a.name.localeCompare(b.name));
+
+  // Verifier candidates: anyone in the company (Admin, Manager, Engineer, Employee)
+  const verifierCandidates = (allUsersList.length > 0 ? allUsersList : assigneeList).slice().sort((a, b) => a.name.localeCompare(b.name));
 
   const [projectsList, setProjectsList] = useState([]);
 
@@ -62,6 +73,7 @@ export default function TaskModal({ isOpen, onClose, onSaved, task, employees, o
         due_date: task.due_date || '',
         estimated_hours: task.estimated_hours ? String(task.estimated_hours) : '',
         project_id: task.project_id ? String(task.project_id) : (projectId ? String(projectId) : ''),
+        verifier_id: task.verifier_id ? String(task.verifier_id) : '',
       });
       if (task.group_assignee_ids && Array.isArray(task.group_assignee_ids)) {
         setSelectedAssigneeIds(task.group_assignee_ids.map(Number));
@@ -75,6 +87,7 @@ export default function TaskModal({ isOpen, onClose, onSaved, task, employees, o
         title: '', description: '', color: 'slate', status: 'todo', priority: 'medium',
         category: 'General', assignee_id: currentUser ? String(currentUser.id) : '', start_date: '', due_date: '', estimated_hours: '',
         project_id: projectId ? String(projectId) : '',
+        verifier_id: '',
       });
       if (currentUser && !['admin', 'manager'].includes(currentUser.role)) {
         setSelectedAssigneeIds([Number(currentUser.id)]);
@@ -111,6 +124,7 @@ export default function TaskModal({ isOpen, onClose, onSaved, task, employees, o
     try {
       let result;
       const targetProjectId = form.project_id ? Number(form.project_id) : null;
+      const targetVerifierId = form.verifier_id ? Number(form.verifier_id) : null;
       if (isEdit) {
         const payload = {
           ...form,
@@ -118,6 +132,7 @@ export default function TaskModal({ isOpen, onClose, onSaved, task, employees, o
           assignee_ids: selectedAssigneeIds,
           estimated_hours: form.estimated_hours ? Number(form.estimated_hours) : 0,
           project_id: targetProjectId,
+          verifier_id: targetVerifierId,
         };
         result = await api.updateTask(task.id, payload);
       } else {
@@ -127,6 +142,7 @@ export default function TaskModal({ isOpen, onClose, onSaved, task, employees, o
           assignee_ids: selectedAssigneeIds,
           estimated_hours: form.estimated_hours ? Number(form.estimated_hours) : 0,
           project_id: targetProjectId,
+          verifier_id: targetVerifierId,
         };
         result = await api.createTask(payload);
       }
@@ -245,6 +261,24 @@ export default function TaskModal({ isOpen, onClose, onSaved, task, employees, o
               </select>
             </div>
           </div>
+
+          {/* Task Verifier / Reviewer (Admin & Managers can assign anyone to verify) */}
+          {['admin', 'manager'].includes(currentUser?.role) && (
+            <div>
+              <label className="text-xs text-gray-500 uppercase tracking-wider block mb-1 flex items-center justify-between">
+                <span>Assign Task Verifier / Reviewer</span>
+                <span className="text-[10px] text-amber-600 font-normal">Can verify & approve completion</span>
+              </label>
+              <select value={form.verifier_id} onChange={handleChange('verifier_id')} className="input-field">
+                <option value="">Default (Admin / System)</option>
+                {verifierCandidates.map((emp) => (
+                  <option key={emp.id} value={emp.id}>
+                    {emp.name} ({emp.role === 'admin' ? 'Admin' : emp.role === 'manager' ? 'Manager' : emp.department || 'Team Member'})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {currentUser?.role === 'admin' && (
             <div>

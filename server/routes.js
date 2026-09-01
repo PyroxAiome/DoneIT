@@ -395,11 +395,16 @@ router.get('/tasks', auth, async (req, res) => {
     let sql = `
       SELECT t.*, 
         u.name as assignee_name, u.email as assignee_email,
-        c.name as creator_name, c.role as creator_role, c.department as creator_department, e.name as last_edited_by_name
+        c.name as creator_name, c.role as creator_role, c.department as creator_department, 
+        e.name as last_edited_by_name,
+        v.name as verifier_name, v.role as verifier_role, v.department as verifier_department, v.phone as verifier_phone,
+        comp.name as completer_name
       FROM tasks t
       LEFT JOIN users u ON t.assignee_id = u.id
       LEFT JOIN users c ON t.creator_id = c.id
       LEFT JOIN users e ON t.last_edited_by = e.id
+      LEFT JOIN users v ON t.verifier_id = v.id
+      LEFT JOIN users comp ON t.completed_by = comp.id
       WHERE 1=1
     `;
     const params = [];
@@ -489,11 +494,16 @@ router.get('/tasks/:id', auth, async (req, res) => {
   try {
     const { rows } = await db.query(`
       SELECT t.*, u.name as assignee_name, u.email as assignee_email,
-        c.name as creator_name, c.role as creator_role, c.department as creator_department, e.name as last_edited_by_name
+        c.name as creator_name, c.role as creator_role, c.department as creator_department, 
+        e.name as last_edited_by_name,
+        v.name as verifier_name, v.role as verifier_role, v.department as verifier_department, v.phone as verifier_phone,
+        comp.name as completer_name
       FROM tasks t
       LEFT JOIN users u ON t.assignee_id = u.id
       LEFT JOIN users c ON t.creator_id = c.id
       LEFT JOIN users e ON t.last_edited_by = e.id
+      LEFT JOIN users v ON t.verifier_id = v.id
+      LEFT JOIN users comp ON t.completed_by = comp.id
       WHERE t.id = $1
     `, [req.params.id]);
     const task = rows[0];
@@ -515,7 +525,7 @@ router.get('/tasks/:id', auth, async (req, res) => {
 router.post('/tasks', auth, async (req, res) => {
   try {
     const { title, description, color, status, priority, category, assignee_id, assignee_ids,
-      start_date, due_date, estimated_hours, project_id } = req.body;
+      start_date, due_date, estimated_hours, project_id, verifier_id } = req.body;
 
     if (!title) return res.status(400).json({ error: 'Title required' });
 
@@ -566,15 +576,16 @@ router.post('/tasks', auth, async (req, res) => {
       const targetId = assignees[i];
       const result = await db.query(`
         INSERT INTO tasks (title, description, color, status, priority, category,
-          assignee_id, creator_id, start_date, due_date, estimated_hours, parent_id, project_id)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING id
+          assignee_id, creator_id, start_date, due_date, estimated_hours, parent_id, project_id, verifier_id)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING id
       `, [
         title, description || '', color || 'slate', status || 'todo',
         priority || 'medium', category || 'General',
         targetId, req.user.id,
         start_date || null, due_date || null, estimated_hours || 0,
         i === 0 ? null : parentId,
-        project_id || null
+        project_id || null,
+        verifier_id || null
       ]);
 
       const insertedId = result.rows[0].id;
@@ -596,11 +607,16 @@ router.post('/tasks', auth, async (req, res) => {
 
     for (const insertedId of insertedIds) {
       const { rows } = await db.query(`
-        SELECT t.*, u.name as assignee_name, c.name as creator_name, c.role as creator_role, c.department as creator_department, e.name as last_edited_by_name
+        SELECT t.*, u.name as assignee_name, c.name as creator_name, c.role as creator_role, c.department as creator_department, 
+          e.name as last_edited_by_name,
+          v.name as verifier_name, v.role as verifier_role, v.department as verifier_department, v.phone as verifier_phone,
+          comp.name as completer_name
         FROM tasks t
         LEFT JOIN users u ON t.assignee_id = u.id
         LEFT JOIN users c ON t.creator_id = c.id
         LEFT JOIN users e ON t.last_edited_by = e.id
+        LEFT JOIN users v ON t.verifier_id = v.id
+        LEFT JOIN users comp ON t.completed_by = comp.id
         WHERE t.id = $1
       `, [insertedId]);
       const task = rows[0];
@@ -616,6 +632,10 @@ router.post('/tasks', auth, async (req, res) => {
         msg = `${req.user.name} created task: "${title}"`;
       }
       await notifyRelevantUsers(req.user.id, msg, task.id);
+
+      if (task.verifier_id && Number(task.verifier_id) !== Number(req.user.id)) {
+        await createNotification(task.verifier_id, req.user.id, `${req.user.name} assigned you to verify task: "${title}"`, task.id);
+      }
     }
 
     res.status(201).json(createdTasks.length === 1 ? createdTasks[0] : { tasks: createdTasks });
@@ -699,14 +719,11 @@ router.post('/tasks/bulk', auth, async (req, res) => {
 router.put('/tasks/:id', auth, async (req, res) => {
   try {
     const { id } = req.params;
-    const { rows: taskRows } = await db.query('SELECT * FROM tasks WHERE id = $1', [id]);
-    const task = taskRows[0];
-    if (!task) return res.status(404).json({ error: 'Task not found' });
+    const { rows: currentTaskRows } = await db.query('SELECT * FROM tasks WHERE id = $1', [id]);
+    const currentTask = currentTaskRows[0];
+    if (!currentTask) return res.status(404).json({ error: 'Task not found' });
 
     if (req.user.role === 'intern') {
-      if (task.assignee_id !== req.user.id) {
-        return res.status(403).json({ error: 'Not authorized to update this task' });
-      }
       const allowedForIntern = ['status', 'progress_percent', 'logical_explanation'];
       const attemptedFields = Object.keys(req.body);
       const hasDisallowed = attemptedFields.some(f => !allowedForIntern.includes(f));
@@ -717,17 +734,17 @@ router.put('/tasks/:id', auth, async (req, res) => {
       }
     }
 
-    if (req.user.role === 'employee' && task.assignee_id !== req.user.id) {
+    if (req.user.role === 'employee' && currentTask.assignee_id !== req.user.id) {
       return res.status(403).json({ error: 'Not authorized to update this task' });
     }
 
-    const { rows: creatorRows } = await db.query('SELECT role, department FROM users WHERE id = $1', [task.creator_id]);
+    const { rows: creatorRows } = await db.query('SELECT role, department FROM users WHERE id = $1', [currentTask.creator_id]);
     const creator = creatorRows[0];
     const creatorRole = creator ? creator.role : 'admin';
     const creatorDept = creator ? creator.department : 'Engineering';
 
     if (req.user.role === 'manager') {
-      const isSelf = task.creator_id === req.user.id;
+      const isSelf = currentTask.creator_id === req.user.id;
       const isSameDeptEmployee = creatorRole === 'employee' && creatorDept === req.user.department;
       if (!isSelf && !isSameDeptEmployee) {
         const allowedFieldsForRestricted = ['status', 'priority', 'progress_percent', 'logical_explanation'];
@@ -740,17 +757,21 @@ router.put('/tasks/:id', auth, async (req, res) => {
     }
 
     let verificationRequired = false;
-    if (req.user.role !== 'admin' && req.body.status === 'completed') {
-      req.body.status = 'under_review';
-      verificationRequired = true;
-    }
+    const isVerifierOrAdmin = req.user.role === 'admin' || (currentTask.verifier_id && Number(currentTask.verifier_id) === Number(req.user.id));
 
-    // Non-admins can change status freely (todo, in_progress, under_review).
-    // 'completed' is already intercepted above and converted to 'under_review'.
+    if (req.body.status === 'completed') {
+      if (!isVerifierOrAdmin) {
+        req.body.status = 'under_review';
+        verificationRequired = true;
+      } else {
+        req.body.verified_at = new Date();
+        req.body.completed_by = req.user.id;
+      }
+    }
 
     const fields = ['title', 'description', 'color', 'status', 'priority', 'category',
       'progress_percent', 'start_date', 'due_date', 'estimated_hours',
-      'logical_explanation', 'project_id'];
+      'logical_explanation', 'project_id', 'verifier_id', 'verified_at', 'completed_by'];
 
     const updates = [];
     const values = [];
@@ -763,9 +784,6 @@ router.put('/tasks/:id', auth, async (req, res) => {
       }
     }
 
-    const { rows: currentTaskRows } = await db.query('SELECT * FROM tasks WHERE id = $1', [id]);
-    const currentTask = currentTaskRows[0];
-    if (!currentTask) return res.status(404).json({ error: 'Task not found' });
 
     const assignee_id = req.body.assignee_id;
     const assignee_ids = req.body.assignee_ids;
@@ -893,11 +911,16 @@ router.put('/tasks/:id', auth, async (req, res) => {
 
     const { rows: updatedRows } = await db.query(`
       SELECT t.*, u.name as assignee_name, u.email as assignee_email,
-        c.name as creator_name, c.role as creator_role, c.department as creator_department, e.name as last_edited_by_name
+        c.name as creator_name, c.role as creator_role, c.department as creator_department, 
+        e.name as last_edited_by_name,
+        v.name as verifier_name, v.role as verifier_role, v.department as verifier_department, v.phone as verifier_phone,
+        comp.name as completer_name
       FROM tasks t
       LEFT JOIN users u ON t.assignee_id = u.id
       LEFT JOIN users c ON t.creator_id = c.id
       LEFT JOIN users e ON t.last_edited_by = e.id
+      LEFT JOIN users v ON t.verifier_id = v.id
+      LEFT JOIN users comp ON t.completed_by = comp.id
       WHERE t.id = $1
     `, [id]);
     
@@ -918,6 +941,12 @@ router.put('/tasks/:id', auth, async (req, res) => {
     updated.group_assignees = groupResult.names;
     updated.verificationRequired = verificationRequired;
     await notifyRelevantUsers(req.user.id, msg, updated.id);
+
+    if (verificationRequired && updated.verifier_id && Number(updated.verifier_id) !== Number(req.user.id)) {
+      await createNotification(updated.verifier_id, req.user.id, `${req.user.name} submitted task "${updated.title}" for your verification & review`, updated.id);
+    } else if (updated.status === 'completed' && isVerifierOrAdmin && updated.assignee_id && Number(updated.assignee_id) !== Number(req.user.id)) {
+      await createNotification(updated.assignee_id, req.user.id, `${req.user.name} verified and approved task: "${updated.title}" as completed!`, updated.id);
+    }
 
     res.json(updated);
   } catch (err) {

@@ -137,8 +137,11 @@ const initDatabase = async () => {
       UNIQUE(project_id, user_id)
     );
 
-    -- Add project_id to existing tasks table
+    -- Add project_id and verifier columns to existing tasks table
     ALTER TABLE tasks ADD COLUMN IF NOT EXISTS project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL;
+    ALTER TABLE tasks ADD COLUMN IF NOT EXISTS verifier_id INTEGER REFERENCES users(id) ON DELETE SET NULL;
+    ALTER TABLE tasks ADD COLUMN IF NOT EXISTS verified_at TIMESTAMP;
+    ALTER TABLE tasks ADD COLUMN IF NOT EXISTS completed_by INTEGER REFERENCES users(id) ON DELETE SET NULL;
 
     CREATE TABLE IF NOT EXISTS admin_comments (
       id SERIAL PRIMARY KEY,

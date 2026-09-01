@@ -3,7 +3,10 @@ import { ShieldCheck, MessageSquare, X } from 'lucide-react';
 export default function TaskVerificationModal({ isOpen, onClose, task }) {
   if (!isOpen || !task) return null;
 
-  const whatsappMessage = `Hi Admin, I have completed the task "${task.title}" and would like to request a review meeting to verify and mark it completed.`;
+  const verifierName = task.verifier_name || 'Admin';
+  const verifierRole = task.verifier_role || 'Verifier';
+
+  const whatsappMessage = `Hi ${verifierName}, I have completed the task "${task.title}" and would like to request a review meeting to verify and mark it completed.`;
   const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(whatsappMessage)}`;
 
   return (
@@ -15,8 +18,12 @@ export default function TaskVerificationModal({ isOpen, onClose, task }) {
               <ShieldCheck className="w-5 h-5 text-amber-600" />
             </div>
             <div>
-              <h3 className="font-semibold text-gray-900 text-base">Admin Verification Required</h3>
-              <p className="text-xs text-amber-700 font-medium">Task updated to Under Review</p>
+              <h3 className="font-semibold text-gray-900 text-base">
+                {task.verifier_name ? 'Task Verification Required' : 'Admin Verification Required'}
+              </h3>
+              <p className="text-xs text-amber-700 font-medium">
+                {task.verifier_name ? `Assigned Verifier: ${verifierName} (${verifierRole})` : 'Task updated to Under Review'}
+              </p>
             </div>
           </div>
           <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-lg transition-colors">
@@ -27,10 +34,10 @@ export default function TaskVerificationModal({ isOpen, onClose, task }) {
         <div className="bg-amber-50/60 border border-amber-100 rounded-xl p-3.5 space-y-2">
           <p className="text-xs font-bold text-gray-900 truncate">{task.title}</p>
           <p className="text-xs text-gray-600 leading-relaxed">
-            Great work! In accordance with company workflow rules, completed tasks require Admin review and verification before final completion.
+            Great work! In accordance with company workflow rules, completed tasks require review and verification by <span className="font-semibold text-gray-900">{verifierName}</span> before final completion.
           </p>
           <p className="text-xs text-amber-900 font-medium pt-1">
-            Please message or call the Admin to set up a quick review meeting.
+            Please message or call {verifierName} to set up a quick review meeting.
           </p>
         </div>
 
@@ -43,7 +50,7 @@ export default function TaskVerificationModal({ isOpen, onClose, task }) {
             className="btn-amber text-xs font-semibold py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 shadow-xs w-full"
           >
             <MessageSquare className="w-4 h-4" />
-            Message Admin on WhatsApp
+            Message {verifierName} on WhatsApp
           </a>
           <button
             onClick={onClose}
