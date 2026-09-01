@@ -351,6 +351,24 @@ const initDatabase = async () => {
     ALTER TABLE project_material_receipts DROP CONSTRAINT IF EXISTS project_material_receipts_status_check;
     ALTER TABLE project_material_receipts ADD CONSTRAINT project_material_receipts_status_check CHECK(status IN ('pending_manager', 'pending_admin', 'approved', 'rejected'));
 
+    ALTER TABLE project_material_usage ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'approved';
+    ALTER TABLE project_material_usage ADD COLUMN IF NOT EXISTS manager_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL;
+    ALTER TABLE project_material_usage ADD COLUMN IF NOT EXISTS admin_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL;
+    ALTER TABLE project_material_usage ADD COLUMN IF NOT EXISTS verified_at TIMESTAMP DEFAULT NULL;
+    ALTER TABLE project_material_usage ADD COLUMN IF NOT EXISTS admin_verified_at TIMESTAMP DEFAULT NULL;
+    ALTER TABLE project_material_usage ADD COLUMN IF NOT EXISTS rejection_reason TEXT DEFAULT '';
+    ALTER TABLE project_material_usage DROP CONSTRAINT IF EXISTS project_material_usage_status_check;
+    ALTER TABLE project_material_usage ADD CONSTRAINT project_material_usage_status_check CHECK(status IN ('pending_manager', 'pending_admin', 'approved', 'rejected'));
+
+    ALTER TABLE project_material_scrap ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'approved';
+    ALTER TABLE project_material_scrap ADD COLUMN IF NOT EXISTS manager_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL;
+    ALTER TABLE project_material_scrap ADD COLUMN IF NOT EXISTS admin_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL;
+    ALTER TABLE project_material_scrap ADD COLUMN IF NOT EXISTS verified_at TIMESTAMP DEFAULT NULL;
+    ALTER TABLE project_material_scrap ADD COLUMN IF NOT EXISTS admin_verified_at TIMESTAMP DEFAULT NULL;
+    ALTER TABLE project_material_scrap ADD COLUMN IF NOT EXISTS rejection_reason TEXT DEFAULT '';
+    ALTER TABLE project_material_scrap DROP CONSTRAINT IF EXISTS project_material_scrap_status_check;
+    ALTER TABLE project_material_scrap ADD CONSTRAINT project_material_scrap_status_check CHECK(status IN ('pending_manager', 'pending_admin', 'approved', 'rejected'));
+
     ALTER TABLE project_documents ADD COLUMN IF NOT EXISTS manager_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL;
     ALTER TABLE project_documents ADD COLUMN IF NOT EXISTS admin_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL;
     ALTER TABLE project_documents ADD COLUMN IF NOT EXISTS verified_at TIMESTAMP DEFAULT NULL;
