@@ -211,7 +211,7 @@ export default function ManagerDashboard({ user }) {
     if (activeTab === 'completed') {
       return t.status === 'completed';
     } else {
-      return true;
+      return t.status !== 'completed';
     }
   }).sort((a, b) => {
     if (activeTab === 'work') {
