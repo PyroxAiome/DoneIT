@@ -165,11 +165,44 @@ export default function ProjectInventory({ project, user, tasks, onInventoryChan
   const totalScrappedCount = data.balances.reduce((acc, b) => acc + (b.total_scrapped || 0), 0);
   const totalInStockCount = data.balances.reduce((acc, b) => acc + (b.in_stock || 0), 0);
 
+  const isApprover = ['admin', 'manager'].includes(user.role);
+
   const myReceipts = Array.isArray(data.mySubmissions) ? data.mySubmissions : (data.mySubmissions?.receipts || []);
   const myUsage = Array.isArray(data.mySubmissions) ? [] : (data.mySubmissions?.usage || []);
   const myScrap = Array.isArray(data.mySubmissions) ? [] : (data.mySubmissions?.scrap || []);
   const myAudits = Array.isArray(data.mySubmissions) ? [] : (data.mySubmissions?.audits || []);
   const totalMySubmissionsCount = myReceipts.length + myUsage.length + myScrap.length + myAudits.length;
+
+  // Verifications performed by the current user (Admin or Manager)
+  const verifiedReceipts = (data.receipts || []).filter(r => {
+    if (user.role === 'admin') {
+      return (Number(r.admin_user_id) === Number(user.id) && r.status === 'approved') ||
+             (r.status === 'rejected' && Number(r.manager_user_id) === Number(user.id));
+    }
+    return Number(r.manager_user_id) === Number(user.id);
+  });
+
+  const verifiedUsage = (data.usage || []).filter(u => {
+    if (user.role === 'admin') {
+      return (Number(u.admin_user_id) === Number(user.id) && u.status === 'approved') ||
+             (u.status === 'rejected' && Number(u.manager_user_id) === Number(user.id));
+    }
+    return Number(u.manager_user_id) === Number(user.id);
+  });
+
+  const verifiedScrap = (data.scrap || []).filter(s => {
+    if (user.role === 'admin') {
+      return (Number(s.admin_user_id) === Number(user.id) && s.status === 'approved') ||
+             (s.status === 'rejected' && Number(s.manager_user_id) === Number(user.id));
+    }
+    return Number(s.manager_user_id) === Number(user.id);
+  });
+
+  const verifiedAudits = (data.audits || []).filter(a => 
+    Number(a.verified_by) === Number(user.id) && ['verified', 'rejected'].includes(a.status)
+  );
+
+  const totalMyVerificationsCount = verifiedReceipts.length + verifiedUsage.length + verifiedScrap.length + verifiedAudits.length;
 
   const categories = Array.from(new Set(data.balances.map(b => b.category))).filter(Boolean);
 
@@ -893,7 +926,22 @@ export default function ProjectInventory({ project, user, tasks, onInventoryChan
         {/* Sub Navigation & Search */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex flex-wrap gap-1 bg-gray-100 p-1 rounded-lg self-start">
-            {user.role !== 'admin' && (
+            {isApprover ? (
+              <div className="relative group/tip">
+                <button
+                  onClick={() => setActiveSubTab('my_verifications')}
+                  className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                    activeSubTab === 'my_verifications' ? 'bg-indigo-600 text-white shadow-sm' : 'text-indigo-800 bg-indigo-50 hover:bg-indigo-100'
+                  }`}
+                >
+                  ✅ Verified by Me ({totalMyVerificationsCount})
+                </button>
+                <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 hidden group-hover/tip:block w-72 p-2 bg-gray-900 text-white text-[11px] leading-snug rounded-lg shadow-xl z-50 pointer-events-none text-center">
+                  Audit log of material arrivals, installations, scrap, and physical audits reviewed and verified by you with comments.
+                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 -mb-1 border-4 border-transparent border-b-gray-900" />
+                </div>
+              </div>
+            ) : (
               <div className="relative group/tip">
                 <button
                   onClick={() => setActiveSubTab('my_submissions')}
@@ -1012,8 +1060,316 @@ export default function ProjectInventory({ project, user, tasks, onInventoryChan
           </div>
         </div>
 
-        {/* Tab 0: My Submissions Tracker */}
-        {activeSubTab === 'my_submissions' && (
+        {/* Tab 0A: My Verifications & Review Audit Log (Manager & Admin) */}
+        {activeSubTab === 'my_verifications' && (
+          <div className="space-y-6">
+            <div className="p-4 bg-indigo-50/80 border border-indigo-200 rounded-xl">
+              <h4 className="text-xs font-bold text-indigo-900 flex items-center gap-1.5">
+                <ShieldCheck className="w-4 h-4 text-indigo-600" />
+                My Verification & Review Audit Log ({totalMyVerificationsCount})
+              </h4>
+              <p className="text-[11px] text-indigo-800 mt-0.5">
+                Detailed audit history of all project inventory entries (Inward deliveries, installations, damaged scrap, and physical store audits) reviewed, verified, or approved by you, along with your decisions, feedback, and comments.
+              </p>
+            </div>
+
+            {totalMyVerificationsCount === 0 ? (
+              <div className="p-12 text-center text-gray-400 bg-white rounded-xl border border-gray-200">
+                <ShieldCheck className="w-8 h-8 text-indigo-400 mx-auto mb-2" />
+                <p className="font-semibold text-gray-700 text-sm">No Verifications Logged Yet</p>
+                <p className="text-xs text-gray-500 mt-1">You have not verified or reviewed any inventory submissions for this project yet.</p>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {/* 1. Inward Receipts Verified */}
+                {verifiedReceipts.length > 0 && (
+                  <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-xs">
+                    <div className="bg-gray-50 px-4 py-2.5 border-b border-gray-200 font-bold text-xs text-gray-800 flex items-center justify-between">
+                      <span className="flex items-center gap-1.5">📦 Inward Material Deliveries Verified ({verifiedReceipts.length})</span>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs border-collapse">
+                        <thead>
+                          <tr className="bg-gray-50/50 border-b border-gray-200 text-gray-500 font-semibold uppercase tracking-wider">
+                            <th className="p-3">Material</th>
+                            <th className="p-3">Qty Received</th>
+                            <th className="p-3">Challan # / Photo</th>
+                            <th className="p-3">Logged By</th>
+                            <th className="p-3 text-center">Your Decision</th>
+                            <th className="p-3">Verified On</th>
+                            <th className="p-3">Your Comment / Rejection Reason</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {verifiedReceipts.map(r => (
+                            <tr key={r.id} className="hover:bg-gray-50/80 transition-colors">
+                              <td className="p-3 font-bold text-gray-900">{r.item_name}</td>
+                              <td className="p-3 text-emerald-700 font-bold">+{r.qty_received} {r.item_unit}</td>
+                              <td className="p-3">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-mono font-bold text-gray-800">{r.challan_number || 'N/A'}</span>
+                                  {r.challan_photo && (
+                                    <button
+                                      onClick={() => setPreviewImage(r.challan_photo)}
+                                      className="text-amber-600 hover:text-amber-700 p-0.5 rounded hover:bg-amber-50"
+                                      title="View DC Photo"
+                                    >
+                                      <Camera className="w-3.5 h-3.5" />
+                                    </button>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="p-3 text-gray-700 font-medium">{r.receiver_name || 'Site Member'}</td>
+                              <td className="p-3 text-center">
+                                {r.status === 'approved' && (
+                                  <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold text-[10px]">
+                                    🟢 Final Approved
+                                  </span>
+                                )}
+                                {r.status === 'pending_admin' && (
+                                  <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-900 font-bold text-[10px]">
+                                    🔵 Verified & Sent to Admin
+                                  </span>
+                                )}
+                                {r.status === 'rejected' && (
+                                  <span className="px-2 py-0.5 rounded-full bg-red-100 text-red-900 font-bold text-[10px]">
+                                    🔴 Rejected by You
+                                  </span>
+                                )}
+                              </td>
+                              <td className="p-3 text-gray-500">
+                                {r.admin_verified_at 
+                                  ? new Date(r.admin_verified_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })
+                                  : r.verified_at
+                                  ? new Date(r.verified_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })
+                                  : new Date(r.created_at).toLocaleDateString()}
+                              </td>
+                              <td className="p-3">
+                                {r.rejection_reason ? (
+                                  <span className="text-red-700 font-medium text-[11px]">{r.rejection_reason}</span>
+                                ) : r.notes ? (
+                                  <span className="text-gray-600 text-[11px]">{r.notes}</span>
+                                ) : (
+                                  <span className="text-gray-400 text-[11px] italic">Verified & Signed off</span>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {/* 2. Usage Verified */}
+                {verifiedUsage.length > 0 && (
+                  <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-xs">
+                    <div className="bg-gray-50 px-4 py-2.5 border-b border-gray-200 font-bold text-xs text-gray-800 flex items-center justify-between">
+                      <span className="flex items-center gap-1.5">🛠️ Material Installations / Usage Verified ({verifiedUsage.length})</span>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs border-collapse">
+                        <thead>
+                          <tr className="bg-gray-50/50 border-b border-gray-200 text-gray-500 font-semibold uppercase tracking-wider">
+                            <th className="p-3">Material</th>
+                            <th className="p-3">Qty Used</th>
+                            <th className="p-3">Location / Task</th>
+                            <th className="p-3">Logged By</th>
+                            <th className="p-3 text-center">Your Decision</th>
+                            <th className="p-3">Verified On</th>
+                            <th className="p-3">Your Comment / Rejection Reason</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {verifiedUsage.map(u => (
+                            <tr key={u.id} className="hover:bg-gray-50/80 transition-colors">
+                              <td className="p-3 font-bold text-gray-900">{u.item_name}</td>
+                              <td className="p-3 text-blue-700 font-bold">-{u.qty_used} {u.item_unit}</td>
+                              <td className="p-3 text-gray-700">{u.installed_location || u.task_title || '-'}</td>
+                              <td className="p-3 text-gray-700 font-medium">{u.logger_name || 'Site Member'}</td>
+                              <td className="p-3 text-center">
+                                {u.status === 'approved' && (
+                                  <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold text-[10px]">
+                                    🟢 Final Approved
+                                  </span>
+                                )}
+                                {u.status === 'pending_admin' && (
+                                  <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-900 font-bold text-[10px]">
+                                    🔵 Verified & Sent to Admin
+                                  </span>
+                                )}
+                                {u.status === 'rejected' && (
+                                  <span className="px-2 py-0.5 rounded-full bg-red-100 text-red-900 font-bold text-[10px]">
+                                    🔴 Rejected by You
+                                  </span>
+                                )}
+                              </td>
+                              <td className="p-3 text-gray-500">
+                                {u.admin_verified_at 
+                                  ? new Date(u.admin_verified_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })
+                                  : u.verified_at
+                                  ? new Date(u.verified_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })
+                                  : new Date(u.created_at).toLocaleDateString()}
+                              </td>
+                              <td className="p-3">
+                                {u.rejection_reason ? (
+                                  <span className="text-red-700 font-medium text-[11px]">{u.rejection_reason}</span>
+                                ) : u.notes ? (
+                                  <span className="text-gray-600 text-[11px]">{u.notes}</span>
+                                ) : (
+                                  <span className="text-gray-400 text-[11px] italic">Verified & Signed off</span>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {/* 3. Scrap Verified */}
+                {verifiedScrap.length > 0 && (
+                  <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-xs">
+                    <div className="bg-gray-50 px-4 py-2.5 border-b border-gray-200 font-bold text-xs text-gray-800 flex items-center justify-between">
+                      <span className="flex items-center gap-1.5">⚠️ Damaged / Scrapped Materials Verified ({verifiedScrap.length})</span>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs border-collapse">
+                        <thead>
+                          <tr className="bg-gray-50/50 border-b border-gray-200 text-gray-500 font-semibold uppercase tracking-wider">
+                            <th className="p-3">Material</th>
+                            <th className="p-3">Qty Scrapped</th>
+                            <th className="p-3">Damage Reason / Photo</th>
+                            <th className="p-3">Logged By</th>
+                            <th className="p-3 text-center">Your Decision</th>
+                            <th className="p-3">Verified On</th>
+                            <th className="p-3">Your Comment / Rejection Reason</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {verifiedScrap.map(s => (
+                            <tr key={s.id} className="hover:bg-gray-50/80 transition-colors">
+                              <td className="p-3 font-bold text-gray-900">{s.item_name}</td>
+                              <td className="p-3 text-red-600 font-bold">-{s.qty_scrapped} {s.item_unit}</td>
+                              <td className="p-3">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-gray-700 italic">{s.reason}</span>
+                                  {s.photo_url && (
+                                    <button
+                                      onClick={() => setPreviewImage(s.photo_url)}
+                                      className="text-red-600 hover:text-red-700 p-0.5 rounded hover:bg-red-50"
+                                      title="View Damage Photo"
+                                    >
+                                      <Camera className="w-3.5 h-3.5" />
+                                    </button>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="p-3 text-gray-700 font-medium">{s.logger_name || 'Site Member'}</td>
+                              <td className="p-3 text-center">
+                                {s.status === 'approved' && (
+                                  <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold text-[10px]">
+                                    🟢 Final Approved
+                                  </span>
+                                )}
+                                {s.status === 'pending_admin' && (
+                                  <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-900 font-bold text-[10px]">
+                                    🔵 Verified & Sent to Admin
+                                  </span>
+                                )}
+                                {s.status === 'rejected' && (
+                                  <span className="px-2 py-0.5 rounded-full bg-red-100 text-red-900 font-bold text-[10px]">
+                                    🔴 Rejected by You
+                                  </span>
+                                )}
+                              </td>
+                              <td className="p-3 text-gray-500">
+                                {s.admin_verified_at 
+                                  ? new Date(s.admin_verified_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })
+                                  : s.verified_at
+                                  ? new Date(s.verified_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })
+                                  : new Date(s.created_at).toLocaleDateString()}
+                              </td>
+                              <td className="p-3">
+                                {s.rejection_reason ? (
+                                  <span className="text-red-700 font-medium text-[11px]">{s.rejection_reason}</span>
+                                ) : (
+                                  <span className="text-gray-400 text-[11px] italic">Verified & Signed off</span>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {/* 4. Audits Verified */}
+                {verifiedAudits.length > 0 && (
+                  <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-xs">
+                    <div className="bg-gray-50 px-4 py-2.5 border-b border-gray-200 font-bold text-xs text-gray-800 flex items-center justify-between">
+                      <span className="flex items-center gap-1.5">🛡️ Store Physical Audits Verified ({verifiedAudits.length})</span>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs border-collapse">
+                        <thead>
+                          <tr className="bg-gray-50/50 border-b border-gray-200 text-gray-500 font-semibold uppercase tracking-wider">
+                            <th className="p-3">Material</th>
+                            <th className="p-3">Counted Qty</th>
+                            <th className="p-3">System Qty</th>
+                            <th className="p-3">Audited By</th>
+                            <th className="p-3 text-center">Your Decision</th>
+                            <th className="p-3">Verified On</th>
+                            <th className="p-3">Your Feedback / Comment</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {verifiedAudits.map(a => (
+                            <tr key={a.id} className="hover:bg-gray-50/80 transition-colors">
+                              <td className="p-3 font-bold text-gray-900">{a.item_name}</td>
+                              <td className="p-3 text-purple-900 font-bold">{a.physical_counted_qty} {a.item_unit}</td>
+                              <td className="p-3 text-gray-500">{a.system_expected_qty} {a.item_unit}</td>
+                              <td className="p-3 text-gray-700 font-medium">{a.auditor_name || 'Auditor'}</td>
+                              <td className="p-3 text-center">
+                                {a.status === 'verified' && (
+                                  <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold text-[10px]">
+                                    🟢 Verified & Accepted
+                                  </span>
+                                )}
+                                {a.status === 'rejected' && (
+                                  <span className="px-2 py-0.5 rounded-full bg-red-100 text-red-900 font-bold text-[10px]">
+                                    🔴 Rejected by You
+                                  </span>
+                                )}
+                              </td>
+                              <td className="p-3 text-gray-500">
+                                {a.verified_at ? new Date(a.verified_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }) : '-'}
+                              </td>
+                              <td className="p-3">
+                                {a.rejection_reason ? (
+                                  <span className="text-red-700 font-medium text-[11px]">{a.rejection_reason}</span>
+                                ) : a.notes ? (
+                                  <span className="text-gray-600 text-[11px]">{a.notes}</span>
+                                ) : (
+                                  <span className="text-gray-400 text-[11px] italic">Verified & Signed off</span>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Tab 0B: My Submissions Tracker (Employees Only) */}
+        {!isApprover && activeSubTab === 'my_submissions' && (
           <div className="space-y-6">
             <div className="p-4 bg-amber-50/80 border border-amber-200 rounded-xl">
               <h4 className="text-xs font-bold text-amber-900 flex items-center gap-1.5">
