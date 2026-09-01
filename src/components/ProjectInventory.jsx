@@ -164,6 +164,12 @@ export default function ProjectInventory({ project, user, tasks }) {
   const totalScrappedCount = data.balances.reduce((acc, b) => acc + (b.total_scrapped || 0), 0);
   const totalInStockCount = data.balances.reduce((acc, b) => acc + (b.in_stock || 0), 0);
 
+  const myReceipts = Array.isArray(data.mySubmissions) ? data.mySubmissions : (data.mySubmissions?.receipts || []);
+  const myUsage = Array.isArray(data.mySubmissions) ? [] : (data.mySubmissions?.usage || []);
+  const myScrap = Array.isArray(data.mySubmissions) ? [] : (data.mySubmissions?.scrap || []);
+  const myAudits = Array.isArray(data.mySubmissions) ? [] : (data.mySubmissions?.audits || []);
+  const totalMySubmissionsCount = myReceipts.length + myUsage.length + myScrap.length + myAudits.length;
+
   const categories = Array.from(new Set(data.balances.map(b => b.category))).filter(Boolean);
 
   const filteredBalances = data.balances.filter(b => {
@@ -886,20 +892,22 @@ export default function ProjectInventory({ project, user, tasks }) {
         {/* Sub Navigation & Search */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex flex-wrap gap-1 bg-gray-100 p-1 rounded-lg self-start">
-            <div className="relative group/tip">
-              <button
-                onClick={() => setActiveSubTab('my_submissions')}
-                className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
-                  activeSubTab === 'my_submissions' ? 'bg-amber-600 text-white shadow-sm' : 'text-amber-800 bg-amber-50 hover:bg-amber-100'
-                }`}
-              >
-                📋 My Submissions Tracker ({data.mySubmissions ? data.mySubmissions.length : 0})
-              </button>
-              <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 hidden group-hover/tip:block w-64 p-2 bg-gray-900 text-white text-[11px] leading-snug rounded-lg shadow-xl z-50 pointer-events-none text-center">
-                Track status of Delivery Challans logged by you. Fix & resubmit any rejected entries.
-                <div className="absolute bottom-full left-1/2 -translate-x-1/2 -mb-1 border-4 border-transparent border-b-gray-900" />
+            {user.role !== 'admin' && (
+              <div className="relative group/tip">
+                <button
+                  onClick={() => setActiveSubTab('my_submissions')}
+                  className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                    activeSubTab === 'my_submissions' ? 'bg-amber-600 text-white shadow-sm' : 'text-amber-800 bg-amber-50 hover:bg-amber-100'
+                  }`}
+                >
+                  📋 My Submissions Tracker ({totalMySubmissionsCount})
+                </button>
+                <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 hidden group-hover/tip:block w-64 p-2 bg-gray-900 text-white text-[11px] leading-snug rounded-lg shadow-xl z-50 pointer-events-none text-center">
+                  Track status of material entries logged by you. Fix & resubmit any rejected items.
+                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 -mb-1 border-4 border-transparent border-b-gray-900" />
+                </div>
               </div>
-            </div>
+            )}
 
             <div className="relative group/tip">
               <button
@@ -1005,85 +1013,298 @@ export default function ProjectInventory({ project, user, tasks }) {
 
         {/* Tab 0: My Submissions Tracker */}
         {activeSubTab === 'my_submissions' && (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="bg-amber-50/50 border-b border-amber-200 text-amber-900 font-semibold uppercase tracking-wider">
-                  <th className="p-3">Material</th>
-                  <th className="p-3">Qty Received</th>
-                  <th className="p-3">Challan #</th>
-                  <th className="p-3">Date Logged</th>
-                  <th className="p-3 text-center">Status</th>
-                  <th className="p-3">Verification / Rejection Details</th>
-                  <th className="p-3 text-right">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {(!data.mySubmissions || data.mySubmissions.length === 0) ? (
-                  <tr>
-                    <td colSpan={7} className="p-8 text-center text-gray-400 italic">
-                      You have no pending or rejected material submissions for this project.
-                    </td>
-                  </tr>
-                ) : (
-                  data.mySubmissions.map(r => (
-                    <tr key={r.id} className="hover:bg-gray-50/80 transition-colors">
-                      <td className="p-3 font-bold text-gray-900">{r.item_name}</td>
-                      <td className="p-3 text-emerald-700 font-bold">+{r.qty_received} {r.item_unit}</td>
-                      <td className="p-3 font-mono font-bold text-amber-900">{r.challan_number || 'N/A'}</td>
-                      <td className="p-3 text-gray-500">{new Date(r.created_at).toLocaleDateString()}</td>
-                      <td className="p-3 text-center">
-                        {r.status === 'pending_manager' && (
-                          <span className="px-2 py-1 rounded-full bg-amber-100 text-amber-900 font-bold text-[10px]">
-                            🟡 Pending Manager Verification
-                          </span>
-                        )}
-                        {r.status === 'pending_admin' && (
-                          <span className="px-2 py-1 rounded-full bg-blue-100 text-blue-900 font-bold text-[10px]">
-                            🔵 Pending Admin Approval
-                          </span>
-                        )}
-                        {r.status === 'rejected' && (
-                          <span className="px-2 py-1 rounded-full bg-red-100 text-red-900 font-bold text-[10px]">
-                            🔴 Rejected by Verifier
-                          </span>
-                        )}
-                      </td>
-                      <td className="p-3">
-                        {r.status === 'rejected' ? (
-                          <div className="bg-red-50 border border-red-200 rounded p-2 text-red-800 text-[11px]">
-                            <span className="font-bold block">Rejection Reason:</span>
-                            {r.rejection_reason || 'Incomplete details or illegible stamp'}
-                          </div>
-                        ) : r.status === 'pending_admin' ? (
-                          <span className="text-gray-600 text-[11px]">Verified by Manager. Awaiting Admin sign-off.</span>
-                        ) : (
-                          <span className="text-gray-500 text-[11px]">Sent to Manager queue for inspection.</span>
-                        )}
-                      </td>
-                      <td className="p-3 text-right">
-                        {r.status === 'rejected' && (
-                          <button
-                            onClick={() => {
-                              setResubmitItem(r);
-                              setResubmitForm({
-                                qty_received: r.qty_received,
-                                challan_number: r.challan_number || '',
-                                challan_photo: r.challan_photo || '',
-                                notes: r.notes || ''
-                              });
-                            }}
-                            className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded text-[11px] transition-colors"
-                          >
-                            Fix & Resubmit
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  ))
+          <div className="space-y-6">
+            <div className="p-4 bg-amber-50/80 border border-amber-200 rounded-xl">
+              <h4 className="text-xs font-bold text-amber-900 flex items-center gap-1.5">
+                <FileText className="w-4 h-4 text-amber-600" />
+                My Pending & Rejected Submissions ({totalMySubmissionsCount})
+              </h4>
+              <p className="text-[11px] text-amber-800 mt-0.5">
+                Track the approval status of your inward materials, usage/installations, scrap, and physical store audits. If any submission is rejected, review the feedback and click <span className="font-semibold">"Fix & Resubmit"</span> to revise it.
+              </p>
+            </div>
+
+            {totalMySubmissionsCount === 0 ? (
+              <div className="p-12 text-center text-gray-400 bg-white rounded-xl border border-gray-200">
+                <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto mb-2" />
+                <p className="font-semibold text-gray-700 text-sm">All Caught Up!</p>
+                <p className="text-xs text-gray-500 mt-1">You have no pending or rejected inventory submissions waiting for review.</p>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {/* 1. Inward Receipts */}
+                {myReceipts.length > 0 && (
+                  <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-xs">
+                    <div className="bg-gray-50 px-4 py-2.5 border-b border-gray-200 font-bold text-xs text-gray-800 flex items-center justify-between">
+                      <span className="flex items-center gap-1.5">📦 Inward Material Arrivals ({myReceipts.length})</span>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs border-collapse">
+                        <thead>
+                          <tr className="bg-gray-50/50 border-b border-gray-200 text-gray-500 font-semibold uppercase tracking-wider">
+                            <th className="p-3">Material</th>
+                            <th className="p-3">Qty Received</th>
+                            <th className="p-3">Challan #</th>
+                            <th className="p-3">Date</th>
+                            <th className="p-3 text-center">Status</th>
+                            <th className="p-3">Details / Rejection Reason</th>
+                            <th className="p-3 text-right">Action</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {myReceipts.map(r => (
+                            <tr key={r.id} className="hover:bg-gray-50/80 transition-colors">
+                              <td className="p-3 font-bold text-gray-900">{r.item_name}</td>
+                              <td className="p-3 text-emerald-700 font-bold">+{r.qty_received} {r.item_unit}</td>
+                              <td className="p-3 font-mono font-bold text-amber-900">{r.challan_number || 'N/A'}</td>
+                              <td className="p-3 text-gray-500">{new Date(r.created_at).toLocaleDateString()}</td>
+                              <td className="p-3 text-center">
+                                {r.status === 'pending_manager' && (
+                                  <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 font-bold text-[10px]">
+                                    🟡 Pending Manager Review
+                                  </span>
+                                )}
+                                {r.status === 'pending_admin' && (
+                                  <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-900 font-bold text-[10px]">
+                                    🔵 Pending Admin Approval
+                                  </span>
+                                )}
+                                {r.status === 'rejected' && (
+                                  <span className="px-2 py-0.5 rounded-full bg-red-100 text-red-900 font-bold text-[10px]">
+                                    🔴 Rejected
+                                  </span>
+                                )}
+                              </td>
+                              <td className="p-3">
+                                {r.status === 'rejected' ? (
+                                  <span className="text-red-700 font-medium text-[11px]">{r.rejection_reason || 'Incomplete details'}</span>
+                                ) : (
+                                  <span className="text-gray-500 text-[11px]">Awaiting verifier review</span>
+                                )}
+                              </td>
+                              <td className="p-3 text-right">
+                                {r.status === 'rejected' && (
+                                  <button
+                                    onClick={() => {
+                                      setResubmitItem(r);
+                                      setResubmitForm({
+                                        qty_received: r.qty_received,
+                                        challan_number: r.challan_number || '',
+                                        challan_photo: r.challan_photo || '',
+                                        notes: r.notes || ''
+                                      });
+                                    }}
+                                    className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded text-[11px] transition-colors"
+                                  >
+                                    Fix & Resubmit
+                                  </button>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
                 )}
-              </tbody>
-            </table>
+
+                {/* 2. Installation Usage */}
+                {myUsage.length > 0 && (
+                  <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-xs">
+                    <div className="bg-gray-50 px-4 py-2.5 border-b border-gray-200 font-bold text-xs text-gray-800 flex items-center justify-between">
+                      <span className="flex items-center gap-1.5">🛠️ Material Installations / Usage ({myUsage.length})</span>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs border-collapse">
+                        <thead>
+                          <tr className="bg-gray-50/50 border-b border-gray-200 text-gray-500 font-semibold uppercase tracking-wider">
+                            <th className="p-3">Material</th>
+                            <th className="p-3">Qty Used</th>
+                            <th className="p-3">Location / Task</th>
+                            <th className="p-3">Date</th>
+                            <th className="p-3 text-center">Status</th>
+                            <th className="p-3">Details / Rejection Reason</th>
+                            <th className="p-3 text-right">Action</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {myUsage.map(u => (
+                            <tr key={u.id} className="hover:bg-gray-50/80 transition-colors">
+                              <td className="p-3 font-bold text-gray-900">{u.item_name}</td>
+                              <td className="p-3 text-blue-700 font-bold">-{u.qty_used} {u.item_unit}</td>
+                              <td className="p-3 text-gray-700">{u.installed_location || u.task_title || '-'}</td>
+                              <td className="p-3 text-gray-500">{new Date(u.created_at).toLocaleDateString()}</td>
+                              <td className="p-3 text-center">
+                                {u.status === 'pending_manager' && (
+                                  <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 font-bold text-[10px]">
+                                    🟡 Pending Manager Review
+                                  </span>
+                                )}
+                                {u.status === 'pending_admin' && (
+                                  <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-900 font-bold text-[10px]">
+                                    🔵 Pending Admin Approval
+                                  </span>
+                                )}
+                                {u.status === 'rejected' && (
+                                  <span className="px-2 py-0.5 rounded-full bg-red-100 text-red-900 font-bold text-[10px]">
+                                    🔴 Rejected
+                                  </span>
+                                )}
+                              </td>
+                              <td className="p-3">
+                                {u.status === 'rejected' ? (
+                                  <span className="text-red-700 font-medium text-[11px]">{u.rejection_reason || 'Incomplete details'}</span>
+                                ) : (
+                                  <span className="text-gray-500 text-[11px]">Awaiting verifier review</span>
+                                )}
+                              </td>
+                              <td className="p-3 text-right">
+                                {u.status === 'rejected' && (
+                                  <button
+                                    onClick={() => {
+                                      setResubmitUsageItem(u);
+                                      setResubmitUsageForm({
+                                        qty_used: u.qty_used,
+                                        installed_location: u.installed_location || '',
+                                        notes: u.notes || ''
+                                      });
+                                    }}
+                                    className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded text-[11px] transition-colors"
+                                  >
+                                    Fix & Resubmit
+                                  </button>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {/* 3. Scrap Damaged */}
+                {myScrap.length > 0 && (
+                  <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-xs">
+                    <div className="bg-gray-50 px-4 py-2.5 border-b border-gray-200 font-bold text-xs text-gray-800 flex items-center justify-between">
+                      <span className="flex items-center gap-1.5">⚠️ Damaged / Scrapped Materials ({myScrap.length})</span>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs border-collapse">
+                        <thead>
+                          <tr className="bg-gray-50/50 border-b border-gray-200 text-gray-500 font-semibold uppercase tracking-wider">
+                            <th className="p-3">Material</th>
+                            <th className="p-3">Qty Scrapped</th>
+                            <th className="p-3">Reason</th>
+                            <th className="p-3">Date</th>
+                            <th className="p-3 text-center">Status</th>
+                            <th className="p-3">Details / Rejection Reason</th>
+                            <th className="p-3 text-right">Action</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {myScrap.map(s => (
+                            <tr key={s.id} className="hover:bg-gray-50/80 transition-colors">
+                              <td className="p-3 font-bold text-gray-900">{s.item_name}</td>
+                              <td className="p-3 text-red-600 font-bold">-{s.qty_scrapped} {s.item_unit}</td>
+                              <td className="p-3 text-gray-700 italic">{s.reason}</td>
+                              <td className="p-3 text-gray-500">{new Date(s.created_at).toLocaleDateString()}</td>
+                              <td className="p-3 text-center">
+                                {s.status === 'pending_manager' && (
+                                  <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 font-bold text-[10px]">
+                                    🟡 Pending Manager Review
+                                  </span>
+                                )}
+                                {s.status === 'pending_admin' && (
+                                  <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-900 font-bold text-[10px]">
+                                    🔵 Pending Admin Approval
+                                  </span>
+                                )}
+                                {s.status === 'rejected' && (
+                                  <span className="px-2 py-0.5 rounded-full bg-red-100 text-red-900 font-bold text-[10px]">
+                                    🔴 Rejected
+                                  </span>
+                                )}
+                              </td>
+                              <td className="p-3">
+                                {s.status === 'rejected' ? (
+                                  <span className="text-red-700 font-medium text-[11px]">{s.rejection_reason || 'Incomplete details'}</span>
+                                ) : (
+                                  <span className="text-gray-500 text-[11px]">Awaiting verifier review</span>
+                                )}
+                              </td>
+                              <td className="p-3 text-right">
+                                {s.status === 'rejected' && (
+                                  <button
+                                    onClick={() => {
+                                      setResubmitScrapItem(s);
+                                      setResubmitScrapForm({
+                                        qty_scrapped: s.qty_scrapped,
+                                        reason: s.reason || '',
+                                        photo_url: s.photo_url || ''
+                                      });
+                                    }}
+                                    className="px-2.5 py-1 bg-red-600 hover:bg-red-700 text-white font-bold rounded text-[11px] transition-colors"
+                                  >
+                                    Fix & Resubmit
+                                  </button>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {/* 4. Physical Stock Audits */}
+                {myAudits.length > 0 && (
+                  <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-xs">
+                    <div className="bg-gray-50 px-4 py-2.5 border-b border-gray-200 font-bold text-xs text-gray-800 flex items-center justify-between">
+                      <span className="flex items-center gap-1.5">🛡️ Store Physical Audits ({myAudits.length})</span>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs border-collapse">
+                        <thead>
+                          <tr className="bg-gray-50/50 border-b border-gray-200 text-gray-500 font-semibold uppercase tracking-wider">
+                            <th className="p-3">Material</th>
+                            <th className="p-3">Counted Qty</th>
+                            <th className="p-3">Expected Qty</th>
+                            <th className="p-3">Date</th>
+                            <th className="p-3 text-center">Status</th>
+                            <th className="p-3">Notes / Feedback</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {myAudits.map(a => (
+                            <tr key={a.id} className="hover:bg-gray-50/80 transition-colors">
+                              <td className="p-3 font-bold text-gray-900">{a.item_name}</td>
+                              <td className="p-3 text-purple-900 font-bold">{a.physical_counted_qty} {a.item_unit}</td>
+                              <td className="p-3 text-gray-500">{a.system_expected_qty} {a.item_unit}</td>
+                              <td className="p-3 text-gray-500">{new Date(a.created_at).toLocaleDateString()}</td>
+                              <td className="p-3 text-center">
+                                {a.status === 'pending' && (
+                                  <span className="px-2 py-0.5 rounded-full bg-purple-100 text-purple-900 font-bold text-[10px]">
+                                    🟣 Pending Verification
+                                  </span>
+                                )}
+                                {a.status === 'rejected' && (
+                                  <span className="px-2 py-0.5 rounded-full bg-red-100 text-red-900 font-bold text-[10px]">
+                                    🔴 Rejected
+                                  </span>
+                                )}
+                              </td>
+                              <td className="p-3 text-gray-500 text-[11px]">{a.rejection_reason || a.notes || '-'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
 
