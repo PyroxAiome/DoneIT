@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { api } from '../lib/api';
 
-export default function ProjectInventory({ project, user, tasks }) {
+export default function ProjectInventory({ project, user, tasks, onInventoryChanged }) {
   const [data, setData] = useState({ 
     balances: [], 
     receipts: [], 
@@ -147,6 +147,7 @@ export default function ProjectInventory({ project, user, tasks }) {
         scrap: res.scrap || [],
         audits: res.audits || []
       });
+      if (onInventoryChanged) onInventoryChanged();
     } catch (err) {
       setError(err.message);
     } finally {

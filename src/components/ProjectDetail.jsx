@@ -16,6 +16,7 @@ export default function ProjectDetail({ project, user, onBack, onUpdate }) {
   const [allEmployees, setAllEmployees] = useState([]);
   const [pendingManagerReceipts, setPendingManagerReceipts] = useState([]);
   const [pendingAdminReceipts, setPendingAdminReceipts] = useState([]);
+  const [pendingInventoryCount, setPendingInventoryCount] = useState(0);
   const [loading, setLoading] = useState(true);
   
   const [showTaskModal, setShowTaskModal] = useState(false);
@@ -45,6 +46,29 @@ export default function ProjectDetail({ project, user, onBack, onUpdate }) {
       if (invData) {
         setPendingManagerReceipts(invData.pendingManagerReceipts || []);
         setPendingAdminReceipts(invData.pendingAdminReceipts || []);
+
+        let invCount = 0;
+        if (user.role === 'admin') {
+          const inward = (invData.pendingAdminReceipts?.length || 0) + (invData.pendingManagerReceipts?.length || 0);
+          const usage = (invData.pendingAdminUsage?.length || 0) + (invData.pendingManagerUsage?.length || 0);
+          const scrap = (invData.pendingAdminScrap?.length || 0) + (invData.pendingManagerScrap?.length || 0);
+          const audits = invData.pendingAudits?.length || 0;
+          invCount = inward + usage + scrap + audits;
+        } else if (user.role === 'manager') {
+          const inward = invData.pendingManagerReceipts?.length || 0;
+          const usage = invData.pendingManagerUsage?.length || 0;
+          const scrap = invData.pendingManagerScrap?.length || 0;
+          const audits = invData.pendingAudits?.length || 0;
+          invCount = inward + usage + scrap + audits;
+        } else {
+          const subs = invData.mySubmissions || {};
+          const inward = subs.receipts?.length || 0;
+          const usage = subs.usage?.length || 0;
+          const scrap = subs.scrap?.length || 0;
+          const audits = subs.audits?.length || 0;
+          invCount = inward + usage + scrap + audits;
+        }
+        setPendingInventoryCount(invCount);
       }
       if (docsData) {
         setPendingManagerDocs(docsData.pendingManagerDocs || []);
@@ -201,14 +225,11 @@ export default function ProjectDetail({ project, user, onBack, onUpdate }) {
               }`}
             >
               <Package className="w-4 h-4 text-amber-600" />
-              Site Inventory & Audit {user.role === 'manager' && pendingManagerReceipts.length > 0 && (
-                <span className="bg-amber-500 text-white text-[10px] px-1.5 py-0.2 rounded-full font-bold animate-pulse">
-                  {pendingManagerReceipts.length}
-                </span>
-              )}
-              {user.role === 'admin' && pendingAdminReceipts.length > 0 && (
-                <span className="bg-blue-600 text-white text-[10px] px-1.5 py-0.2 rounded-full font-bold animate-pulse">
-                  {pendingAdminReceipts.length}
+              Site Inventory & Audit {pendingInventoryCount > 0 && (
+                <span className={`text-white text-[10px] px-1.5 py-0.2 rounded-full font-bold animate-pulse ${
+                  user.role === 'admin' ? 'bg-blue-600' : 'bg-amber-500'
+                }`}>
+                  {pendingInventoryCount}
                 </span>
               )}
             </button>
@@ -248,7 +269,7 @@ export default function ProjectDetail({ project, user, onBack, onUpdate }) {
       </div>
 
       {projectTab === 'inventory' ? (
-        <ProjectInventory project={project} user={user} tasks={tasks} />
+        <ProjectInventory project={project} user={user} tasks={tasks} onInventoryChanged={loadProjectData} />
       ) : projectTab === 'documents' ? (
         <ProjectSiteDocuments 
           project={project} 
