@@ -233,6 +233,22 @@ export default function ProjectInventory({ project, user, tasks }) {
     }
   };
 
+  const handleResubmitSubmit = async (e) => {
+    e.preventDefault();
+    if (!resubmitItem) return;
+    setBusy(true);
+    try {
+      await api.resubmitMaterialReceipt(project.id, resubmitItem.id, resubmitForm);
+      setResubmitItem(null);
+      setResubmitForm({ qty_received: '', challan_number: '', challan_photo: '', notes: '' });
+      loadInventory();
+    } catch (err) {
+      alert(err.message || 'Failed to resubmit material receipt');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
