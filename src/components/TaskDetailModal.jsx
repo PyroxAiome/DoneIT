@@ -447,19 +447,15 @@ export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated, 
           </button>
           <button onClick={() => setTab('explanation')}
             className={`flex items-center gap-1.5 px-5 py-3 text-sm font-medium transition-colors whitespace-nowrap ${tab === 'explanation' ? 'text-amber-600 border-b-2 border-amber-500' : 'text-gray-500 hover:text-gray-700'}`}>
-            <BookOpen className="w-4 h-4" /> Logic & Strategy ({explanationsList.length})
+            <FileText className="w-4 h-4" /> Logical Explanation ({explanationsList.length})
           </button>
-          <button onClick={() => setTab('work')}
-            className={`flex items-center gap-1.5 px-5 py-3 text-sm font-medium transition-colors whitespace-nowrap ${tab === 'work' ? 'text-amber-600 border-b-2 border-amber-500' : 'text-gray-500 hover:text-gray-700'}`}>
-            <FileText className="w-4 h-4" /> Work Logs ({dailyLogs.length})
-          </button>
-          <button onClick={() => setTab('daily')}
-            className={`flex items-center gap-1.5 px-5 py-3 text-sm font-medium transition-colors whitespace-nowrap ${tab === 'daily' ? 'text-amber-600 border-b-2 border-amber-500' : 'text-gray-500 hover:text-gray-700'}`}>
-            <Flame className="w-4 h-4" /> Daily Progress ({dailyReports.length})
+          <button onClick={() => setTab('daily-logs')}
+            className={`flex items-center gap-1.5 px-5 py-3 text-sm font-medium transition-colors whitespace-nowrap ${tab === 'daily-logs' ? 'text-amber-600 border-b-2 border-amber-500' : 'text-gray-500 hover:text-gray-700'}`}>
+            <Calendar className="w-4 h-4" /> Daily Achievements ({dailyLogs.length})
           </button>
           <button onClick={() => setTab('dependencies')}
             className={`flex items-center gap-1.5 px-5 py-3 text-sm font-medium transition-colors whitespace-nowrap ${tab === 'dependencies' ? 'text-amber-600 border-b-2 border-amber-500' : 'text-gray-500 hover:text-gray-700'}`}>
-            <HelpCircle className="w-4 h-4" /> Help / Tagged ({dependencies.length})
+            <GitMerge className="w-4 h-4" /> Dependencies ({dependencies.length})
           </button>
         </div>
 
