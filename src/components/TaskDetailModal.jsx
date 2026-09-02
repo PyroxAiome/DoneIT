@@ -363,6 +363,21 @@ export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated, 
           </div>
         )}
 
+        {/* Verifier Assigned Info Banner (when not under_review and not completed) */}
+        {taskData?.status !== 'under_review' && task.status !== 'under_review' && taskData?.status !== 'completed' && task.status !== 'completed' && ((taskData?.verifier_id && Number(taskData.verifier_id) === Number(user?.id)) || (task.verifier_id && Number(task.verifier_id) === Number(user?.id))) && (
+          <div className="mx-5 mt-4 p-3 bg-purple-50 border border-purple-200 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-purple-500" />
+              <span className="font-semibold text-purple-950">
+                🛡️ You are the assigned Verifier for this task
+              </span>
+            </div>
+            <span className="text-purple-700 text-[11px]">
+              You can post reviews/guidance under the Reviews tab. Once the task is submitted, you can verify and mark it completed.
+            </span>
+          </div>
+        )}
+
         {/* Task Completed Verification Info Banner */}
         {(taskData?.status === 'completed' || task.status === 'completed') && (
           <div className="mx-5 mt-4 p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between gap-3 text-xs">
@@ -522,11 +537,11 @@ export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated, 
                 ))
               )}
 
-              {/* Top-level review input — only admin/manager */}
-              {!readOnly && ['admin', 'manager'].includes(user.role) && (
+              {/* Top-level review input — admin/manager, verifier, or creator */}
+              {!readOnly && (['admin', 'manager', 'site_manager'].includes(user?.role) || Number(taskData?.verifier_id || task.verifier_id) === Number(user?.id) || Number(taskData?.creator_id || task.creator_id) === Number(user?.id)) && (
                 <div className="flex gap-2 pt-2 border-t border-gray-100">
                   <input value={fbText} onChange={(e) => setFbText(e.target.value)}
-                    className="input-field text-sm flex-1" placeholder="Write a review..."
+                    className="input-field text-sm flex-1" placeholder={Number(taskData?.verifier_id || task.verifier_id) === Number(user?.id) ? "Write a review / verifier feedback..." : "Write a review..."}
                     onKeyDown={(e) => e.key === 'Enter' && handleSendReview()} />
                   <button onClick={handleSendReview} className="btn-amber text-sm flex items-center gap-1 px-3">
                     <Send className="w-3.5 h-3.5" /> Send

@@ -1032,12 +1032,16 @@ router.post('/tasks/:id/comments', auth, async (req, res) => {
     const { comment_text, parent_id } = req.body;
     if (!comment_text) return res.status(400).json({ error: 'Comment text required' });
 
-    const { rows: taskRows } = await db.query('SELECT id, title FROM tasks WHERE id = $1', [id]);
+    const { rows: taskRows } = await db.query('SELECT id, title, verifier_id, creator_id, assignee_id FROM tasks WHERE id = $1', [id]);
     const taskDetails = taskRows[0];
     if (!taskDetails) return res.status(404).json({ error: 'Task not found' });
 
-    if (!parent_id && req.user.role === 'employee') {
-      return res.status(403).json({ error: 'Employees can only reply to reviews' });
+    const isVerifier = taskDetails.verifier_id && Number(taskDetails.verifier_id) === Number(req.user.id);
+    const isAdminOrManager = ['admin', 'manager', 'site_manager'].includes(req.user.role);
+    const isCreator = taskDetails.creator_id && Number(taskDetails.creator_id) === Number(req.user.id);
+
+    if (!parent_id && !isAdminOrManager && !isVerifier && !isCreator) {
+      return res.status(403).json({ error: 'Only admins, managers, creators, or assigned verifiers can write reviews' });
     }
 
     const result = await db.query(

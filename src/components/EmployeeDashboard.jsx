@@ -163,7 +163,8 @@ export default function EmployeeDashboard({ user }) {
 
   const allVerifierTasks = tasks.filter(t => 
     (Number(t.verifier_id) === Number(user.id) || Number(t.completed_by) === Number(user.id)) && 
-    Number(t.assignee_id) !== Number(user.id)
+    Number(t.assignee_id) !== Number(user.id) &&
+    (!t.parent_id || t.id === t.parent_id)
   );
   const pendingVerifyCount = allVerifierTasks.filter(t => t.status === 'under_review').length;
   const inProgressVerifyCount = allVerifierTasks.filter(t => t.status === 'todo' || t.status === 'in_progress').length;
@@ -200,6 +201,7 @@ export default function EmployeeDashboard({ user }) {
     if (activeTab === 'to_verify') {
       const isVerifierTask = (Number(t.verifier_id) === Number(user.id) || Number(t.completed_by) === Number(user.id)) && Number(t.assignee_id) !== Number(user.id);
       if (!isVerifierTask) return false;
+      if (t.parent_id && t.id !== t.parent_id) return false;
       if (statusFilter) return t.status === statusFilter;
       return true;
     }
@@ -370,13 +372,10 @@ export default function EmployeeDashboard({ user }) {
               >
                 <Icon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 {tab.label}
-                {tab.id === 'to_verify' && pendingVerifyCount > 0 && (
-                  <span className="px-1.5 py-0.2 rounded-full bg-amber-500 text-white font-bold text-[10px] animate-pulse">
-                    {pendingVerifyCount}
-                  </span>
-                )}
-                {tab.id === 'to_verify' && pendingVerifyCount === 0 && allVerifierTasks.length > 0 && (
-                  <span className="px-1.5 py-0.2 rounded-full bg-gray-300 text-gray-700 font-semibold text-[10px]">
+                {tab.id === 'to_verify' && allVerifierTasks.length > 0 && (
+                  <span className={`px-1.5 py-0.2 rounded-full font-bold text-[10px] ${
+                    pendingVerifyCount > 0 ? 'bg-amber-500 text-white animate-pulse' : 'bg-gray-300 text-gray-700'
+                  }`}>
                     {allVerifierTasks.length}
                   </span>
                 )}
