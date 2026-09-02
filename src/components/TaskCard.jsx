@@ -266,18 +266,27 @@ export default function TaskCard({ task, compact, onEdit, onDelete, onSelect, on
 
         {task.status === 'completed' ? (
           <span className="text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200/60 font-medium text-[9px]">
-            Verified: {task.verifier_name || task.completer_name || 'Admin'}
+            Verified: {task.completer_name || task.verifier_name || 'Admin'}
           </span>
-        ) : task.verifier_name ? (
-          <span className={`px-1.5 py-0.5 rounded border font-medium text-[9px] ${
-            Number(task.verifier_id) === Number(user?.id)
-              ? (task.status === 'under_review' ? 'bg-amber-100 text-amber-900 border-amber-300 font-bold animate-pulse' : 'bg-purple-100 text-purple-900 border-purple-300 font-semibold')
-              : 'text-purple-700 bg-purple-50 border-purple-200/60'
-          }`} title={`Task verifier: ${task.verifier_name} (${task.verifier_role || 'Verifier'})`}>
-            🛡️ Verifier: {Number(task.verifier_id) === Number(user?.id) ? 'You' : task.verifier_name}
-            {Number(task.verifier_id) === Number(user?.id) && task.status === 'under_review' ? ' (Review)' : ''}
-          </span>
-        ) : null}
+        ) : (
+          <div className="flex items-center gap-1 flex-wrap justify-end">
+            {task.completed_by && Number(task.completed_by) !== Number(task.verifier_id) && (
+              <span className="text-emerald-700 bg-emerald-50/90 px-1.5 py-0.5 rounded border border-emerald-200/60 font-medium text-[9px]" title={`Previously verified by ${task.completer_name || 'Admin'}`}>
+                Prev. Verified: {task.completer_name || 'Admin'}
+              </span>
+            )}
+            {task.verifier_name && (
+              <span className={`px-1.5 py-0.5 rounded border font-medium text-[9px] ${
+                Number(task.verifier_id) === Number(user?.id)
+                  ? (task.status === 'under_review' ? 'bg-amber-100 text-amber-900 border-amber-300 font-bold animate-pulse' : 'bg-purple-100 text-purple-900 border-purple-300 font-semibold')
+                  : (task.completed_by && Number(task.completed_by) !== Number(task.verifier_id) ? 'text-amber-800 bg-amber-50 border-amber-200' : 'text-purple-700 bg-purple-50 border-purple-200/60')
+              }`} title={`Task verifier: ${task.verifier_name} (${task.verifier_role || 'Verifier'})`}>
+                🛡️ {task.completed_by && Number(task.completed_by) !== Number(task.verifier_id) ? 'Re-Verify:' : 'Verifier:'} {Number(task.verifier_id) === Number(user?.id) ? 'You' : task.verifier_name}
+                {Number(task.verifier_id) === Number(user?.id) && task.status === 'under_review' ? ' (Review)' : ''}
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="flex items-center justify-between mt-2 sm:mt-2.5 pt-1.5 sm:pt-2 border-t border-gray-100">

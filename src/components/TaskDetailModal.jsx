@@ -369,7 +369,7 @@ export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated, 
             <div className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-emerald-500" />
               <span className="font-semibold text-emerald-950">
-                Verified & Completed by {taskData?.verifier_name || taskData?.completer_name || 'Admin'}
+                Verified & Completed by {taskData?.completer_name || taskData?.verifier_name || 'Admin'}
               </span>
             </div>
             {(taskData?.verified_at || taskData?.updated_at) && (
@@ -377,6 +377,21 @@ export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated, 
                 {new Date(taskData.verified_at || taskData.updated_at).toLocaleDateString([], { dateStyle: 'medium' })}
               </span>
             )}
+          </div>
+        )}
+
+        {/* Task Under Re-Verification Banner */}
+        {taskData?.status === 'under_review' && taskData?.completed_by && Number(taskData.completed_by) !== Number(taskData?.verifier_id) && (
+          <div className="mx-5 mt-4 p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+              <span className="font-medium text-amber-950">
+                Previously verified by <span className="font-semibold">{taskData.completer_name || 'Admin'}</span>. Reassigned for verification to <span className="font-semibold">{taskData.verifier_name || 'New Verifier'}</span>.
+              </span>
+            </div>
+            <span className="bg-amber-200/70 text-amber-900 font-semibold text-[10px] px-2 py-0.5 rounded-full">
+              Re-Verification Pending
+            </span>
           </div>
         )}
 

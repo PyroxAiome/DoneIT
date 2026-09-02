@@ -771,17 +771,15 @@ router.put('/tasks/:id', auth, async (req, res) => {
     const verifierChanged = req.body.verifier_id !== undefined && 
       (req.body.verifier_id ? Number(req.body.verifier_id) !== Number(currentTask.verifier_id) : currentTask.verifier_id !== null);
 
-    if (verifierChanged && req.body.verifier_id && currentTask.status === 'completed' && req.body.status !== 'completed') {
-      // Reassigning verifier on a completed task puts it back to under_review for the new verifier
+    if (verifierChanged && req.body.verifier_id && (currentTask.status === 'completed' || currentTask.completed_by)) {
+      // Reassigning verifier on a completed/verified task -> sets status to under_review for new verifier
+      // Keeps currentTask.completed_by as previous verifier history
       req.body.status = 'under_review';
-      req.body.completed_by = null;
-      req.body.verified_at = null;
+      req.body.completed_by = currentTask.completed_by || currentTask.verifier_id || (currentTask.status === 'completed' ? 1 : null);
       verificationRequired = true;
     } else if (req.body.status === 'completed') {
       if (!isVerifierOrAdmin) {
         req.body.status = 'under_review';
-        req.body.completed_by = null;
-        req.body.verified_at = null;
         verificationRequired = true;
       } else {
         req.body.verified_at = new Date();
