@@ -20,7 +20,7 @@ const formatDescription = (desc) => {
       return '🎨 [Excalidraw Drawing/Diagram]';
     }
   }
-  return desc;
+  return desc.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1');
 };
 
 export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated, readOnly }) {

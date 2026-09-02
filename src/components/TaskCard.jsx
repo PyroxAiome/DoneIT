@@ -71,7 +71,7 @@ const formatDescription = (desc) => {
       return '🎨 [Excalidraw Drawing/Diagram]';
     }
   }
-  return desc;
+  return desc.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1');
 };
 
 export default function TaskCard({ task, compact, onEdit, onDelete, onSelect, onViewDetail, onVerificationNeeded, readOnly }) {

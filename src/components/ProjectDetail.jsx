@@ -208,7 +208,7 @@ export default function ProjectDetail({ project, user, onBack, onUpdate }) {
             }`}
           >
             <ListTodo className="w-4 h-4 text-emerald-600" />
-            Project Tasks ({tasks.length})
+            Project Tasks ({tasks.filter(t => !t.parent_id || t.id === t.parent_id).length})
           </button>
           <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 hidden group-hover/tip:block w-64 p-2 bg-gray-900 text-white text-[11px] leading-snug rounded-lg shadow-xl z-50 pointer-events-none text-center">
             Task management board with status tracking, daily logs, and verifications.
@@ -289,7 +289,7 @@ export default function ProjectDetail({ project, user, onBack, onUpdate }) {
                 Project Tasks
               </h2>
               <span className="text-xs font-medium text-gray-500 bg-white px-2 py-1 rounded border border-gray-200 shadow-sm">
-                {tasks.length} {tasks.length === 1 ? 'Task' : 'Tasks'}
+                {tasks.filter(t => !t.parent_id || t.id === t.parent_id).length} {tasks.filter(t => !t.parent_id || t.id === t.parent_id).length === 1 ? 'Task' : 'Tasks'}
               </span>
             </div>
             
@@ -298,7 +298,7 @@ export default function ProjectDetail({ project, user, onBack, onUpdate }) {
                 <div className="flex justify-center py-8">
                   <div className="animate-spin w-8 h-8 border-2 border-gray-300 border-t-amber-600 rounded-full" />
                 </div>
-              ) : tasks.length === 0 ? (
+              ) : tasks.filter(t => !t.parent_id || t.id === t.parent_id).length === 0 ? (
                 <div className="text-center py-10 bg-gray-50 rounded-lg border border-dashed border-gray-300">
                   <p className="text-gray-500 text-sm">No tasks in this project yet.</p>
                   {user.role === 'admin' && (
@@ -315,7 +315,7 @@ export default function ProjectDetail({ project, user, onBack, onUpdate }) {
                 </div>
               ) : (
                 <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
-                  {tasks.map(task => (
+                  {tasks.filter(t => !t.parent_id || t.id === t.parent_id).map(task => (
                     <TaskCard
                       key={task.id}
                       task={task}

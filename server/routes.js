@@ -462,8 +462,8 @@ router.get('/tasks', auth, async (req, res) => {
       }
     }
 
-    // Deduplicate group task copies for Admin and Manager views (when not filtering a specific employee)
-    if (!req.query.assignee_id && (req.user.role === 'admin' || req.user.role === 'manager')) {
+    // Deduplicate group task copies for Admin and Manager views, AND when viewing a project
+    if (!req.query.assignee_id && (req.user.role === 'admin' || req.user.role === 'manager' || req.query.project_id)) {
       sql += ' AND (t.parent_id IS NULL OR t.id = t.parent_id)';
     }
 
