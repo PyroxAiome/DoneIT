@@ -94,7 +94,7 @@ export default function EmployeeDashboard({ user }) {
         return;
       }
 
-      if (['projects', 'work', 'to_verify', 'repeated_tasks', 'completed', 'verified', 'team'].includes(tabId)) {
+      if (['projects', 'all', 'work', 'to_verify', 'repeated_tasks', 'completed', 'verified', 'team'].includes(tabId)) {
         setActiveTab(tabId);
         if (tabId !== 'projects') setSelectedProject(null);
       }
@@ -128,7 +128,7 @@ export default function EmployeeDashboard({ user }) {
     return () => window.removeEventListener('task-updated', fetchTasksOnly);
   }, [statusFilter, categoryFilter, search, employeeFilter]);
 
-  const statusOptions = ['', 'todo', 'in_progress', 'under_review'];
+  const statusOptions = ['', 'todo', 'in_progress', 'under_review', 'completed'];
 
   const handleDeleteConfirm = async () => {
     if (deleteTarget) {
@@ -143,11 +143,15 @@ export default function EmployeeDashboard({ user }) {
   };
 
   const handleViewEmployeeTasks = (emp) => {
-    window.location.hash = `work/employee/${emp.id}`;
+    window.location.hash = `all/employee/${emp.id}`;
   };
 
   const handleViewEmployeeTasksByStatus = (emp, status) => {
-    window.location.hash = `work/employee/${emp.id}`;
+    const targetTab = status === 'completed' ? 'completed' : 'work';
+    window.location.hash = `${targetTab}/employee/${emp.id}`;
+    if (status !== 'completed') {
+      setStatusFilter(status);
+    }
   };
 
   const isReadOnly = employeeFilter !== null && Number(employeeFilter) !== user.id;
@@ -172,10 +176,15 @@ export default function EmployeeDashboard({ user }) {
         if (statusFilter) return isCompleted && t.status === statusFilter;
         return isCompleted;
       }
-      // activeTab === 'work' or default:
-      const isActive = Number(t.assignee_id) === Number(selectedEmp.id) && t.status !== 'completed';
-      if (statusFilter) return isActive && t.status === statusFilter;
-      return isActive;
+      if (activeTab === 'work') {
+        const isActive = Number(t.assignee_id) === Number(selectedEmp.id) && t.status !== 'completed';
+        if (statusFilter) return isActive && t.status === statusFilter;
+        return isActive;
+      }
+      // activeTab === 'all' or default (All Tasks):
+      const isMine = Number(t.assignee_id) === Number(selectedEmp.id);
+      if (statusFilter) return isMine && t.status === statusFilter;
+      return isMine;
     }
     if (activeTab === 'to_verify') {
       const isVerifierTask = (Number(t.verifier_id) === Number(user.id) || Number(t.completed_by) === Number(user.id)) && Number(t.assignee_id) !== Number(user.id);
@@ -196,7 +205,7 @@ export default function EmployeeDashboard({ user }) {
       if (a.status !== 'under_review' && b.status === 'under_review') return 1;
       if (a.status === 'completed' && b.status !== 'completed') return 1;
       if (a.status !== 'completed' && b.status === 'completed') return -1;
-    } else if (activeTab === 'work') {
+    } else if (activeTab === 'work' || activeTab === 'all') {
       if (a.status === 'in_progress' && b.status !== 'in_progress') return -1;
       if (a.status !== 'in_progress' && b.status === 'in_progress') return 1;
     }
@@ -233,6 +242,14 @@ export default function EmployeeDashboard({ user }) {
           </div>
 
           <div className="flex gap-1 bg-gray-200 p-1 rounded-xl w-fit">
+            <button
+              onClick={() => { window.location.hash = `all/employee/${selectedEmp.id}`; }}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                activeTab === 'all' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              All Tasks
+            </button>
             <button
               onClick={() => { window.location.hash = `work/employee/${selectedEmp.id}`; }}
               className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
@@ -477,7 +494,7 @@ export default function EmployeeDashboard({ user }) {
               />
             </div>
             
-            {activeTab === 'work' && (
+            {(activeTab === 'work' || activeTab === 'all' || selectedEmp) && (
               <div className="flex items-center gap-1.5">
                 <Filter className="w-4 h-4 text-gray-400" />
                 {statusOptions.map((s) => (
