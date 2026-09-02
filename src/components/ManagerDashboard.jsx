@@ -230,9 +230,6 @@ export default function ManagerDashboard({ user }) {
       return true;
     }
 
-    // All individual work tabs strictly exclude project tasks
-    if (t.project_id) return false;
-
     if (selectedEmp) {
       if (activeTab === 'verified') {
         const isVerified = t.status === 'completed' && (Number(t.completed_by) === Number(selectedEmp.id) || Number(t.verifier_id) === Number(selectedEmp.id)) && Number(t.assignee_id) !== Number(selectedEmp.id);
@@ -260,6 +257,10 @@ export default function ManagerDashboard({ user }) {
       if (statusFilter) return isMine && t.status === statusFilter;
       return isMine;
     }
+
+    // Main workspace views strictly exclude project tasks
+    if (t.project_id) return false;
+
     if (myTasksOnly && t.creator_id !== user.id && t.assignee_id !== user.id) {
       return false;
     }
@@ -282,11 +283,11 @@ export default function ManagerDashboard({ user }) {
     return 0;
   });
 
-  const empAllTasksCount = selectedEmp ? tasks.filter(t => !t.project_id && Number(t.assignee_id) === Number(selectedEmp.id)).length : 0;
-  const empActiveTasksCount = selectedEmp ? tasks.filter(t => !t.project_id && Number(t.assignee_id) === Number(selectedEmp.id) && t.status !== 'completed').length : 0;
-  const empCompletedTasksCount = selectedEmp ? tasks.filter(t => !t.project_id && Number(t.assignee_id) === Number(selectedEmp.id) && t.status === 'completed').length : 0;
-  const empCreatedForOthersCount = selectedEmp ? tasks.filter(t => !t.project_id && Number(t.creator_id) === Number(selectedEmp.id) && Number(t.assignee_id) !== Number(selectedEmp.id) && (!t.parent_id || t.id === t.parent_id)).length : 0;
-  const empVerifiedTasksCount = selectedEmp ? tasks.filter(t => !t.project_id && t.status === 'completed' && (Number(t.completed_by) === Number(selectedEmp.id) || Number(t.verifier_id) === Number(selectedEmp.id)) && Number(t.assignee_id) !== Number(selectedEmp.id)).length : 0;
+  const empAllTasksCount = selectedEmp ? tasks.filter(t => Number(t.assignee_id) === Number(selectedEmp.id)).length : 0;
+  const empActiveTasksCount = selectedEmp ? tasks.filter(t => Number(t.assignee_id) === Number(selectedEmp.id) && t.status !== 'completed').length : 0;
+  const empCompletedTasksCount = selectedEmp ? tasks.filter(t => Number(t.assignee_id) === Number(selectedEmp.id) && t.status === 'completed').length : 0;
+  const empCreatedForOthersCount = selectedEmp ? tasks.filter(t => Number(t.creator_id) === Number(selectedEmp.id) && Number(t.assignee_id) !== Number(selectedEmp.id) && (!t.parent_id || t.id === t.parent_id)).length : 0;
+  const empVerifiedTasksCount = selectedEmp ? tasks.filter(t => t.status === 'completed' && (Number(t.completed_by) === Number(selectedEmp.id) || Number(t.verifier_id) === Number(selectedEmp.id)) && Number(t.assignee_id) !== Number(selectedEmp.id)).length : 0;
 
   const metricCards = stats ? [
     { label: 'Total Tasks', value: stats.totalTasks, icon: ListTodo, color: 'text-gray-500' },
