@@ -9,7 +9,7 @@ import BulkImportModal from './BulkImportModal';
 import {
   LayoutDashboard, Briefcase, Users, Plus, Search, Grid3X3, List,
   UserPlus, Trash2, Filter, ListTodo, CheckCircle,
-  MessageSquare, X, FileSpreadsheet, Shield, Edit2, FolderGit2, Repeat
+  MessageSquare, X, FileSpreadsheet, Shield, Edit2, FolderGit2, Repeat, ShieldCheck
 } from 'lucide-react';
 import ProjectsList from './ProjectsList';
 import ProjectDetail from './ProjectDetail';
@@ -19,6 +19,7 @@ const tabs = [
   { id: 'overview', label: 'Overview', icon: LayoutDashboard },
   { id: 'projects', label: 'Projects', icon: FolderGit2 },
   { id: 'work', label: 'Work', icon: Briefcase },
+  { id: 'to_verify', label: 'To Verify', icon: ShieldCheck },
   { id: 'repeated_tasks', label: 'Repeated Tasks', icon: Repeat },
   { id: 'completed', label: 'Completed', icon: CheckCircle },
   { id: 'team', label: 'Team', icon: Users },
@@ -179,7 +180,7 @@ export default function AdminDashboard({ user }) {
       }
       const parts = hash.substring(1).split('/');
       const tabId = parts[0];
-      if (['overview', 'projects', 'work', 'repeated_tasks', 'completed', 'team', 'admin'].includes(tabId)) {
+      if (['overview', 'projects', 'work', 'to_verify', 'repeated_tasks', 'completed', 'team', 'admin'].includes(tabId)) {
         setActiveTab(tabId);
         if (tabId !== 'projects') {
           setSelectedProject(null);
@@ -251,7 +252,25 @@ export default function AdminDashboard({ user }) {
     setPriorityFilter('');
   };
 
+  const allVerifierTasks = tasks.filter(t => 
+    t.verifier_id || t.status === 'under_review' || t.completed_by
+  );
+  const pendingVerifyCount = tasks.filter(t => t.status === 'under_review').length;
+  const inProgressVerifyCount = tasks.filter(t => (t.status === 'todo' || t.status === 'in_progress') && t.verifier_id).length;
+  const verifiedByMeCount = tasks.filter(t => t.status === 'completed' && (Number(t.completed_by) === Number(user.id) || Number(t.verifier_id) === Number(user.id))).length;
+  const totalVerifiedCount = tasks.filter(t => t.status === 'completed' && (t.completed_by || t.verified_at)).length;
+
   const displayedTasks = tasks.filter(t => {
+    if (activeTab === 'to_verify') {
+      if (statusFilter === 'verified_by_me') {
+        return t.status === 'completed' && (Number(t.completed_by) === Number(user.id) || Number(t.verifier_id) === Number(user.id));
+      }
+      if (statusFilter === 'total_verified') {
+        return t.status === 'completed' && (t.completed_by || t.verified_at);
+      }
+      if (statusFilter) return t.status === statusFilter;
+      return Boolean(t.verifier_id || t.status === 'under_review' || t.completed_by);
+    }
     if (statusFilter) return true;
     if (activeTab === 'completed') {
       return t.status === 'completed';
@@ -259,7 +278,12 @@ export default function AdminDashboard({ user }) {
       return t.status !== 'completed';
     }
   }).sort((a, b) => {
-    if (activeTab === 'work') {
+    if (activeTab === 'to_verify') {
+      if (a.status === 'under_review' && b.status !== 'under_review') return -1;
+      if (a.status !== 'under_review' && b.status === 'under_review') return 1;
+      if (a.status === 'completed' && b.status !== 'completed') return 1;
+      if (a.status !== 'completed' && b.status === 'completed') return -1;
+    } else if (activeTab === 'work') {
       if (a.status === 'in_progress' && b.status !== 'in_progress') return -1;
       if (a.status !== 'in_progress' && b.status === 'in_progress') return 1;
     }
@@ -331,6 +355,16 @@ export default function AdminDashboard({ user }) {
                 >
                   <Icon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                   {tab.label}
+                  {tab.id === 'to_verify' && pendingVerifyCount > 0 && (
+                    <span className="px-1.5 py-0.2 rounded-full bg-amber-500 text-white font-bold text-[10px] animate-pulse">
+                      {pendingVerifyCount}
+                    </span>
+                  )}
+                  {tab.id === 'to_verify' && pendingVerifyCount === 0 && allVerifierTasks.length > 0 && (
+                    <span className="px-1.5 py-0.2 rounded-full bg-gray-300 text-gray-700 font-semibold text-[10px]">
+                      {allVerifierTasks.length}
+                    </span>
+                  )}
                 </button>
               );
             })}
@@ -394,8 +428,33 @@ export default function AdminDashboard({ user }) {
         </div>
       )}
 
-      {(activeTab === 'work' || activeTab === 'completed') && (
+      {(activeTab === 'work' || activeTab === 'to_verify' || activeTab === 'completed') && (
         <div className="space-y-4">
+          {activeTab === 'to_verify' && (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="bg-amber-50/80 border border-amber-200 p-3.5 rounded-xl">
+                <p className="text-xs text-amber-800 font-medium">Pending Review</p>
+                <p className="text-xl font-bold text-amber-950 mt-0.5">{pendingVerifyCount}</p>
+                <p className="text-[10px] text-amber-700 mt-0.5">Tasks submitted & awaiting sign-off</p>
+              </div>
+              <div className="bg-blue-50/80 border border-blue-200 p-3.5 rounded-xl">
+                <p className="text-xs text-blue-800 font-medium">In Progress</p>
+                <p className="text-xl font-bold text-blue-950 mt-0.5">{inProgressVerifyCount}</p>
+                <p className="text-[10px] text-blue-700 mt-0.5">Assigned to a verifier for review</p>
+              </div>
+              <div className="bg-purple-50/80 border border-purple-200 p-3.5 rounded-xl">
+                <p className="text-xs text-purple-800 font-medium">Verified by You</p>
+                <p className="text-xl font-bold text-purple-950 mt-0.5">{verifiedByMeCount}</p>
+                <p className="text-[10px] text-purple-700 mt-0.5">Tasks signed off by Admin</p>
+              </div>
+              <div className="bg-emerald-50/80 border border-emerald-200 p-3.5 rounded-xl">
+                <p className="text-xs text-emerald-800 font-medium">Company Verified</p>
+                <p className="text-xl font-bold text-emerald-950 mt-0.5">{totalVerifiedCount}</p>
+                <p className="text-[10px] text-emerald-700 mt-0.5">Total tasks verified across company</p>
+              </div>
+            </div>
+          )}
+
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <div className="flex items-center gap-3 flex-wrap flex-1">
               <div className="relative flex-1 min-w-[200px] max-w-sm">
@@ -417,6 +476,62 @@ export default function AdminDashboard({ user }) {
                     <option value="under_review" className="text-purple-600 font-semibold bg-purple-50">Under Review</option>
                     <option value="completed" className="text-emerald-600 font-semibold bg-emerald-50">Completed</option>
                   </select>
+                </div>
+              )}
+
+              {activeTab === 'to_verify' && (
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <Filter className="w-4 h-4 text-gray-400" />
+                  <button
+                    onClick={() => setStatusFilter('')}
+                    className={`text-[10px] sm:text-xs px-2 py-1 rounded-lg border font-semibold transition-colors ${
+                      statusFilter === ''
+                        ? 'bg-gray-800 text-white border-gray-700'
+                        : 'bg-white border-gray-200 text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    All ({allVerifierTasks.length})
+                  </button>
+                  <button
+                    onClick={() => setStatusFilter('under_review')}
+                    className={`text-[10px] sm:text-xs px-2 py-1 rounded-lg border font-semibold transition-colors ${
+                      statusFilter === 'under_review'
+                        ? 'bg-amber-600 text-white border-amber-600'
+                        : 'bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100'
+                    }`}
+                  >
+                    ⏳ Under Review ({pendingVerifyCount})
+                  </button>
+                  <button
+                    onClick={() => setStatusFilter('in_progress')}
+                    className={`text-[10px] sm:text-xs px-2 py-1 rounded-lg border font-semibold transition-colors ${
+                      statusFilter === 'in_progress'
+                        ? 'bg-blue-600 text-white border-blue-600'
+                        : 'bg-blue-50 text-blue-800 border-blue-200 hover:bg-blue-100'
+                    }`}
+                  >
+                    ⚙️ In Progress ({inProgressVerifyCount})
+                  </button>
+                  <button
+                    onClick={() => setStatusFilter('verified_by_me')}
+                    className={`text-[10px] sm:text-xs px-2 py-1 rounded-lg border font-semibold transition-colors ${
+                      statusFilter === 'verified_by_me'
+                        ? 'bg-purple-600 text-white border-purple-600'
+                        : 'bg-purple-50 text-purple-800 border-purple-200 hover:bg-purple-100'
+                    }`}
+                  >
+                    👑 Verified by You ({verifiedByMeCount})
+                  </button>
+                  <button
+                    onClick={() => setStatusFilter('total_verified')}
+                    className={`text-[10px] sm:text-xs px-2 py-1 rounded-lg border font-semibold transition-colors ${
+                      statusFilter === 'total_verified'
+                        ? 'bg-emerald-600 text-white border-emerald-600'
+                        : 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100'
+                    }`}
+                  >
+                    ✅ All Verified ({totalVerifiedCount})
+                  </button>
                 </div>
               )}
 
