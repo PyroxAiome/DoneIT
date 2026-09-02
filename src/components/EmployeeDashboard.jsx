@@ -152,15 +152,21 @@ export default function EmployeeDashboard({ user }) {
 
   const isReadOnly = employeeFilter !== null && Number(employeeFilter) !== user.id;
 
-  const verifyTasks = tasks.filter(t => Number(t.verifier_id) === Number(user.id) && Number(t.assignee_id) !== Number(user.id));
-  const pendingVerifyCount = verifyTasks.filter(t => t.status === 'under_review').length;
+  const allVerifierTasks = tasks.filter(t => 
+    (Number(t.verifier_id) === Number(user.id) || Number(t.completed_by) === Number(user.id)) && 
+    Number(t.assignee_id) !== Number(user.id)
+  );
+  const pendingVerifyCount = allVerifierTasks.filter(t => t.status === 'under_review').length;
+  const inProgressVerifyCount = allVerifierTasks.filter(t => t.status === 'todo' || t.status === 'in_progress').length;
+  const verifiedByMeCount = allVerifierTasks.filter(t => t.status === 'completed' && (Number(t.completed_by) === Number(user.id) || Number(t.verifier_id) === Number(user.id))).length;
 
   const displayedTasks = tasks.filter(t => {
     if (selectedEmp) return true; // Show all tasks for the colleague (no active/completed sub-filtering)
     if (activeTab === 'to_verify') {
-      const isMyVerifyTask = Number(t.verifier_id) === Number(user.id) && Number(t.assignee_id) !== Number(user.id);
-      if (statusFilter) return isMyVerifyTask && t.status === statusFilter;
-      return isMyVerifyTask;
+      const isVerifierTask = (Number(t.verifier_id) === Number(user.id) || Number(t.completed_by) === Number(user.id)) && Number(t.assignee_id) !== Number(user.id);
+      if (!isVerifierTask) return false;
+      if (statusFilter) return t.status === statusFilter;
+      return true;
     }
     if (statusFilter) return true;
     if (activeTab === 'completed') {
@@ -173,6 +179,8 @@ export default function EmployeeDashboard({ user }) {
     if (activeTab === 'to_verify') {
       if (a.status === 'under_review' && b.status !== 'under_review') return -1;
       if (a.status !== 'under_review' && b.status === 'under_review') return 1;
+      if (a.status === 'completed' && b.status !== 'completed') return 1;
+      if (a.status !== 'completed' && b.status === 'completed') return -1;
     } else if (activeTab === 'work') {
       if (a.status === 'in_progress' && b.status !== 'in_progress') return -1;
       if (a.status !== 'in_progress' && b.status === 'in_progress') return 1;
@@ -245,7 +253,7 @@ export default function EmployeeDashboard({ user }) {
           {tabs
             .filter(tab => {
               if (tab.id === 'team' && user?.role === 'intern') return false;
-              if (tab.id === 'to_verify' && verifyTasks.length === 0) return false;
+              if (tab.id === 'to_verify' && allVerifierTasks.length === 0) return false;
               if (tab.id === 'repeated_tasks' && !(user?.role === 'admin' || repeatedTasksCount > 0)) return false;
               return true;
             })
@@ -268,9 +276,9 @@ export default function EmployeeDashboard({ user }) {
                     {pendingVerifyCount}
                   </span>
                 )}
-                {tab.id === 'to_verify' && pendingVerifyCount === 0 && verifyTasks.length > 0 && (
+                {tab.id === 'to_verify' && pendingVerifyCount === 0 && allVerifierTasks.length > 0 && (
                   <span className="px-1.5 py-0.2 rounded-full bg-gray-300 text-gray-700 font-semibold text-[10px]">
-                    {verifyTasks.length}
+                    {allVerifierTasks.length}
                   </span>
                 )}
               </button>
@@ -396,6 +404,26 @@ export default function EmployeeDashboard({ user }) {
 
       {(activeTab === 'work' || activeTab === 'to_verify' || activeTab === 'completed' || selectedEmp) && activeTab !== 'projects' && activeTab !== 'repeated_tasks' && (
         <>
+          {activeTab === 'to_verify' && !selectedEmp && (
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="bg-amber-50/80 border border-amber-200 p-3.5 rounded-xl">
+                <p className="text-xs text-amber-800 font-medium">Pending My Review</p>
+                <p className="text-xl font-bold text-amber-950 mt-0.5">{pendingVerifyCount}</p>
+                <p className="text-[10px] text-amber-700 mt-0.5">Tasks submitted & waiting for your sign-off</p>
+              </div>
+              <div className="bg-blue-50/80 border border-blue-200 p-3.5 rounded-xl">
+                <p className="text-xs text-blue-800 font-medium">In Progress</p>
+                <p className="text-xl font-bold text-blue-950 mt-0.5">{inProgressVerifyCount}</p>
+                <p className="text-[10px] text-blue-700 mt-0.5">Assigned to you to verify once completed</p>
+              </div>
+              <div className="bg-emerald-50/80 border border-emerald-200 p-3.5 rounded-xl">
+                <p className="text-xs text-emerald-800 font-medium">Verified by Me</p>
+                <p className="text-xl font-bold text-emerald-950 mt-0.5">{verifiedByMeCount}</p>
+                <p className="text-[10px] text-emerald-700 mt-0.5">Total tasks successfully verified & approved</p>
+              </div>
+            </div>
+          )}
+
           <div className="flex items-center gap-3 flex-wrap">
             <div className="relative flex-1 min-w-[200px] max-w-sm">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -423,6 +451,52 @@ export default function EmployeeDashboard({ user }) {
                     {s ? s.replace('_', ' ') : 'All'}
                   </button>
                 ))}
+              </div>
+            )}
+
+            {activeTab === 'to_verify' && (
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <Filter className="w-4 h-4 text-gray-400" />
+                <button
+                  onClick={() => setStatusFilter('')}
+                  className={`text-[10px] sm:text-xs px-2 py-1 rounded-lg border font-semibold transition-colors ${
+                    statusFilter === ''
+                      ? 'bg-gray-800 text-white border-gray-700'
+                      : 'bg-white border-gray-200 text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                  }`}
+                >
+                  All ({allVerifierTasks.length})
+                </button>
+                <button
+                  onClick={() => setStatusFilter('under_review')}
+                  className={`text-[10px] sm:text-xs px-2 py-1 rounded-lg border font-semibold transition-colors ${
+                    statusFilter === 'under_review'
+                      ? 'bg-amber-600 text-white border-amber-600'
+                      : 'bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100'
+                  }`}
+                >
+                  ⏳ Under Review ({pendingVerifyCount})
+                </button>
+                <button
+                  onClick={() => setStatusFilter('in_progress')}
+                  className={`text-[10px] sm:text-xs px-2 py-1 rounded-lg border font-semibold transition-colors ${
+                    statusFilter === 'in_progress'
+                      ? 'bg-blue-600 text-white border-blue-600'
+                      : 'bg-blue-50 text-blue-800 border-blue-200 hover:bg-blue-100'
+                  }`}
+                >
+                  ⚙️ In Progress ({inProgressVerifyCount})
+                </button>
+                <button
+                  onClick={() => setStatusFilter('completed')}
+                  className={`text-[10px] sm:text-xs px-2 py-1 rounded-lg border font-semibold transition-colors ${
+                    statusFilter === 'completed'
+                      ? 'bg-emerald-600 text-white border-emerald-600'
+                      : 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100'
+                  }`}
+                >
+                  ✅ Verified by Me ({verifiedByMeCount})
+                </button>
               </div>
             )}
 
