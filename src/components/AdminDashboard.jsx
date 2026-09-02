@@ -232,10 +232,22 @@ export default function AdminDashboard({ user }) {
   };
 
   const handleViewEmployeeTasks = (emp) => {
+    setStatusFilter('');
+    setPriorityFilter('');
+    setCategoryFilter('');
+    setDateRangeFilter('');
+    setCustomFromDate('');
+    setCustomToDate('');
     window.location.hash = `all/employee/${emp.id}`;
   };
 
   const handleViewEmployeeTasksByStatus = (emp, status) => {
+    setStatusFilter('');
+    setPriorityFilter('');
+    setCategoryFilter('');
+    setDateRangeFilter('');
+    setCustomFromDate('');
+    setCustomToDate('');
     const targetTab = status === 'completed' ? 'completed' : 'work';
     window.location.hash = `${targetTab}/employee/${emp.id}`;
     if (status !== 'completed') {
@@ -247,6 +259,10 @@ export default function AdminDashboard({ user }) {
     window.location.hash = 'team';
     setStatusFilter('');
     setPriorityFilter('');
+    setCategoryFilter('');
+    setDateRangeFilter('');
+    setCustomFromDate('');
+    setCustomToDate('');
   };
 
   const displayedTasks = tasks.filter(t => {
@@ -258,6 +274,7 @@ export default function AdminDashboard({ user }) {
       }
       if (activeTab === 'assigned_by_me') {
         const isCreatedForOthers = Number(t.creator_id) === Number(selectedEmp.id) && Number(t.assignee_id) !== Number(selectedEmp.id);
+        if (t.parent_id && t.id !== t.parent_id) return false;
         if (statusFilter) return isCreatedForOthers && t.status === statusFilter;
         return isCreatedForOthers;
       }
@@ -290,6 +307,12 @@ export default function AdminDashboard({ user }) {
     return 0;
   });
 
+  const empAllTasksCount = selectedEmp ? tasks.filter(t => Number(t.assignee_id) === Number(selectedEmp.id)).length : 0;
+  const empActiveTasksCount = selectedEmp ? tasks.filter(t => Number(t.assignee_id) === Number(selectedEmp.id) && t.status !== 'completed').length : 0;
+  const empCompletedTasksCount = selectedEmp ? tasks.filter(t => Number(t.assignee_id) === Number(selectedEmp.id) && t.status === 'completed').length : 0;
+  const empCreatedForOthersCount = selectedEmp ? tasks.filter(t => Number(t.creator_id) === Number(selectedEmp.id) && Number(t.assignee_id) !== Number(selectedEmp.id) && (!t.parent_id || t.id === t.parent_id)).length : 0;
+  const empVerifiedTasksCount = selectedEmp ? tasks.filter(t => t.status === 'completed' && (Number(t.completed_by) === Number(selectedEmp.id) || Number(t.verifier_id) === Number(selectedEmp.id)) && Number(t.assignee_id) !== Number(selectedEmp.id)).length : 0;
+
   const metricCards = stats ? [
     { label: 'Total Tasks', value: stats.totalTasks, icon: ListTodo, color: 'text-gray-500' },
     { label: 'Team Members', value: Number(stats.totalEmployees) + Number(stats.totalManagers), icon: Users, color: 'text-blue-500' },
@@ -312,43 +335,58 @@ export default function AdminDashboard({ user }) {
           <div className="flex gap-1 bg-gray-200 p-1 rounded-xl w-fit flex-wrap">
             <button
               onClick={() => { window.location.hash = `all/employee/${selectedEmp.id}`; }}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                 activeTab === 'all' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
               }`}
             >
               All Tasks
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${activeTab === 'all' ? 'bg-amber-100 text-amber-800' : 'bg-gray-300 text-gray-700'}`}>
+                {empAllTasksCount}
+              </span>
             </button>
             <button
               onClick={() => { window.location.hash = `work/employee/${selectedEmp.id}`; }}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                 activeTab === 'work' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
               }`}
             >
               Active Tasks
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${activeTab === 'work' ? 'bg-amber-100 text-amber-800' : 'bg-gray-300 text-gray-700'}`}>
+                {empActiveTasksCount}
+              </span>
             </button>
             <button
               onClick={() => { window.location.hash = `completed/employee/${selectedEmp.id}`; }}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                 activeTab === 'completed' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
               }`}
             >
               Completed Tasks
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${activeTab === 'completed' ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-300 text-gray-700'}`}>
+                {empCompletedTasksCount}
+              </span>
             </button>
             <button
               onClick={() => { window.location.hash = `assigned_by_me/employee/${selectedEmp.id}`; }}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                 activeTab === 'assigned_by_me' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
               }`}
             >
               Created for Others
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${activeTab === 'assigned_by_me' ? 'bg-indigo-100 text-indigo-800' : 'bg-gray-300 text-gray-700'}`}>
+                {empCreatedForOthersCount}
+              </span>
             </button>
             <button
               onClick={() => { window.location.hash = `verified/employee/${selectedEmp.id}`; }}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                 activeTab === 'verified' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
               }`}
             >
               Verified Tasks
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${activeTab === 'verified' ? 'bg-purple-100 text-purple-800' : 'bg-gray-300 text-gray-700'}`}>
+                {empVerifiedTasksCount}
+              </span>
             </button>
           </div>
         </div>
@@ -376,16 +414,6 @@ export default function AdminDashboard({ user }) {
                 >
                   <Icon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                   {tab.label}
-                  {tab.id === 'to_verify' && pendingVerifyCount > 0 && (
-                    <span className="px-1.5 py-0.2 rounded-full bg-amber-500 text-white font-bold text-[10px] animate-pulse">
-                      {pendingVerifyCount}
-                    </span>
-                  )}
-                  {tab.id === 'to_verify' && pendingVerifyCount === 0 && allVerifierTasks.length > 0 && (
-                    <span className="px-1.5 py-0.2 rounded-full bg-gray-300 text-gray-700 font-semibold text-[10px]">
-                      {allVerifierTasks.length}
-                    </span>
-                  )}
                 </button>
               );
             })}

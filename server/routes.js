@@ -794,6 +794,10 @@ router.put('/tasks/:id', auth, async (req, res) => {
       // Task was already completed and user is just editing other fields — preserve status, don't touch completed_by/verified_at
       // Remove status from the update so we don't re-trigger any completion side effects
       delete req.body.status;
+    } else if (req.body.status && ['todo', 'in_progress'].includes(req.body.status)) {
+      // Task is being moved back to todo or in_progress: clear previous completion/verification metadata
+      req.body.completed_by = null;
+      req.body.verified_at = null;
     }
 
     const fields = ['title', 'description', 'color', 'status', 'priority', 'category',
@@ -1137,18 +1141,18 @@ router.delete('/tasks/:id/comments/:commentId', auth, async (req, res) => {
 // ─── DASHBOARD STATS ────────────────────────────────────────────
 router.get('/dashboard/stats', auth, adminOrManager, async (req, res) => {
   try {
-    const { rows: r1 } = await db.query('SELECT COUNT(*) as cnt FROM tasks');
+    const { rows: r1 } = await db.query('SELECT COUNT(*) as cnt FROM tasks WHERE (parent_id IS NULL OR id = parent_id)');
     const totalTasks = r1[0].cnt;
     const { rows: r2 } = await db.query("SELECT COUNT(*) as cnt FROM users WHERE role = 'employee'");
     const totalEmployees = r2[0].cnt;
     const { rows: r3 } = await db.query("SELECT COUNT(*) as cnt FROM users WHERE role = 'manager'");
     const totalManagers = r3[0].cnt;
 
-    const { rows: r4 } = await db.query('SELECT ROUND(AVG(progress_percent), 0) as avg FROM tasks');
+    const { rows: r4 } = await db.query('SELECT ROUND(AVG(progress_percent), 0) as avg FROM tasks WHERE (parent_id IS NULL OR id = parent_id)');
     const avgCompletion = r4[0].avg;
 
     const { rows: statusBreakdown } = await db.query(`
-      SELECT status, COUNT(*) as cnt FROM tasks GROUP BY status
+      SELECT status, COUNT(*) as cnt FROM tasks WHERE (parent_id IS NULL OR id = parent_id) GROUP BY status
     `);
 
     const { rows: recentTasks } = await db.query(`
