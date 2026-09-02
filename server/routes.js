@@ -469,20 +469,13 @@ router.get('/tasks', auth, async (req, res) => {
 
     // Role-specific task visibility restrictions:
     if (req.user.role === 'intern') {
-      // Interns see their own tasks + tasks assigned to them to verify or completed by them
+      // Interns see only their own tasks + tasks assigned to them to verify or completed by them
       sql += ` AND (t.assignee_id = $${paramIdx} OR t.creator_id = $${paramIdx} OR t.verifier_id = $${paramIdx} OR t.completed_by = $${paramIdx})`;
       params.push(req.user.id);
       paramIdx++;
     } else if (req.user.role !== 'admin' && req.user.role !== 'manager') {
       // Regular team members viewing their personal workspace (without specific assignee or project filter)
-      if (req.query.assignee_id) {
-        const targetId = Number(req.query.assignee_id);
-        if (targetId !== Number(req.user.id)) {
-          sql += ` AND (t.assignee_id IN (SELECT id FROM users WHERE id = $${paramIdx} AND mentor_id = $${paramIdx + 1}) OR t.verifier_id = $${paramIdx + 1} OR t.completed_by = $${paramIdx + 1})`;
-          params.push(targetId, req.user.id);
-          paramIdx += 2;
-        }
-      } else if (!req.query.project_id) {
+      if (!req.query.assignee_id && !req.query.project_id) {
         sql += ` AND (t.assignee_id = $${paramIdx} OR t.creator_id = $${paramIdx} OR t.verifier_id = $${paramIdx} OR t.completed_by = $${paramIdx})`;
         params.push(req.user.id);
         paramIdx++;
