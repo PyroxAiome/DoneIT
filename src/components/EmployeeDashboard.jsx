@@ -94,7 +94,7 @@ export default function EmployeeDashboard({ user }) {
         return;
       }
 
-      if (['projects', 'work', 'to_verify', 'repeated_tasks', 'completed', 'team'].includes(tabId)) {
+      if (['projects', 'work', 'to_verify', 'repeated_tasks', 'completed', 'verified', 'team'].includes(tabId)) {
         setActiveTab(tabId);
         if (tabId !== 'projects') setSelectedProject(null);
       }
@@ -161,7 +161,22 @@ export default function EmployeeDashboard({ user }) {
   const verifiedByMeCount = allVerifierTasks.filter(t => t.status === 'completed' && (Number(t.completed_by) === Number(user.id) || Number(t.verifier_id) === Number(user.id))).length;
 
   const displayedTasks = tasks.filter(t => {
-    if (selectedEmp) return true; // Show all tasks for the colleague (no active/completed sub-filtering)
+    if (selectedEmp) {
+      if (activeTab === 'verified') {
+        const isVerified = t.status === 'completed' && (Number(t.completed_by) === Number(selectedEmp.id) || Number(t.verifier_id) === Number(selectedEmp.id));
+        if (statusFilter) return isVerified && t.status === statusFilter;
+        return isVerified;
+      }
+      if (activeTab === 'completed') {
+        const isCompleted = Number(t.assignee_id) === Number(selectedEmp.id) && t.status === 'completed';
+        if (statusFilter) return isCompleted && t.status === statusFilter;
+        return isCompleted;
+      }
+      // activeTab === 'work' or default:
+      const isActive = Number(t.assignee_id) === Number(selectedEmp.id) && t.status !== 'completed';
+      if (statusFilter) return isActive && t.status === statusFilter;
+      return isActive;
+    }
     if (activeTab === 'to_verify') {
       const isVerifierTask = (Number(t.verifier_id) === Number(user.id) || Number(t.completed_by) === Number(user.id)) && Number(t.assignee_id) !== Number(user.id);
       if (!isVerifierTask) return false;
@@ -214,6 +229,33 @@ export default function EmployeeDashboard({ user }) {
             </div>
             <button onClick={clearEmployeeFilter} className="bg-gray-800 hover:bg-gray-700 text-white text-[10px] sm:text-xs font-semibold px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg transition-all shadow-sm">
               Back to Team
+            </button>
+          </div>
+
+          <div className="flex gap-1 bg-gray-200 p-1 rounded-xl w-fit">
+            <button
+              onClick={() => { window.location.hash = `work/employee/${selectedEmp.id}`; }}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                activeTab === 'work' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              Active Tasks
+            </button>
+            <button
+              onClick={() => { window.location.hash = `completed/employee/${selectedEmp.id}`; }}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                activeTab === 'completed' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              Completed Tasks
+            </button>
+            <button
+              onClick={() => { window.location.hash = `verified/employee/${selectedEmp.id}`; }}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                activeTab === 'verified' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              Verified Tasks
             </button>
           </div>
         </div>

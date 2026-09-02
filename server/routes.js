@@ -411,8 +411,9 @@ router.get('/tasks', auth, async (req, res) => {
     let paramIdx = 1;
 
     if (req.query.assignee_id) {
-      sql += ` AND t.assignee_id = $${paramIdx++}`;
+      sql += ` AND (t.assignee_id = $${paramIdx} OR t.verifier_id = $${paramIdx} OR t.completed_by = $${paramIdx})`;
       params.push(req.query.assignee_id);
+      paramIdx++;
     }
     if (req.query.status) {
       sql += ` AND t.status = $${paramIdx++}`;

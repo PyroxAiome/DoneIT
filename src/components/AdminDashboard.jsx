@@ -19,7 +19,6 @@ const tabs = [
   { id: 'overview', label: 'Overview', icon: LayoutDashboard },
   { id: 'projects', label: 'Projects', icon: FolderGit2 },
   { id: 'work', label: 'Work', icon: Briefcase },
-  { id: 'to_verify', label: 'To Verify', icon: ShieldCheck },
   { id: 'repeated_tasks', label: 'Repeated Tasks', icon: Repeat },
   { id: 'completed', label: 'Completed', icon: CheckCircle },
   { id: 'team', label: 'Team', icon: Users },
@@ -64,18 +63,7 @@ const getDateSelectClass = (val) => {
 };
 
 export default function AdminDashboard({ user }) {
-  const getInitialHashState = () => {
-    const hash = window.location.hash;
-    if (!hash) return { tab: 'overview', empId: null };
-    const parts = hash.substring(1).split('/');
-    const tabId = parts[0];
-    const validTab = ['overview', 'projects', 'work', 'repeated_tasks', 'completed', 'team', 'admin'].includes(tabId) ? tabId : 'overview';
-    const empId = (parts[1] === 'employee' && parts[2]) ? Number(parts[2]) : null;
-    return { tab: validTab, empId };
-  };
-
-  const initialHash = getInitialHashState();
-  const [activeTab, setActiveTab] = useState(initialHash.tab);
+  const [activeTab, setActiveTab] = useState('overview');
   const [stats, setStats] = useState(null);
   const [tasks, setTasks] = useState([]);
   const [employees, setEmployees] = useState([]);
@@ -88,8 +76,18 @@ export default function AdminDashboard({ user }) {
   const [dateRangeFilter, setDateRangeFilter] = useState('');
   const [customFromDate, setCustomFromDate] = useState('');
   const [customToDate, setCustomToDate] = useState('');
-  const [employeeFilter, setEmployeeFilter] = useState(initialHash.empId);
+  const [employeeFilter, setEmployeeFilter] = useState(null);
+  const [selectedEmp, setSelectedEmp] = useState(null);
+  const [showTaskModal, setShowTaskModal] = useState(false);
+  const [showUserModal, setShowUserModal] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [editTask, setEditTask] = useState(null);
+  const [editingUser, setEditingUser] = useState(null);
+  const [deleteTask, setDeleteTask] = useState(null);
+  const [deleteUser, setDeleteUser] = useState(null);
+  const [detailTask, setDetailTask] = useState(null);
   const [compact, setCompact] = useState(false);
+  const [selectedProject, setSelectedProject] = useState(null);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -100,18 +98,17 @@ export default function AdminDashboard({ user }) {
 
   const handleTabChange = (tabId) => {
     window.location.hash = tabId;
+    setActiveTab(tabId);
+    setStatusFilter('');
+    setPriorityFilter('');
+    setCategoryFilter('');
+    setDateRangeFilter('');
+    setCustomFromDate('');
+    setCustomToDate('');
+    if (tabId !== 'projects') {
+      setSelectedProject(null);
+    }
   };
-
-  const [showTaskModal, setShowTaskModal] = useState(false);
-  const [showImportModal, setShowImportModal] = useState(false);
-  const [editTask, setEditTask] = useState(null);
-  const [showUserModal, setShowUserModal] = useState(false);
-  const [deleteTask, setDeleteTask] = useState(null);
-  const [deleteUser, setDeleteUser] = useState(null);
-  const [editingUser, setEditingUser] = useState(null);
-  const [detailTask, setDetailTask] = useState(null);
-  const [selectedEmp, setSelectedEmp] = useState(null);
-  const [selectedProject, setSelectedProject] = useState(null);
 
   const fetchTasksOnly = () => {
     setLoading(true);
@@ -180,7 +177,7 @@ export default function AdminDashboard({ user }) {
       }
       const parts = hash.substring(1).split('/');
       const tabId = parts[0];
-      if (['overview', 'projects', 'work', 'to_verify', 'repeated_tasks', 'completed', 'team', 'admin'].includes(tabId)) {
+      if (['overview', 'projects', 'work', 'repeated_tasks', 'completed', 'verified', 'team', 'admin'].includes(tabId)) {
         setActiveTab(tabId);
         if (tabId !== 'projects') {
           setSelectedProject(null);
@@ -234,42 +231,28 @@ export default function AdminDashboard({ user }) {
     setShowTaskModal(true);
   };
 
-  const handleViewEmployeeTasks = (emp) => {
-    window.location.hash = `work/employee/${emp.id}`;
-  };
-
-  const handleViewEmployeeTasksByStatus = (emp, status) => {
-    const targetTab = status === 'completed' ? 'completed' : 'work';
-    window.location.hash = `${targetTab}/employee/${emp.id}`;
-    if (status !== 'completed') {
-      setStatusFilter(status);
-    }
-  };
-
   const clearEmployeeFilter = () => {
     window.location.hash = 'team';
     setStatusFilter('');
     setPriorityFilter('');
   };
 
-  const allVerifierTasks = tasks.filter(t => 
-    t.verifier_id || t.status === 'under_review' || t.completed_by
-  );
-  const pendingVerifyCount = tasks.filter(t => t.status === 'under_review').length;
-  const inProgressVerifyCount = tasks.filter(t => (t.status === 'todo' || t.status === 'in_progress') && t.verifier_id).length;
-  const verifiedByMeCount = tasks.filter(t => t.status === 'completed' && (Number(t.completed_by) === Number(user.id) || Number(t.verifier_id) === Number(user.id))).length;
-  const totalVerifiedCount = tasks.filter(t => t.status === 'completed' && (t.completed_by || t.verified_at)).length;
-
   const displayedTasks = tasks.filter(t => {
-    if (activeTab === 'to_verify') {
-      if (statusFilter === 'verified_by_me') {
-        return t.status === 'completed' && (Number(t.completed_by) === Number(user.id) || Number(t.verifier_id) === Number(user.id));
+    if (selectedEmp) {
+      if (activeTab === 'verified') {
+        const isVerified = t.status === 'completed' && (Number(t.completed_by) === Number(selectedEmp.id) || Number(t.verifier_id) === Number(selectedEmp.id));
+        if (statusFilter) return isVerified && t.status === statusFilter;
+        return isVerified;
       }
-      if (statusFilter === 'total_verified') {
-        return t.status === 'completed' && (t.completed_by || t.verified_at);
+      if (activeTab === 'completed') {
+        const isCompleted = Number(t.assignee_id) === Number(selectedEmp.id) && t.status === 'completed';
+        if (statusFilter) return isCompleted && t.status === statusFilter;
+        return isCompleted;
       }
-      if (statusFilter) return t.status === statusFilter;
-      return Boolean(t.verifier_id || t.status === 'under_review' || t.completed_by);
+      // activeTab === 'work' or default:
+      const isActive = Number(t.assignee_id) === Number(selectedEmp.id) && t.status !== 'completed';
+      if (statusFilter) return isActive && t.status === statusFilter;
+      return isActive;
     }
     if (statusFilter) return true;
     if (activeTab === 'completed') {
@@ -278,12 +261,7 @@ export default function AdminDashboard({ user }) {
       return t.status !== 'completed';
     }
   }).sort((a, b) => {
-    if (activeTab === 'to_verify') {
-      if (a.status === 'under_review' && b.status !== 'under_review') return -1;
-      if (a.status !== 'under_review' && b.status === 'under_review') return 1;
-      if (a.status === 'completed' && b.status !== 'completed') return 1;
-      if (a.status !== 'completed' && b.status === 'completed') return -1;
-    } else if (activeTab === 'work') {
+    if (activeTab === 'work') {
       if (a.status === 'in_progress' && b.status !== 'in_progress') return -1;
       if (a.status !== 'in_progress' && b.status === 'in_progress') return 1;
     }
@@ -294,9 +272,6 @@ export default function AdminDashboard({ user }) {
     { label: 'Total Tasks', value: stats.totalTasks, icon: ListTodo, color: 'text-gray-500' },
     { label: 'Team Members', value: Number(stats.totalEmployees) + Number(stats.totalManagers), icon: Users, color: 'text-blue-500' },
   ] : [];
-
-  const statusOptions = ['', 'todo', 'in_progress', 'under_review'];
-  const priorityOptions = ['', 'low', 'medium', 'high', 'urgent'];
 
   return (
     <div className="space-y-6">
@@ -328,6 +303,14 @@ export default function AdminDashboard({ user }) {
               }`}
             >
               Completed Tasks
+            </button>
+            <button
+              onClick={() => { window.location.hash = `verified/employee/${selectedEmp.id}`; }}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                activeTab === 'verified' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              Verified Tasks
             </button>
           </div>
         </div>
@@ -428,33 +411,8 @@ export default function AdminDashboard({ user }) {
         </div>
       )}
 
-      {(activeTab === 'work' || activeTab === 'to_verify' || activeTab === 'completed') && (
+      {(activeTab === 'work' || activeTab === 'completed' || activeTab === 'verified') && (
         <div className="space-y-4">
-          {activeTab === 'to_verify' && (
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <div className="bg-amber-50/80 border border-amber-200 p-3.5 rounded-xl">
-                <p className="text-xs text-amber-800 font-medium">Pending Review</p>
-                <p className="text-xl font-bold text-amber-950 mt-0.5">{pendingVerifyCount}</p>
-                <p className="text-[10px] text-amber-700 mt-0.5">Tasks submitted & awaiting sign-off</p>
-              </div>
-              <div className="bg-blue-50/80 border border-blue-200 p-3.5 rounded-xl">
-                <p className="text-xs text-blue-800 font-medium">In Progress</p>
-                <p className="text-xl font-bold text-blue-950 mt-0.5">{inProgressVerifyCount}</p>
-                <p className="text-[10px] text-blue-700 mt-0.5">Assigned to a verifier for review</p>
-              </div>
-              <div className="bg-purple-50/80 border border-purple-200 p-3.5 rounded-xl">
-                <p className="text-xs text-purple-800 font-medium">Verified by You</p>
-                <p className="text-xl font-bold text-purple-950 mt-0.5">{verifiedByMeCount}</p>
-                <p className="text-[10px] text-purple-700 mt-0.5">Tasks signed off by Admin</p>
-              </div>
-              <div className="bg-emerald-50/80 border border-emerald-200 p-3.5 rounded-xl">
-                <p className="text-xs text-emerald-800 font-medium">Company Verified</p>
-                <p className="text-xl font-bold text-emerald-950 mt-0.5">{totalVerifiedCount}</p>
-                <p className="text-[10px] text-emerald-700 mt-0.5">Total tasks verified across company</p>
-              </div>
-            </div>
-          )}
-
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <div className="flex items-center gap-3 flex-wrap flex-1">
               <div className="relative flex-1 min-w-[200px] max-w-sm">
@@ -476,62 +434,6 @@ export default function AdminDashboard({ user }) {
                     <option value="under_review" className="text-purple-600 font-semibold bg-purple-50">Under Review</option>
                     <option value="completed" className="text-emerald-600 font-semibold bg-emerald-50">Completed</option>
                   </select>
-                </div>
-              )}
-
-              {activeTab === 'to_verify' && (
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <Filter className="w-4 h-4 text-gray-400" />
-                  <button
-                    onClick={() => setStatusFilter('')}
-                    className={`text-[10px] sm:text-xs px-2 py-1 rounded-lg border font-semibold transition-colors ${
-                      statusFilter === ''
-                        ? 'bg-gray-800 text-white border-gray-700'
-                        : 'bg-white border-gray-200 text-gray-500 hover:text-gray-700 hover:bg-gray-50'
-                    }`}
-                  >
-                    All ({allVerifierTasks.length})
-                  </button>
-                  <button
-                    onClick={() => setStatusFilter('under_review')}
-                    className={`text-[10px] sm:text-xs px-2 py-1 rounded-lg border font-semibold transition-colors ${
-                      statusFilter === 'under_review'
-                        ? 'bg-amber-600 text-white border-amber-600'
-                        : 'bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100'
-                    }`}
-                  >
-                    ⏳ Under Review ({pendingVerifyCount})
-                  </button>
-                  <button
-                    onClick={() => setStatusFilter('in_progress')}
-                    className={`text-[10px] sm:text-xs px-2 py-1 rounded-lg border font-semibold transition-colors ${
-                      statusFilter === 'in_progress'
-                        ? 'bg-blue-600 text-white border-blue-600'
-                        : 'bg-blue-50 text-blue-800 border-blue-200 hover:bg-blue-100'
-                    }`}
-                  >
-                    ⚙️ In Progress ({inProgressVerifyCount})
-                  </button>
-                  <button
-                    onClick={() => setStatusFilter('verified_by_me')}
-                    className={`text-[10px] sm:text-xs px-2 py-1 rounded-lg border font-semibold transition-colors ${
-                      statusFilter === 'verified_by_me'
-                        ? 'bg-purple-600 text-white border-purple-600'
-                        : 'bg-purple-50 text-purple-800 border-purple-200 hover:bg-purple-100'
-                    }`}
-                  >
-                    👑 Verified by You ({verifiedByMeCount})
-                  </button>
-                  <button
-                    onClick={() => setStatusFilter('total_verified')}
-                    className={`text-[10px] sm:text-xs px-2 py-1 rounded-lg border font-semibold transition-colors ${
-                      statusFilter === 'total_verified'
-                        ? 'bg-emerald-600 text-white border-emerald-600'
-                        : 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100'
-                    }`}
-                  >
-                    ✅ All Verified ({totalVerifiedCount})
-                  </button>
                 </div>
               )}
 
