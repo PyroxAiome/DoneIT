@@ -231,6 +231,18 @@ export default function AdminDashboard({ user }) {
     setShowTaskModal(true);
   };
 
+  const handleViewEmployeeTasks = (emp) => {
+    window.location.hash = `work/employee/${emp.id}`;
+  };
+
+  const handleViewEmployeeTasksByStatus = (emp, status) => {
+    const targetTab = status === 'completed' ? 'completed' : 'work';
+    window.location.hash = `${targetTab}/employee/${emp.id}`;
+    if (status !== 'completed') {
+      setStatusFilter(status);
+    }
+  };
+
   const clearEmployeeFilter = () => {
     window.location.hash = 'team';
     setStatusFilter('');
