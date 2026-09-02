@@ -456,7 +456,7 @@ export default function EmployeeDashboard({ user }) {
           )}
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-            {employees.filter(e => e.role !== 'admin').map((emp) => {
+            {employees.filter(e => !['admin', 'manager'].includes(e.role)).map((emp) => {
               const isSelf = emp.id === user.id;
               return (
                 <div key={emp.id} className={`bg-white border border-gray-200 rounded-xl p-4 hover:shadow-md hover:border-gray-300 transition-all cursor-pointer ${isSelf ? 'ring-1 ring-amber-500/30' : ''}`}

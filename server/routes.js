@@ -474,8 +474,12 @@ router.get('/tasks', auth, async (req, res) => {
       params.push(req.user.id);
       paramIdx++;
     } else if (req.user.role !== 'admin' && req.user.role !== 'manager') {
-      // Regular team members viewing their personal workspace (without specific assignee or project filter)
-      if (!req.query.assignee_id && !req.query.project_id) {
+      // Regular employees cannot view tasks of Admins or Managers
+      if (req.query.assignee_id) {
+        sql += ` AND t.assignee_id IN (SELECT id FROM users WHERE id = $${paramIdx} AND role NOT IN ('admin', 'manager'))`;
+        params.push(req.query.assignee_id);
+        paramIdx++;
+      } else if (!req.query.project_id) {
         sql += ` AND (t.assignee_id = $${paramIdx} OR t.creator_id = $${paramIdx} OR t.verifier_id = $${paramIdx} OR t.completed_by = $${paramIdx})`;
         params.push(req.user.id);
         paramIdx++;
