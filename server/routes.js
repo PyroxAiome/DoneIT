@@ -771,13 +771,18 @@ router.put('/tasks/:id', auth, async (req, res) => {
     const verifierChanged = req.body.verifier_id !== undefined && 
       (req.body.verifier_id ? Number(req.body.verifier_id) !== Number(currentTask.verifier_id) : currentTask.verifier_id !== null);
 
+    // Only treat status='completed' as a NEW completion attempt if the task wasn't already completed
+    const isNewCompletionAttempt = req.body.status === 'completed' && currentTask.status !== 'completed';
+
     if (verifierChanged && req.body.verifier_id && (currentTask.status === 'completed' || currentTask.completed_by)) {
       // Reassigning verifier on a completed/verified task -> sets status to under_review for new verifier
       // Keeps currentTask.completed_by as previous verifier history
       req.body.status = 'under_review';
       req.body.completed_by = currentTask.completed_by || currentTask.verifier_id || (currentTask.status === 'completed' ? 1 : null);
+      req.body.verified_at = null; // Clear old verification timestamp since re-verification is pending
       verificationRequired = true;
-    } else if (req.body.status === 'completed') {
+    } else if (isNewCompletionAttempt) {
+      // Task is being marked completed for the first time (status was NOT already 'completed')
       if (!isVerifierOrAdmin) {
         req.body.status = 'under_review';
         verificationRequired = true;
@@ -785,6 +790,10 @@ router.put('/tasks/:id', auth, async (req, res) => {
         req.body.verified_at = new Date();
         req.body.completed_by = req.user.id;
       }
+    } else if (req.body.status === 'completed' && currentTask.status === 'completed') {
+      // Task was already completed and user is just editing other fields — preserve status, don't touch completed_by/verified_at
+      // Remove status from the update so we don't re-trigger any completion side effects
+      delete req.body.status;
     }
 
     const fields = ['title', 'description', 'color', 'status', 'priority', 'category',
@@ -901,8 +910,8 @@ router.put('/tasks/:id', auth, async (req, res) => {
         for (const newAssigneeId of selectedSet) {
           await db.query(`
             INSERT INTO tasks (title, description, color, status, priority, category,
-              assignee_id, creator_id, start_date, due_date, estimated_hours, parent_id, project_id)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+              assignee_id, creator_id, start_date, due_date, estimated_hours, parent_id, project_id, verifier_id)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
           `, [
             templateTask.title,
             templateTask.description,
@@ -916,7 +925,8 @@ router.put('/tasks/:id', auth, async (req, res) => {
             templateTask.due_date,
             templateTask.estimated_hours,
             currentParentId,
-            templateTask.project_id || null
+            templateTask.project_id || null,
+            templateTask.verifier_id || null
           ]);
         }
       }
