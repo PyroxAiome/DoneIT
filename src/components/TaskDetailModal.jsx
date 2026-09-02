@@ -289,6 +289,14 @@ export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated, 
       .catch(() => {})
   };
 
+  const isVerifier = Number(taskData?.verifier_id || task.verifier_id) === Number(user?.id);
+  const isCreator = Number(taskData?.creator_id || task.creator_id) === Number(user?.id);
+  const isAssignee = Number(taskData?.assignee_id || task.assignee_id) === Number(user?.id);
+  const isMentor = (taskData?.assignee_mentor_id || task.assignee_mentor_id) && Number(taskData?.assignee_mentor_id || task.assignee_mentor_id) === Number(user?.id);
+  const isAdminOrManager = ['admin', 'manager', 'site_manager'].includes(user?.role);
+  const canReview = isAdminOrManager || isVerifier || isCreator || isMentor;
+  const canAddExplanation = !readOnly || isAssignee || isMentor || isVerifier || isAdminOrManager;
+
   const isResolver = dependencies.some(d => Number(d.tagee_id) === Number(user.id));
 
   return (
@@ -376,6 +384,21 @@ export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated, 
           </div>
         )}
 
+        {/* Mentor / Supervisor Info Banner */}
+        {isMentor && (
+          <div className="mx-5 mt-4 p-3 bg-blue-50 border border-blue-200 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-blue-500" />
+              <span className="font-semibold text-blue-950">
+                🎓 You are the supervising mentor for {taskData?.assignee_name || 'this intern'}
+              </span>
+            </div>
+            <span className="text-blue-700 text-[11px]">
+              You can write reviews/guidance, reply in discussions, and log logic context.
+            </span>
+          </div>
+        )}
+
         {/* Task Completed Verification Info Banner (Only when status is completed) */}
         {(taskData?.status || task.status) === 'completed' && (
           <div className="mx-5 mt-4 p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between gap-3 text-xs">
@@ -420,38 +443,43 @@ export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated, 
         <div className="flex border-b border-gray-100 overflow-x-auto scrollbar-none shrink-0">
           <button onClick={() => setTab('reviews')}
             className={`flex items-center gap-1.5 px-5 py-3 text-sm font-medium transition-colors whitespace-nowrap ${tab === 'reviews' ? 'text-amber-600 border-b-2 border-amber-500' : 'text-gray-500 hover:text-gray-700'}`}>
-            <MessageSquare className="w-4 h-4" /> Reviews
+            <MessageSquare className="w-4 h-4" /> Reviews ({comments.length})
           </button>
           <button onClick={() => setTab('explanation')}
             className={`flex items-center gap-1.5 px-5 py-3 text-sm font-medium transition-colors whitespace-nowrap ${tab === 'explanation' ? 'text-amber-600 border-b-2 border-amber-500' : 'text-gray-500 hover:text-gray-700'}`}>
-            <FileText className="w-4 h-4" /> Logical Explanation
+            <BookOpen className="w-4 h-4" /> Logic & Strategy ({explanationsList.length})
           </button>
-          <button onClick={() => setTab('daily-logs')}
-            className={`flex items-center gap-1.5 px-5 py-3 text-sm font-medium transition-colors whitespace-nowrap ${tab === 'daily-logs' ? 'text-amber-600 border-b-2 border-amber-500' : 'text-gray-500 hover:text-gray-700'}`}>
-            <Calendar className="w-4 h-4" /> Daily Achievements
+          <button onClick={() => setTab('work')}
+            className={`flex items-center gap-1.5 px-5 py-3 text-sm font-medium transition-colors whitespace-nowrap ${tab === 'work' ? 'text-amber-600 border-b-2 border-amber-500' : 'text-gray-500 hover:text-gray-700'}`}>
+            <FileText className="w-4 h-4" /> Work Logs ({dailyLogs.length})
+          </button>
+          <button onClick={() => setTab('daily')}
+            className={`flex items-center gap-1.5 px-5 py-3 text-sm font-medium transition-colors whitespace-nowrap ${tab === 'daily' ? 'text-amber-600 border-b-2 border-amber-500' : 'text-gray-500 hover:text-gray-700'}`}>
+            <Flame className="w-4 h-4" /> Daily Progress ({dailyReports.length})
           </button>
           <button onClick={() => setTab('dependencies')}
             className={`flex items-center gap-1.5 px-5 py-3 text-sm font-medium transition-colors whitespace-nowrap ${tab === 'dependencies' ? 'text-amber-600 border-b-2 border-amber-500' : 'text-gray-500 hover:text-gray-700'}`}>
-            <GitMerge className="w-4 h-4" /> Dependencies
+            <HelpCircle className="w-4 h-4" /> Help / Tagged ({dependencies.length})
           </button>
         </div>
 
+        {/* Tab content */}
         <div className="p-5">
           {tab === 'reviews' && (
             <div className="space-y-4">
               {topComments.length === 0 ? (
-                <p className="text-sm text-gray-400 text-center py-4">No reviews yet</p>
+                <p className="text-sm text-gray-400 text-center py-6">No reviews or discussions yet.</p>
               ) : (
                 topComments.map((c) => (
-                  <div key={c.id}>
-                    <div className="bg-gray-50 rounded-lg px-3 py-2.5 group">
+                  <div key={c.id} className="space-y-2 border-b border-gray-50 pb-3">
+                    <div className="bg-amber-50/50 rounded-xl p-3.5 group">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <span className="text-xs font-medium text-gray-700">{c.admin_name || 'Admin'}</span>
+                          <span className="text-xs font-semibold text-gray-800">{c.admin_name || 'Admin'}</span>
                           <span className="text-[10px] text-gray-400">{new Date(c.created_at).toLocaleDateString()}</span>
                         </div>
                         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          {!readOnly && canEditComment(c) && editCommentId !== c.id && (
+                          {canEditComment(c) && editCommentId !== c.id && (
                             <>
                               <button onClick={() => startEdit(c)} className="text-gray-300 hover:text-gray-600 p-1" title="Edit">
                                 <Edit3 className="w-3 h-3" />
@@ -474,9 +502,9 @@ export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated, 
                       ) : (
                         <p className="text-sm text-gray-600 mt-1">{c.comment_text}</p>
                       )}
-                      {!readOnly && (
+                      {(!readOnly || canReview || isAssignee) && (
                         <button onClick={() => setReplyToId(replyToId === c.id ? null : c.id)}
-                          className="text-[11px] text-gray-400 hover:text-gray-600 flex items-center gap-1 mt-1.5 transition-colors">
+                          className="text-[11px] text-gray-400 hover:text-amber-600 flex items-center gap-1 mt-1.5 transition-colors font-medium">
                           <Reply className="w-3 h-3" /> Reply
                         </button>
                       )}
@@ -492,7 +520,7 @@ export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated, 
                               <span className="text-[10px] text-gray-400">{new Date(r.created_at).toLocaleDateString()}</span>
                             </div>
                             <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                              {!readOnly && canEditComment(r) && editCommentId !== r.id && (
+                              {canEditComment(r) && editCommentId !== r.id && (
                                 <>
                                   <button onClick={() => startEdit(r)} className="text-gray-300 hover:text-gray-600 p-1" title="Edit">
                                     <Edit3 className="w-3 h-3" />
@@ -535,11 +563,11 @@ export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated, 
                 ))
               )}
 
-              {/* Top-level review input — admin/manager, verifier, or creator */}
-              {!readOnly && (['admin', 'manager', 'site_manager'].includes(user?.role) || Number(taskData?.verifier_id || task.verifier_id) === Number(user?.id) || Number(taskData?.creator_id || task.creator_id) === Number(user?.id)) && (
+              {/* Top-level review input — admin/manager, verifier, creator, or supervising mentor */}
+              {canReview && (
                 <div className="flex gap-2 pt-2 border-t border-gray-100">
                   <input value={fbText} onChange={(e) => setFbText(e.target.value)}
-                    className="input-field text-sm flex-1" placeholder={Number(taskData?.verifier_id || task.verifier_id) === Number(user?.id) ? "Write a review / verifier feedback..." : "Write a review..."}
+                    className="input-field text-sm flex-1" placeholder={isVerifier ? "Write a review / verifier feedback..." : isMentor ? "Write review / mentor feedback for intern..." : "Write a review..."}
                     onKeyDown={(e) => e.key === 'Enter' && handleSendReview()} />
                   <button onClick={handleSendReview} className="btn-amber text-sm flex items-center gap-1 px-3">
                     <Send className="w-3.5 h-3.5" /> Send
@@ -551,7 +579,7 @@ export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated, 
           {tab === 'explanation' && (
             <div className="space-y-5">
               {/* Add new logic log */}
-              {!readOnly && (() => {
+              {canAddExplanation && (() => {
                 const userExplanationsCount = explanationsList.filter(e => e.user_id === user.id).length;
                 const reachedLimit = userExplanationsCount >= 3;
                 return reachedLimit ? (

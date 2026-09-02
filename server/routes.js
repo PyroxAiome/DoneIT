@@ -394,7 +394,7 @@ router.get('/tasks', auth, async (req, res) => {
     console.log("Tasks GET Request query:", req.query, "user role:", req.user.role, "user id:", req.user.id);
     let sql = `
       SELECT t.*, 
-        u.name as assignee_name, u.email as assignee_email,
+        u.name as assignee_name, u.email as assignee_email, u.mentor_id as assignee_mentor_id, u.role as assignee_role,
         c.name as creator_name, c.role as creator_role, c.department as creator_department, 
         e.name as last_edited_by_name,
         v.name as verifier_name, v.role as verifier_role, v.department as verifier_department,
@@ -501,7 +501,8 @@ router.get('/tasks', auth, async (req, res) => {
 router.get('/tasks/:id', auth, async (req, res) => {
   try {
     const { rows } = await db.query(`
-      SELECT t.*, u.name as assignee_name, u.email as assignee_email,
+      SELECT t.*, 
+        u.name as assignee_name, u.email as assignee_email, u.mentor_id as assignee_mentor_id, u.role as assignee_role,
         c.name as creator_name, c.role as creator_role, c.department as creator_department, 
         e.name as last_edited_by_name,
         v.name as verifier_name, v.role as verifier_role, v.department as verifier_department,
@@ -1033,16 +1034,22 @@ router.post('/tasks/:id/comments', auth, async (req, res) => {
     const { comment_text, parent_id } = req.body;
     if (!comment_text) return res.status(400).json({ error: 'Comment text required' });
 
-    const { rows: taskRows } = await db.query('SELECT id, title, verifier_id, creator_id, assignee_id FROM tasks WHERE id = $1', [id]);
+    const { rows: taskRows } = await db.query(`
+      SELECT t.id, t.title, t.verifier_id, t.creator_id, t.assignee_id, u.mentor_id as assignee_mentor_id
+      FROM tasks t
+      LEFT JOIN users u ON t.assignee_id = u.id
+      WHERE t.id = $1
+    `, [id]);
     const taskDetails = taskRows[0];
     if (!taskDetails) return res.status(404).json({ error: 'Task not found' });
 
     const isVerifier = taskDetails.verifier_id && Number(taskDetails.verifier_id) === Number(req.user.id);
     const isAdminOrManager = ['admin', 'manager', 'site_manager'].includes(req.user.role);
     const isCreator = taskDetails.creator_id && Number(taskDetails.creator_id) === Number(req.user.id);
+    const isMentor = taskDetails.assignee_mentor_id && Number(taskDetails.assignee_mentor_id) === Number(req.user.id);
 
-    if (!parent_id && !isAdminOrManager && !isVerifier && !isCreator) {
-      return res.status(403).json({ error: 'Only admins, managers, creators, or assigned verifiers can write reviews' });
+    if (!parent_id && !isAdminOrManager && !isVerifier && !isCreator && !isMentor) {
+      return res.status(403).json({ error: 'Only admins, managers, creators, assigned verifiers, or supervising mentors can write reviews' });
     }
 
     const result = await db.query(
