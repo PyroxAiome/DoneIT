@@ -1153,18 +1153,18 @@ router.delete('/tasks/:id/comments/:commentId', auth, async (req, res) => {
 // ─── DASHBOARD STATS ────────────────────────────────────────────
 router.get('/dashboard/stats', auth, adminOrManager, async (req, res) => {
   try {
-    const { rows: r1 } = await db.query('SELECT COUNT(*) as cnt FROM tasks WHERE project_id IS NULL AND (parent_id IS NULL OR id = parent_id)');
+    const { rows: r1 } = await db.query('SELECT COUNT(*) as cnt FROM tasks WHERE (parent_id IS NULL OR id = parent_id)');
     const totalTasks = r1[0].cnt;
-    const { rows: r2 } = await db.query("SELECT COUNT(*) as cnt FROM users WHERE role = 'employee'");
-    const totalEmployees = r2[0].cnt;
+    const { rows: r2 } = await db.query("SELECT COUNT(*) as cnt FROM users WHERE role != 'admin'");
+    const totalTeamMembers = r2[0].cnt;
     const { rows: r3 } = await db.query("SELECT COUNT(*) as cnt FROM users WHERE role = 'manager'");
     const totalManagers = r3[0].cnt;
 
-    const { rows: r4 } = await db.query('SELECT ROUND(AVG(progress_percent), 0) as avg FROM tasks WHERE project_id IS NULL AND (parent_id IS NULL OR id = parent_id)');
+    const { rows: r4 } = await db.query('SELECT ROUND(AVG(progress_percent), 0) as avg FROM tasks WHERE (parent_id IS NULL OR id = parent_id)');
     const avgCompletion = r4[0].avg;
 
     const { rows: statusBreakdown } = await db.query(`
-      SELECT status, COUNT(*) as cnt FROM tasks WHERE project_id IS NULL AND (parent_id IS NULL OR id = parent_id) GROUP BY status
+      SELECT status, COUNT(*) as cnt FROM tasks WHERE (parent_id IS NULL OR id = parent_id) GROUP BY status
     `);
 
     const { rows: recentTasks } = await db.query(`
@@ -1172,13 +1172,13 @@ router.get('/dashboard/stats', auth, adminOrManager, async (req, res) => {
         u.name as assignee_name, t.due_date, t.color
       FROM tasks t
       LEFT JOIN users u ON t.assignee_id = u.id
-      WHERE t.project_id IS NULL
       ORDER BY t.created_at DESC LIMIT 5
     `);
 
     res.json({
       totalTasks: parseInt(totalTasks) || 0,
-      totalEmployees: parseInt(totalEmployees) || 0,
+      totalEmployees: parseInt(totalTeamMembers) || 0,
+      totalTeamMembers: parseInt(totalTeamMembers) || 0,
       totalManagers: parseInt(totalManagers) || 0,
       avgCompletion: parseInt(avgCompletion) || 0,
       statusBreakdown,

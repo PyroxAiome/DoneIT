@@ -319,7 +319,7 @@ export default function AdminDashboard({ user }) {
 
   const metricCards = stats ? [
     { label: 'Total Tasks', value: stats.totalTasks, icon: ListTodo, color: 'text-gray-500' },
-    { label: 'Team Members', value: Number(stats.totalEmployees) + Number(stats.totalManagers), icon: Users, color: 'text-blue-500' },
+    { label: 'Team Members', value: stats.totalTeamMembers ?? (Number(stats.totalEmployees) + Number(stats.totalManagers)), icon: Users, color: 'text-blue-500' },
   ] : [];
 
   return (
