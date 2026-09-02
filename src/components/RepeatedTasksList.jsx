@@ -57,11 +57,26 @@ export default function RepeatedTasksList({ user }) {
     }
   };
 
-  const filteredTasks = tasks.filter(t =>
-    t.title?.toLowerCase().includes(search.toLowerCase()) ||
-    t.description?.toLowerCase().includes(search.toLowerCase()) ||
-    t.members?.some(m => m.name?.toLowerCase().includes(search.toLowerCase()))
-  );
+  const filteredTasks = tasks
+    .filter(t =>
+      t.title?.toLowerCase().includes(search.toLowerCase()) ||
+      t.description?.toLowerCase().includes(search.toLowerCase()) ||
+      t.members?.some(m => m.name?.toLowerCase().includes(search.toLowerCase()))
+    )
+    .sort((a, b) => {
+      const matchA = a.title?.match(/^\s*(\d+)/);
+      const matchB = b.title?.match(/^\s*(\d+)/);
+      const numA = matchA ? parseInt(matchA[1], 10) : null;
+      const numB = matchB ? parseInt(matchB[1], 10) : null;
+
+      if (numA !== null && numB !== null) {
+        return numA - numB;
+      }
+      if (numA !== null) return -1;
+      if (numB !== null) return 1;
+
+      return (a.id || 0) - (b.id || 0);
+    });
 
   return (
     <div className="space-y-4">

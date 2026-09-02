@@ -2677,7 +2677,7 @@ router.get('/repeated-tasks', auth, async (req, res) => {
       params.push(req.user.id);
     }
 
-    query += ` ORDER BY rt.created_at DESC `;
+    query += ` ORDER BY rt.id ASC `;
     const { rows } = await db.query(query, params);
     res.json(rows);
   } catch (err) {
