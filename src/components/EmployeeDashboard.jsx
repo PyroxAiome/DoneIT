@@ -152,20 +152,22 @@ export default function EmployeeDashboard({ user }) {
 
   const isReadOnly = employeeFilter !== null && Number(employeeFilter) !== user.id;
 
-  const verifyTasks = tasks.filter(t => Number(t.verifier_id) === Number(user.id));
+  const verifyTasks = tasks.filter(t => Number(t.verifier_id) === Number(user.id) && Number(t.assignee_id) !== Number(user.id));
   const pendingVerifyCount = verifyTasks.filter(t => t.status === 'under_review').length;
 
   const displayedTasks = tasks.filter(t => {
     if (selectedEmp) return true; // Show all tasks for the colleague (no active/completed sub-filtering)
     if (activeTab === 'to_verify') {
-      if (statusFilter) return Number(t.verifier_id) === Number(user.id) && t.status === statusFilter;
-      return Number(t.verifier_id) === Number(user.id);
+      const isMyVerifyTask = Number(t.verifier_id) === Number(user.id) && Number(t.assignee_id) !== Number(user.id);
+      if (statusFilter) return isMyVerifyTask && t.status === statusFilter;
+      return isMyVerifyTask;
     }
     if (statusFilter) return true;
     if (activeTab === 'completed') {
-      return t.status === 'completed';
+      return t.status === 'completed' && (Number(t.assignee_id) === Number(user.id) || Number(t.creator_id) === Number(user.id));
     } else {
-      return t.status !== 'completed';
+      // In 'work' tab: strictly show tasks assigned to or created by the user!
+      return t.status !== 'completed' && (Number(t.assignee_id) === Number(user.id) || Number(t.creator_id) === Number(user.id));
     }
   }).sort((a, b) => {
     if (activeTab === 'to_verify') {

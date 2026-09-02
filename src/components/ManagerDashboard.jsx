@@ -203,14 +203,15 @@ export default function ManagerDashboard({ user }) {
     }
   };
 
-  const verifyTasks = tasks.filter(t => Number(t.verifier_id) === Number(user.id));
+  const verifyTasks = tasks.filter(t => Number(t.verifier_id) === Number(user.id) && Number(t.assignee_id) !== Number(user.id));
   const pendingVerifyCount = verifyTasks.filter(t => t.status === 'under_review').length;
 
   const displayedTasks = tasks.filter(t => {
     if (selectedEmp) return true;
     if (activeTab === 'to_verify') {
-      if (statusFilter) return Number(t.verifier_id) === Number(user.id) && t.status === statusFilter;
-      return Number(t.verifier_id) === Number(user.id);
+      const isMyVerifyTask = Number(t.verifier_id) === Number(user.id) && Number(t.assignee_id) !== Number(user.id);
+      if (statusFilter) return isMyVerifyTask && t.status === statusFilter;
+      return isMyVerifyTask;
     }
     if (myTasksOnly && t.creator_id !== user.id && t.assignee_id !== user.id) {
       return false;
