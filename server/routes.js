@@ -246,13 +246,13 @@ router.get('/employees', auth, async (req, res) => {
         (
           SELECT COUNT(DISTINCT t.id)
           FROM tasks t
-          WHERE t.assignee_id = u.id
+          WHERE t.assignee_id = u.id AND t.project_id IS NULL
         ) as task_count,
         COALESCE(
           (
             SELECT ROUND(AVG(t.progress_percent), 0)
             FROM tasks t
-            WHERE t.assignee_id = u.id
+            WHERE t.assignee_id = u.id AND t.project_id IS NULL
           ), 0
         ) as avg_progress
       FROM users u
@@ -398,13 +398,15 @@ router.get('/tasks', auth, async (req, res) => {
         c.name as creator_name, c.role as creator_role, c.department as creator_department, 
         e.name as last_edited_by_name,
         v.name as verifier_name, v.role as verifier_role, v.department as verifier_department,
-        comp.name as completer_name
+        comp.name as completer_name,
+        p.name as project_name
       FROM tasks t
       LEFT JOIN users u ON t.assignee_id = u.id
       LEFT JOIN users c ON t.creator_id = c.id
       LEFT JOIN users e ON t.last_edited_by = e.id
       LEFT JOIN users v ON t.verifier_id = v.id
       LEFT JOIN users comp ON t.completed_by = comp.id
+      LEFT JOIN projects p ON t.project_id = p.id
       WHERE 1=1
     `;
     const params = [];
@@ -506,13 +508,15 @@ router.get('/tasks/:id', auth, async (req, res) => {
         c.name as creator_name, c.role as creator_role, c.department as creator_department, 
         e.name as last_edited_by_name,
         v.name as verifier_name, v.role as verifier_role, v.department as verifier_department,
-        comp.name as completer_name
+        comp.name as completer_name,
+        p.name as project_name
       FROM tasks t
       LEFT JOIN users u ON t.assignee_id = u.id
       LEFT JOIN users c ON t.creator_id = c.id
       LEFT JOIN users e ON t.last_edited_by = e.id
       LEFT JOIN users v ON t.verifier_id = v.id
       LEFT JOIN users comp ON t.completed_by = comp.id
+      LEFT JOIN projects p ON t.project_id = p.id
       WHERE t.id = $1
     `, [req.params.id]);
     const task = rows[0];
@@ -1145,18 +1149,18 @@ router.delete('/tasks/:id/comments/:commentId', auth, async (req, res) => {
 // ─── DASHBOARD STATS ────────────────────────────────────────────
 router.get('/dashboard/stats', auth, adminOrManager, async (req, res) => {
   try {
-    const { rows: r1 } = await db.query('SELECT COUNT(*) as cnt FROM tasks WHERE (parent_id IS NULL OR id = parent_id)');
+    const { rows: r1 } = await db.query('SELECT COUNT(*) as cnt FROM tasks WHERE project_id IS NULL AND (parent_id IS NULL OR id = parent_id)');
     const totalTasks = r1[0].cnt;
     const { rows: r2 } = await db.query("SELECT COUNT(*) as cnt FROM users WHERE role = 'employee'");
     const totalEmployees = r2[0].cnt;
     const { rows: r3 } = await db.query("SELECT COUNT(*) as cnt FROM users WHERE role = 'manager'");
     const totalManagers = r3[0].cnt;
 
-    const { rows: r4 } = await db.query('SELECT ROUND(AVG(progress_percent), 0) as avg FROM tasks WHERE (parent_id IS NULL OR id = parent_id)');
+    const { rows: r4 } = await db.query('SELECT ROUND(AVG(progress_percent), 0) as avg FROM tasks WHERE project_id IS NULL AND (parent_id IS NULL OR id = parent_id)');
     const avgCompletion = r4[0].avg;
 
     const { rows: statusBreakdown } = await db.query(`
-      SELECT status, COUNT(*) as cnt FROM tasks WHERE (parent_id IS NULL OR id = parent_id) GROUP BY status
+      SELECT status, COUNT(*) as cnt FROM tasks WHERE project_id IS NULL AND (parent_id IS NULL OR id = parent_id) GROUP BY status
     `);
 
     const { rows: recentTasks } = await db.query(`
@@ -1164,6 +1168,7 @@ router.get('/dashboard/stats', auth, adminOrManager, async (req, res) => {
         u.name as assignee_name, t.due_date, t.color
       FROM tasks t
       LEFT JOIN users u ON t.assignee_id = u.id
+      WHERE t.project_id IS NULL
       ORDER BY t.created_at DESC LIMIT 5
     `);
 

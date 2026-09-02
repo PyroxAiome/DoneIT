@@ -108,6 +108,11 @@ export default function TaskCard({ task, compact, onEdit, onDelete, onSelect, on
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <span className="text-sm text-gray-800 truncate font-medium">{task.title}</span>
+            {task.project_name && (
+              <span className="text-[8px] sm:text-[9px] font-semibold px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200/60" title={`Project: ${task.project_name}`}>
+                📁 {task.project_name}
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-3 text-xs text-gray-500 mt-0.5">
             {task.group_assignees && task.group_assignees.length > 1 ? (
@@ -290,7 +295,14 @@ export default function TaskCard({ task, compact, onEdit, onDelete, onSelect, on
       </div>
 
       <div className="flex items-center justify-between mt-2 sm:mt-2.5 pt-1.5 sm:pt-2 border-t border-gray-100">
-        <span className="text-[9px] sm:text-[10px] uppercase text-gray-400 font-semibold">{task.category}</span>
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <span className="text-[9px] sm:text-[10px] uppercase text-gray-400 font-semibold">{task.category}</span>
+          {task.project_name && (
+            <span className="text-[8px] sm:text-[9px] font-semibold px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200/60" title={`Project: ${task.project_name}`}>
+              📁 {task.project_name}
+            </span>
+          )}
+        </div>
         <span className="text-[10px] sm:text-[11px] text-gray-400 flex items-center gap-1">
           <MessageSquare className="w-2.5 h-2.5 sm:w-3 sm:h-3" /> {fbCount}
         </span>

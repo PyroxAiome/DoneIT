@@ -297,7 +297,14 @@ export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated, 
         <div className="flex items-center justify-between p-5 border-b border-gray-100">
           <div className="min-w-0 flex-1">
             <h2 className="font-semibold text-gray-900 truncate">{taskData?.title || task.title}</h2>
-            <p className="text-xs text-gray-500 mt-0.5">Status: {(taskData?.status || task.status)?.replace('_', ' ')} &middot; Priority: {taskData?.priority || task.priority}</p>
+            <p className="text-xs text-gray-500 mt-0.5 flex items-center gap-2 flex-wrap">
+              <span>Status: {(taskData?.status || task.status)?.replace('_', ' ')} &middot; Priority: {taskData?.priority || task.priority}</span>
+              {(taskData?.project_name || task.project_name) && (
+                <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
+                  📁 Project: {taskData?.project_name || task.project_name}
+                </span>
+              )}
+            </p>
             {taskData?.last_edited_by_name && taskData?.updated_at !== taskData?.created_at && (
               <p className="text-[10px] text-gray-400 mt-1">Last edited by {taskData.last_edited_by_name} on {new Date(taskData.updated_at).toLocaleDateString()}</p>
             )}
