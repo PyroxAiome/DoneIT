@@ -266,7 +266,7 @@ export default function TaskCard({ task, compact, onEdit, onDelete, onSelect, on
 
         {task.status === 'completed' ? (
           <span className="text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200/60 font-medium text-[9px]">
-            Verified: {task.completer_name || task.verifier_name || 'Admin'}
+            Verified: {task.verifier_name || task.completer_name || 'Admin'}
           </span>
         ) : task.verifier_name ? (
           <span className={`px-1.5 py-0.5 rounded border font-medium text-[9px] ${

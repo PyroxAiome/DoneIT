@@ -774,8 +774,10 @@ router.put('/tasks/:id', auth, async (req, res) => {
         verificationRequired = true;
       } else {
         req.body.verified_at = new Date();
-        req.body.completed_by = req.user.id;
+        req.body.completed_by = req.body.verifier_id || req.user.id;
       }
+    } else if (currentTask.status === 'completed' && req.body.verifier_id !== undefined && req.body.verifier_id) {
+      req.body.completed_by = req.body.verifier_id;
     }
 
     const fields = ['title', 'description', 'color', 'status', 'priority', 'category',

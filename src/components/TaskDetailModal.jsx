@@ -369,7 +369,7 @@ export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated, 
             <div className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-emerald-500" />
               <span className="font-semibold text-emerald-950">
-                Verified & Completed by {taskData?.completer_name || taskData?.verifier_name || 'Admin'}
+                Verified & Completed by {taskData?.verifier_name || taskData?.completer_name || 'Admin'}
               </span>
             </div>
             {(taskData?.verified_at || taskData?.updated_at) && (
