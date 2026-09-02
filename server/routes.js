@@ -246,13 +246,13 @@ router.get('/employees', auth, async (req, res) => {
         (
           SELECT COUNT(DISTINCT t.id)
           FROM tasks t
-          WHERE t.assignee_id = u.id AND t.project_id IS NULL
+          WHERE t.assignee_id = u.id AND (t.parent_id IS NULL OR t.id = t.parent_id)
         ) as task_count,
         COALESCE(
           (
             SELECT ROUND(AVG(t.progress_percent), 0)
             FROM tasks t
-            WHERE t.assignee_id = u.id AND t.project_id IS NULL
+            WHERE t.assignee_id = u.id AND (t.parent_id IS NULL OR t.id = t.parent_id)
           ), 0
         ) as avg_progress
       FROM users u
