@@ -94,7 +94,7 @@ export default function EmployeeDashboard({ user }) {
         return;
       }
 
-      if (['projects', 'all', 'work', 'to_verify', 'repeated_tasks', 'completed', 'verified', 'team'].includes(tabId)) {
+      if (['projects', 'all', 'work', 'to_verify', 'repeated_tasks', 'completed', 'assigned_by_me', 'verified', 'team'].includes(tabId)) {
         setActiveTab(tabId);
         if (tabId !== 'projects') setSelectedProject(null);
       }
@@ -166,29 +166,30 @@ export default function EmployeeDashboard({ user }) {
 
   const displayedTasks = tasks.filter(t => {
     if (selectedEmp) {
-      const isPersonInvolved = Number(t.assignee_id) === Number(selectedEmp.id) || 
-                               Number(t.creator_id) === Number(selectedEmp.id) || 
-                               Number(t.verifier_id) === Number(selectedEmp.id) || 
-                               Number(t.completed_by) === Number(selectedEmp.id);
-
       if (activeTab === 'verified') {
-        const isVerified = t.status === 'completed' && (Number(t.completed_by) === Number(selectedEmp.id) || Number(t.verifier_id) === Number(selectedEmp.id));
+        const isVerified = t.status === 'completed' && (Number(t.completed_by) === Number(selectedEmp.id) || Number(t.verifier_id) === Number(selectedEmp.id)) && Number(t.assignee_id) !== Number(selectedEmp.id);
         if (statusFilter) return isVerified && t.status === statusFilter;
         return isVerified;
       }
+      if (activeTab === 'assigned_by_me') {
+        const isCreatedForOthers = Number(t.creator_id) === Number(selectedEmp.id) && Number(t.assignee_id) !== Number(selectedEmp.id);
+        if (statusFilter) return isCreatedForOthers && t.status === statusFilter;
+        return isCreatedForOthers;
+      }
       if (activeTab === 'completed') {
-        const isCompleted = isPersonInvolved && t.status === 'completed';
+        const isCompleted = Number(t.assignee_id) === Number(selectedEmp.id) && t.status === 'completed';
         if (statusFilter) return isCompleted && t.status === statusFilter;
         return isCompleted;
       }
       if (activeTab === 'work') {
-        const isActive = isPersonInvolved && t.status !== 'completed';
+        const isActive = Number(t.assignee_id) === Number(selectedEmp.id) && t.status !== 'completed';
         if (statusFilter) return isActive && t.status === statusFilter;
         return isActive;
       }
-      // activeTab === 'all' or default (All Tasks):
-      if (statusFilter) return isPersonInvolved && t.status === statusFilter;
-      return isPersonInvolved;
+      // activeTab === 'all' or default (All tasks assigned to this user):
+      const isMine = Number(t.assignee_id) === Number(selectedEmp.id);
+      if (statusFilter) return isMine && t.status === statusFilter;
+      return isMine;
     }
     if (activeTab === 'to_verify') {
       const isVerifierTask = (Number(t.verifier_id) === Number(user.id) || Number(t.completed_by) === Number(user.id)) && Number(t.assignee_id) !== Number(user.id);
@@ -245,7 +246,7 @@ export default function EmployeeDashboard({ user }) {
             </button>
           </div>
 
-          <div className="flex gap-1 bg-gray-200 p-1 rounded-xl w-fit">
+          <div className="flex gap-1 bg-gray-200 p-1 rounded-xl w-fit flex-wrap">
             <button
               onClick={() => { window.location.hash = `all/employee/${selectedEmp.id}`; }}
               className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
@@ -269,6 +270,14 @@ export default function EmployeeDashboard({ user }) {
               }`}
             >
               Completed Tasks
+            </button>
+            <button
+              onClick={() => { window.location.hash = `assigned_by_me/employee/${selectedEmp.id}`; }}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                activeTab === 'assigned_by_me' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              Created for Others
             </button>
             <button
               onClick={() => { window.location.hash = `verified/employee/${selectedEmp.id}`; }}
