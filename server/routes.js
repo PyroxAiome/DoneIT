@@ -246,13 +246,13 @@ router.get('/employees', auth, async (req, res) => {
         (
           SELECT COUNT(DISTINCT t.id)
           FROM tasks t
-          WHERE t.assignee_id = u.id OR (u.role = 'admin' AND t.creator_id = u.id)
+          WHERE t.assignee_id = u.id OR t.creator_id = u.id OR t.verifier_id = u.id OR t.completed_by = u.id
         ) as task_count,
         COALESCE(
           (
             SELECT ROUND(AVG(t.progress_percent), 0)
             FROM tasks t
-            WHERE t.assignee_id = u.id OR (u.role = 'admin' AND t.creator_id = u.id)
+            WHERE t.assignee_id = u.id OR t.creator_id = u.id OR t.verifier_id = u.id OR t.completed_by = u.id
           ), 0
         ) as avg_progress
       FROM users u
@@ -411,7 +411,7 @@ router.get('/tasks', auth, async (req, res) => {
     let paramIdx = 1;
 
     if (req.query.assignee_id) {
-      sql += ` AND (t.assignee_id = $${paramIdx} OR t.verifier_id = $${paramIdx} OR t.completed_by = $${paramIdx})`;
+      sql += ` AND (t.assignee_id = $${paramIdx} OR t.creator_id = $${paramIdx} OR t.verifier_id = $${paramIdx} OR t.completed_by = $${paramIdx})`;
       params.push(req.query.assignee_id);
       paramIdx++;
     }

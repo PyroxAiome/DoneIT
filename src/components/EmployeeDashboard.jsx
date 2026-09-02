@@ -166,25 +166,29 @@ export default function EmployeeDashboard({ user }) {
 
   const displayedTasks = tasks.filter(t => {
     if (selectedEmp) {
+      const isPersonInvolved = Number(t.assignee_id) === Number(selectedEmp.id) || 
+                               Number(t.creator_id) === Number(selectedEmp.id) || 
+                               Number(t.verifier_id) === Number(selectedEmp.id) || 
+                               Number(t.completed_by) === Number(selectedEmp.id);
+
       if (activeTab === 'verified') {
         const isVerified = t.status === 'completed' && (Number(t.completed_by) === Number(selectedEmp.id) || Number(t.verifier_id) === Number(selectedEmp.id));
         if (statusFilter) return isVerified && t.status === statusFilter;
         return isVerified;
       }
       if (activeTab === 'completed') {
-        const isCompleted = Number(t.assignee_id) === Number(selectedEmp.id) && t.status === 'completed';
+        const isCompleted = isPersonInvolved && t.status === 'completed';
         if (statusFilter) return isCompleted && t.status === statusFilter;
         return isCompleted;
       }
       if (activeTab === 'work') {
-        const isActive = Number(t.assignee_id) === Number(selectedEmp.id) && t.status !== 'completed';
+        const isActive = isPersonInvolved && t.status !== 'completed';
         if (statusFilter) return isActive && t.status === statusFilter;
         return isActive;
       }
       // activeTab === 'all' or default (All Tasks):
-      const isMine = Number(t.assignee_id) === Number(selectedEmp.id);
-      if (statusFilter) return isMine && t.status === statusFilter;
-      return isMine;
+      if (statusFilter) return isPersonInvolved && t.status === statusFilter;
+      return isPersonInvolved;
     }
     if (activeTab === 'to_verify') {
       const isVerifierTask = (Number(t.verifier_id) === Number(user.id) || Number(t.completed_by) === Number(user.id)) && Number(t.assignee_id) !== Number(user.id);
