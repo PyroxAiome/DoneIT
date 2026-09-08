@@ -60,6 +60,7 @@ export const api = {
     if (params.assignee_id) qs.set('assignee_id', params.assignee_id);
     if (params.status) qs.set('status', params.status);
     if (params.category) qs.set('category', params.category);
+    if (params.pillar) qs.set('pillar', params.pillar);
     if (params.priority) qs.set('priority', params.priority);
     if (params.search) qs.set('search', params.search);
     if (params.date_range) qs.set('date_range', params.date_range);

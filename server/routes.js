@@ -425,6 +425,15 @@ router.get('/tasks', auth, async (req, res) => {
       sql += ` AND LOWER(t.category) = LOWER($${paramIdx++})`;
       params.push(req.query.category);
     }
+    if (req.query.pillar) {
+      if (req.query.pillar === 'vishwas') {
+        sql += ` AND LOWER(t.pillar) = 'vishwas'`;
+      } else if (req.query.pillar === 'avishkar') {
+        sql += ` AND LOWER(t.pillar) = 'avishkar'`;
+      } else if (req.query.pillar === 'general') {
+        sql += ` AND (t.pillar IS NULL OR LOWER(t.pillar) = 'general')`;
+      }
+    }
     if (req.query.priority) {
       sql += ` AND t.priority = $${paramIdx++}`;
       params.push(req.query.priority);
@@ -535,7 +544,7 @@ router.get('/tasks/:id', auth, async (req, res) => {
 
 router.post('/tasks', auth, async (req, res) => {
   try {
-    const { title, description, color, status, priority, category, assignee_id, assignee_ids,
+    const { title, description, color, status, priority, category, pillar, assignee_id, assignee_ids,
       start_date, due_date, estimated_hours, project_id, verifier_id } = req.body;
 
     if (!title) return res.status(400).json({ error: 'Title required' });
@@ -586,12 +595,12 @@ router.post('/tasks', auth, async (req, res) => {
     for (let i = 0; i < assignees.length; i++) {
       const targetId = assignees[i];
       const result = await db.query(`
-        INSERT INTO tasks (title, description, color, status, priority, category,
+        INSERT INTO tasks (title, description, color, status, priority, category, pillar,
           assignee_id, creator_id, start_date, due_date, estimated_hours, parent_id, project_id, verifier_id)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING id
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING id
       `, [
         title, description || '', color || 'slate', status || 'todo',
-        priority || 'medium', category || 'General',
+        priority || 'medium', category || 'General', pillar || 'general',
         targetId, req.user.id,
         start_date || null, due_date || null, estimated_hours || 0,
         i === 0 ? null : parentId,
@@ -672,11 +681,11 @@ router.post('/tasks/bulk', auth, async (req, res) => {
     try {
       await client.query('BEGIN');
       for (const t of tasks) {
-        const { title, description, priority, category, assignee_id } = t;
+        const { title, description, priority, category, pillar, assignee_id } = t;
         const result = await client.query(`
-          INSERT INTO tasks (title, description, color, status, priority, category,
+          INSERT INTO tasks (title, description, color, status, priority, category, pillar,
             assignee_id, creator_id)
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id
         `, [
           title,
           description || '',
@@ -684,6 +693,7 @@ router.post('/tasks/bulk', auth, async (req, res) => {
           'todo',  // default status
           priority || 'medium',
           category || 'General',
+          pillar || 'general',
           assignee_id || null,
           req.user.id
         ]);
@@ -802,7 +812,7 @@ router.put('/tasks/:id', auth, async (req, res) => {
       req.body.verified_at = null;
     }
 
-    const fields = ['title', 'description', 'color', 'status', 'priority', 'category',
+    const fields = ['title', 'description', 'color', 'status', 'priority', 'category', 'pillar',
       'progress_percent', 'start_date', 'due_date', 'estimated_hours',
       'logical_explanation', 'project_id', 'verifier_id', 'verified_at', 'completed_by'];
 

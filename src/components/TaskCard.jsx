@@ -162,6 +162,21 @@ export default function TaskCard({ task, compact, onEdit, onDelete, onSelect, on
               {statusLabels[task.status] || task.status}
             </span>
             <span className={`text-[9px] sm:text-[10px] px-1.5 py-0.5 rounded border capitalize font-semibold ${priorityStyles[task.priority]}`}>{task.priority}</span>
+            {task.pillar === 'vishwas' && (
+              <span className="text-[9px] sm:text-[10px] px-1.5 py-0.5 rounded border font-semibold bg-blue-50 text-blue-700 border-blue-200 flex items-center gap-1">
+                🛡️ Vishwas
+              </span>
+            )}
+            {task.pillar === 'avishkar' && (
+              <span className="text-[9px] sm:text-[10px] px-1.5 py-0.5 rounded border font-semibold bg-amber-50 text-amber-700 border-amber-200 flex items-center gap-1">
+                💡 Avishkar
+              </span>
+            )}
+            {task.category && task.category !== 'General' && (
+              <span className="text-[9px] sm:text-[10px] px-1.5 py-0.5 rounded border font-medium bg-gray-50 text-gray-600 border-gray-200">
+                {task.category}
+              </span>
+            )}
             {task.group_assignees && task.group_assignees.length > 1 ? (
               <span className="flex items-center gap-1 font-bold text-gray-800" title={task.group_assignees.join(', ')}>
                 <User className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-gray-500" />

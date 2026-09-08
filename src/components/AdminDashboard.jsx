@@ -72,6 +72,7 @@ export default function AdminDashboard({ user }) {
   const [searchText, setSearchText] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
+  const [pillarFilter, setPillarFilter] = useState('all');
   const [priorityFilter, setPriorityFilter] = useState('');
   const [dateRangeFilter, setDateRangeFilter] = useState('');
   const [customFromDate, setCustomFromDate] = useState('');
@@ -102,6 +103,7 @@ export default function AdminDashboard({ user }) {
     setStatusFilter('');
     setPriorityFilter('');
     setCategoryFilter('');
+    setPillarFilter('all');
     setDateRangeFilter('');
     setCustomFromDate('');
     setCustomToDate('');
@@ -115,6 +117,7 @@ export default function AdminDashboard({ user }) {
     const params = {};
     if (statusFilter) params.status = statusFilter;
     if (categoryFilter) params.category = categoryFilter;
+    if (pillarFilter && pillarFilter !== 'all') params.pillar = pillarFilter;
     if (priorityFilter) params.priority = priorityFilter;
     if (search) params.search = search;
     if (employeeFilter) params.assignee_id = employeeFilter;
@@ -136,6 +139,7 @@ export default function AdminDashboard({ user }) {
     const params = {};
     if (statusFilter) params.status = statusFilter;
     if (categoryFilter) params.category = categoryFilter;
+    if (pillarFilter && pillarFilter !== 'all') params.pillar = pillarFilter;
     if (priorityFilter) params.priority = priorityFilter;
     if (search) params.search = search;
     if (employeeFilter) params.assignee_id = employeeFilter;
@@ -210,7 +214,7 @@ export default function AdminDashboard({ user }) {
 
   useEffect(() => {
     fetchTasksOnly();
-  }, [statusFilter, categoryFilter, search, employeeFilter, priorityFilter, dateRangeFilter, customFromDate, customToDate]);
+  }, [statusFilter, categoryFilter, pillarFilter, search, employeeFilter, priorityFilter, dateRangeFilter, customFromDate, customToDate]);
 
   const handleDeleteTask = async () => {
     if (deleteTask) {
@@ -235,6 +239,7 @@ export default function AdminDashboard({ user }) {
     setStatusFilter('');
     setPriorityFilter('');
     setCategoryFilter('');
+    setPillarFilter('all');
     setDateRangeFilter('');
     setCustomFromDate('');
     setCustomToDate('');
@@ -245,6 +250,7 @@ export default function AdminDashboard({ user }) {
     setStatusFilter('');
     setPriorityFilter('');
     setCategoryFilter('');
+    setPillarFilter('all');
     setDateRangeFilter('');
     setCustomFromDate('');
     setCustomToDate('');
@@ -260,12 +266,16 @@ export default function AdminDashboard({ user }) {
     setStatusFilter('');
     setPriorityFilter('');
     setCategoryFilter('');
+    setPillarFilter('all');
     setDateRangeFilter('');
     setCustomFromDate('');
     setCustomToDate('');
   };
 
   const displayedTasks = tasks.filter(t => {
+    if (pillarFilter === 'vishwas' && t.pillar !== 'vishwas') return false;
+    if (pillarFilter === 'avishkar' && t.pillar !== 'avishkar') return false;
+
     if (selectedEmp) {
       if (activeTab === 'verified') {
         const isVerified = t.status === 'completed' && (Number(t.completed_by) === Number(selectedEmp.id) || Number(t.verifier_id) === Number(selectedEmp.id)) && Number(t.assignee_id) !== Number(selectedEmp.id);
@@ -316,6 +326,11 @@ export default function AdminDashboard({ user }) {
   const empCompletedTasksCount = selectedEmp ? tasks.filter(t => Number(t.assignee_id) === Number(selectedEmp.id) && t.status === 'completed').length : 0;
   const empCreatedForOthersCount = selectedEmp ? tasks.filter(t => Number(t.creator_id) === Number(selectedEmp.id) && Number(t.assignee_id) !== Number(selectedEmp.id) && (!t.parent_id || t.id === t.parent_id)).length : 0;
   const empVerifiedTasksCount = selectedEmp ? tasks.filter(t => t.status === 'completed' && (Number(t.completed_by) === Number(selectedEmp.id) || Number(t.verifier_id) === Number(selectedEmp.id)) && Number(t.assignee_id) !== Number(selectedEmp.id)).length : 0;
+
+  const workBaseTasks = tasks.filter(t => selectedEmp ? (Number(t.assignee_id) === Number(selectedEmp.id)) : (!t.project_id && (t.status !== 'completed' || activeTab === 'completed')));
+  const allWorkPillarCount = workBaseTasks.length;
+  const vishwasPillarCount = workBaseTasks.filter(t => t.pillar === 'vishwas').length;
+  const avishkarPillarCount = workBaseTasks.filter(t => t.pillar === 'avishkar').length;
 
   const metricCards = stats ? [
     { label: 'Total Tasks', value: stats.totalTasks, icon: ListTodo, color: 'text-gray-500' },
@@ -483,6 +498,40 @@ export default function AdminDashboard({ user }) {
 
       {(activeTab === 'work' || activeTab === 'all' || activeTab === 'completed' || activeTab === 'assigned_by_me' || activeTab === 'verified') && (
         <div className="space-y-4">
+          {/* Work Pillars: All Work, Vishwas, Avishkar */}
+          <div className="flex items-center gap-2 p-1 bg-gray-100/90 rounded-xl border border-gray-200/80 w-fit flex-wrap">
+            <button
+              onClick={() => setPillarFilter('all')}
+              className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 ${
+                pillarFilter === 'all'
+                  ? 'bg-white text-gray-900 shadow-xs'
+                  : 'text-gray-500 hover:text-gray-800'
+              }`}
+            >
+              🌐 All Work <span className="text-[10px] opacity-75 font-normal">({allWorkPillarCount})</span>
+            </button>
+            <button
+              onClick={() => setPillarFilter('vishwas')}
+              className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 ${
+                pillarFilter === 'vishwas'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'text-blue-700 hover:bg-blue-50/70'
+              }`}
+            >
+              🛡️ Vishwas (Quality & Improvement) <span className="text-[10px] opacity-90 font-normal">({vishwasPillarCount})</span>
+            </button>
+            <button
+              onClick={() => setPillarFilter('avishkar')}
+              className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 ${
+                pillarFilter === 'avishkar'
+                  ? 'bg-amber-600 text-white shadow-xs'
+                  : 'text-amber-700 hover:bg-amber-50/70'
+              }`}
+            >
+              💡 Avishkar (Innovation & Optimization) <span className="text-[10px] opacity-90 font-normal">({avishkarPillarCount})</span>
+            </button>
+          </div>
+
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <div className="flex items-center gap-3 flex-wrap flex-1">
               <div className="relative flex-1 min-w-[200px] max-w-sm">

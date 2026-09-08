@@ -26,7 +26,7 @@ export default function TaskModal({ isOpen, onClose, onSaved, task, employees, o
   const isEdit = !!task;
   const [form, setForm] = useState({
     title: '', description: '', color: 'slate', status: 'todo', priority: 'medium',
-    category: 'General', assignee_id: '', start_date: '', due_date: '', estimated_hours: '',
+    pillar: 'general', category: 'General', assignee_id: '', start_date: '', due_date: '', estimated_hours: '',
     verifier_id: '',
   });
   const [selectedAssigneeIds, setSelectedAssigneeIds] = useState([]);
@@ -85,6 +85,7 @@ export default function TaskModal({ isOpen, onClose, onSaved, task, employees, o
         color: task.color || 'slate',
         status: task.status || 'todo',
         priority: task.priority || 'medium',
+        pillar: task.pillar || 'general',
         category: task.category || 'General',
         assignee_id: task.assignee_id ? String(task.assignee_id) : '',
         start_date: task.start_date || '',
@@ -103,7 +104,7 @@ export default function TaskModal({ isOpen, onClose, onSaved, task, employees, o
     } else {
       setForm({
         title: '', description: '', color: 'slate', status: 'todo', priority: 'medium',
-        category: 'General', assignee_id: currentUser ? String(currentUser.id) : '', start_date: '', due_date: '', estimated_hours: '',
+        pillar: 'general', category: 'General', assignee_id: currentUser ? String(currentUser.id) : '', start_date: '', due_date: '', estimated_hours: '',
         project_id: projectId ? String(projectId) : '',
         verifier_id: '',
       });
@@ -224,49 +225,58 @@ export default function TaskModal({ isOpen, onClose, onSaved, task, employees, o
             </div>
           </div>
 
+          <div>
+            <label className="text-xs text-gray-500 uppercase tracking-wider block mb-1">
+              {isEdit && currentUser?.role !== 'admin' ? 'Assign To' : 'Assign To (Select Multiple to Group)'}
+            </label>
+            {isEdit && currentUser?.role !== 'admin' ? (
+              <select value={form.assignee_id} onChange={handleChange('assignee_id')} className="input-field">
+                <option value="" disabled>Select Assignee</option>
+                {assigneeList.map((emp) => (
+                  <option key={emp.id} value={emp.id}>{emp.name} ({getRoleDisplay(emp)})</option>
+                ))}
+              </select>
+            ) : (
+              <div className="border border-gray-200 rounded-lg p-2 max-h-32 overflow-y-auto space-y-1 bg-white">
+                {assigneeList.length === 0 ? (
+                  <p className="text-xs text-gray-400 p-1">No assignees available</p>
+                ) : (
+                  assigneeList.map((emp) => {
+                    const isChecked = selectedAssigneeIds.includes(emp.id);
+                    return (
+                      <label key={emp.id} className="flex items-center gap-2 px-2 py-0.5 hover:bg-gray-50 rounded cursor-pointer text-xs text-gray-700">
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => {
+                            if (isChecked) {
+                              setSelectedAssigneeIds(prev => prev.filter(id => id !== emp.id));
+                            } else {
+                              setSelectedAssigneeIds(prev => [...prev, emp.id]);
+                            }
+                          }}
+                          className="rounded text-amber-500 focus:ring-amber-500 border-gray-300"
+                        />
+                        <span className="truncate">{emp.name} <span className="text-[10px] text-gray-400">({getRoleDisplay(emp)})</span></span>
+                      </label>
+                    );
+                  })
+                )}
+              </div>
+            )}
+          </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="text-xs text-gray-500 uppercase tracking-wider block mb-1">
-                {isEdit && currentUser?.role !== 'admin' ? 'Assign To' : 'Assign To (Select Multiple to Group)'}
-              </label>
-              {isEdit && currentUser?.role !== 'admin' ? (
-                <select value={form.assignee_id} onChange={handleChange('assignee_id')} className="input-field">
-                  <option value="" disabled>Select Assignee</option>
-                  {assigneeList.map((emp) => (
-                    <option key={emp.id} value={emp.id}>{emp.name} ({getRoleDisplay(emp)})</option>
-                  ))}
-                </select>
-              ) : (
-                <div className="border border-gray-200 rounded-lg p-2 max-h-32 overflow-y-auto space-y-1 bg-white">
-                  {assigneeList.length === 0 ? (
-                    <p className="text-xs text-gray-400 p-1">No assignees available</p>
-                  ) : (
-                    assigneeList.map((emp) => {
-                      const isChecked = selectedAssigneeIds.includes(emp.id);
-                      return (
-                        <label key={emp.id} className="flex items-center gap-2 px-2 py-0.5 hover:bg-gray-50 rounded cursor-pointer text-xs text-gray-700">
-                          <input
-                            type="checkbox"
-                            checked={isChecked}
-                            onChange={() => {
-                              if (isChecked) {
-                                setSelectedAssigneeIds(prev => prev.filter(id => id !== emp.id));
-                              } else {
-                                setSelectedAssigneeIds(prev => [...prev, emp.id]);
-                              }
-                            }}
-                            className="rounded text-amber-500 focus:ring-amber-500 border-gray-300"
-                          />
-                          <span className="truncate">{emp.name} <span className="text-[10px] text-gray-400">({getRoleDisplay(emp)})</span></span>
-                        </label>
-                      );
-                    })
-                  )}
-                </div>
-              )}
+              <label className="text-xs text-gray-500 uppercase tracking-wider block mb-1">Work Pillar / Track</label>
+              <select value={form.pillar || 'general'} onChange={handleChange('pillar')} className="input-field">
+                <option value="general">🌐 General / Other</option>
+                <option value="vishwas">🛡️ Vishwas (Quality & Continuous Improvement)</option>
+                <option value="avishkar">💡 Avishkar (Innovation & Product Optimization)</option>
+              </select>
             </div>
             <div>
-              <label className="text-xs text-gray-500 uppercase tracking-wider block mb-1">Category</label>
+              <label className="text-xs text-gray-500 uppercase tracking-wider block mb-1">Category / Department</label>
               <select value={form.category} onChange={handleChange('category')} className="input-field">
                 {!['General', 'Software', 'Electronics', 'Mechanical', 'Production'].includes(form.category) && form.category && (
                   <option value={form.category}>{form.category}</option>

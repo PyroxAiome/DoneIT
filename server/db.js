@@ -142,6 +142,7 @@ const initDatabase = async () => {
     ALTER TABLE tasks ADD COLUMN IF NOT EXISTS verifier_id INTEGER REFERENCES users(id) ON DELETE SET NULL;
     ALTER TABLE tasks ADD COLUMN IF NOT EXISTS verified_at TIMESTAMP;
     ALTER TABLE tasks ADD COLUMN IF NOT EXISTS completed_by INTEGER REFERENCES users(id) ON DELETE SET NULL;
+    ALTER TABLE tasks ADD COLUMN IF NOT EXISTS pillar TEXT DEFAULT 'general';
 
     CREATE TABLE IF NOT EXISTS admin_comments (
       id SERIAL PRIMARY KEY,

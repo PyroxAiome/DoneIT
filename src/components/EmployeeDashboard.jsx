@@ -28,6 +28,7 @@ export default function EmployeeDashboard({ user }) {
   const [searchText, setSearchText] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
+  const [pillarFilter, setPillarFilter] = useState('all');
   const [employeeFilter, setEmployeeFilter] = useState(null);
   const [selectedEmp, setSelectedEmp] = useState(null);
   const [detailTask, setDetailTask] = useState(null);
@@ -44,6 +45,7 @@ export default function EmployeeDashboard({ user }) {
     if (employeeFilter) params.assignee_id = employeeFilter;
     if (statusFilter) params.status = statusFilter;
     if (categoryFilter) params.category = categoryFilter;
+    if (pillarFilter && pillarFilter !== 'all') params.pillar = pillarFilter;
     if (search) params.search = search;
     api.getTasks(params).then(setTasks).catch(() => {}).finally(() => setLoading(false));
   };
@@ -126,7 +128,7 @@ export default function EmployeeDashboard({ user }) {
     fetchTasksOnly();
     window.addEventListener('task-updated', fetchTasksOnly);
     return () => window.removeEventListener('task-updated', fetchTasksOnly);
-  }, [statusFilter, categoryFilter, search, employeeFilter]);
+  }, [statusFilter, categoryFilter, pillarFilter, search, employeeFilter]);
 
   const statusOptions = ['', 'todo', 'in_progress', 'under_review', 'completed'];
 
@@ -141,17 +143,20 @@ export default function EmployeeDashboard({ user }) {
     window.location.hash = 'team';
     setStatusFilter('');
     setCategoryFilter('');
+    setPillarFilter('all');
   };
 
   const handleViewEmployeeTasks = (emp) => {
     setStatusFilter('');
     setCategoryFilter('');
+    setPillarFilter('all');
     window.location.hash = `all/employee/${emp.id}`;
   };
 
   const handleViewEmployeeTasksByStatus = (emp, status) => {
     setStatusFilter('');
     setCategoryFilter('');
+    setPillarFilter('all');
     const targetTab = status === 'completed' ? 'completed' : 'work';
     window.location.hash = `${targetTab}/employee/${emp.id}`;
     if (status !== 'completed') {
@@ -171,6 +176,9 @@ export default function EmployeeDashboard({ user }) {
   const verifiedByMeCount = allVerifierTasks.filter(t => t.status === 'completed' && (Number(t.completed_by) === Number(user.id) || Number(t.verifier_id) === Number(user.id))).length;
 
   const displayedTasks = tasks.filter(t => {
+    if (pillarFilter === 'vishwas' && t.pillar !== 'vishwas') return false;
+    if (pillarFilter === 'avishkar' && t.pillar !== 'avishkar') return false;
+
     if (activeTab === 'to_verify') {
       // To Verify shows BOTH project tasks and normal tasks where user is verifier
       const isVerifierTask = (Number(t.verifier_id) === Number(user.id) || Number(t.completed_by) === Number(user.id)) && Number(t.assignee_id) !== Number(user.id);
@@ -236,6 +244,11 @@ export default function EmployeeDashboard({ user }) {
   const empCompletedTasksCount = selectedEmp ? tasks.filter(t => Number(t.assignee_id) === Number(selectedEmp.id) && t.status === 'completed').length : 0;
   const empCreatedForOthersCount = selectedEmp ? tasks.filter(t => Number(t.creator_id) === Number(selectedEmp.id) && Number(t.assignee_id) !== Number(selectedEmp.id) && (!t.parent_id || t.id === t.parent_id)).length : 0;
   const empVerifiedTasksCount = selectedEmp ? tasks.filter(t => t.status === 'completed' && (Number(t.completed_by) === Number(selectedEmp.id) || Number(t.verifier_id) === Number(selectedEmp.id)) && Number(t.assignee_id) !== Number(selectedEmp.id)).length : 0;
+
+  const workBaseTasks = tasks.filter(t => selectedEmp ? (Number(t.assignee_id) === Number(selectedEmp.id)) : (!t.project_id && (t.status !== 'completed' || activeTab === 'completed') && (Number(t.assignee_id) === Number(user.id) || Number(t.creator_id) === Number(user.id))));
+  const allWorkPillarCount = workBaseTasks.length;
+  const vishwasPillarCount = workBaseTasks.filter(t => t.pillar === 'vishwas').length;
+  const avishkarPillarCount = workBaseTasks.filter(t => t.pillar === 'avishkar').length;
 
   const [quota, setQuota] = useState(null);
 
@@ -508,6 +521,40 @@ export default function EmployeeDashboard({ user }) {
 
       {(activeTab === 'work' || activeTab === 'to_verify' || activeTab === 'completed' || selectedEmp) && activeTab !== 'projects' && activeTab !== 'repeated_tasks' && (
         <>
+          {/* Work Pillars: All Work, Vishwas, Avishkar */}
+          <div className="flex items-center gap-2 p-1 bg-gray-100/90 rounded-xl border border-gray-200/80 w-fit flex-wrap mb-3">
+            <button
+              onClick={() => setPillarFilter('all')}
+              className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 ${
+                pillarFilter === 'all'
+                  ? 'bg-white text-gray-900 shadow-xs'
+                  : 'text-gray-500 hover:text-gray-800'
+              }`}
+            >
+              🌐 All Work <span className="text-[10px] opacity-75 font-normal">({allWorkPillarCount})</span>
+            </button>
+            <button
+              onClick={() => setPillarFilter('vishwas')}
+              className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 ${
+                pillarFilter === 'vishwas'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'text-blue-700 hover:bg-blue-50/70'
+              }`}
+            >
+              🛡️ Vishwas (Quality & Improvement) <span className="text-[10px] opacity-90 font-normal">({vishwasPillarCount})</span>
+            </button>
+            <button
+              onClick={() => setPillarFilter('avishkar')}
+              className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 ${
+                pillarFilter === 'avishkar'
+                  ? 'bg-amber-600 text-white shadow-xs'
+                  : 'text-amber-700 hover:bg-amber-50/70'
+              }`}
+            >
+              💡 Avishkar (Innovation & Optimization) <span className="text-[10px] opacity-90 font-normal">({avishkarPillarCount})</span>
+            </button>
+          </div>
+
           <div className="flex items-center gap-3 flex-wrap">
             <div className="relative flex-1 min-w-[200px] max-w-sm">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />

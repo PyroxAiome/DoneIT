@@ -307,8 +307,18 @@ export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated, 
             <h2 className="font-semibold text-gray-900 truncate">{taskData?.title || task.title}</h2>
             <p className="text-xs text-gray-500 mt-0.5 flex items-center gap-2 flex-wrap">
               <span>Status: {(taskData?.status || task.status)?.replace('_', ' ')} &middot; Priority: {taskData?.priority || task.priority}</span>
-              {(taskData?.project_name || task.project_name) && (
+              {(taskData?.pillar || task.pillar) === 'vishwas' && (
                 <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
+                  🛡️ Vishwas (Quality & Continuous Improvement)
+                </span>
+              )}
+              {(taskData?.pillar || task.pillar) === 'avishkar' && (
+                <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200">
+                  💡 Avishkar (Innovation & Product Optimization)
+                </span>
+              )}
+              {(taskData?.project_name || task.project_name) && (
+                <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-purple-50 text-purple-700 border border-purple-200">
                   📁 Project: {taskData?.project_name || task.project_name}
                 </span>
               )}
