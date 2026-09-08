@@ -72,7 +72,6 @@ export default function ManagerDashboard({ user }) {
     const params = {};
     if (statusFilter) params.status = statusFilter;
     if (categoryFilter) params.category = categoryFilter;
-    if (pillarFilter && pillarFilter !== 'all') params.pillar = pillarFilter;
     if (priorityFilter) params.priority = priorityFilter;
     if (search) params.search = search;
     if (employeeFilter) params.assignee_id = employeeFilter;
@@ -87,7 +86,6 @@ export default function ManagerDashboard({ user }) {
     const params = {};
     if (statusFilter) params.status = statusFilter;
     if (categoryFilter) params.category = categoryFilter;
-    if (pillarFilter && pillarFilter !== 'all') params.pillar = pillarFilter;
     if (priorityFilter) params.priority = priorityFilter;
     if (search) params.search = search;
     if (employeeFilter) params.assignee_id = employeeFilter;
@@ -172,7 +170,7 @@ export default function ManagerDashboard({ user }) {
 
   useEffect(() => {
     fetchTasksOnly();
-  }, [statusFilter, categoryFilter, pillarFilter, search, employeeFilter, priorityFilter]);
+  }, [statusFilter, categoryFilter, search, employeeFilter, priorityFilter]);
 
   useEffect(() => {
     const handleToggle = () => setMyTasksOnly(prev => !prev);
@@ -226,10 +224,7 @@ export default function ManagerDashboard({ user }) {
   const inProgressVerifyCount = allVerifierTasks.filter(t => t.status === 'todo' || t.status === 'in_progress').length;
   const verifiedByMeCount = allVerifierTasks.filter(t => t.status === 'completed' && (Number(t.completed_by) === Number(user.id) || Number(t.verifier_id) === Number(user.id))).length;
 
-  const displayedTasks = tasks.filter(t => {
-    if (pillarFilter === 'vishwas' && t.pillar !== 'vishwas') return false;
-    if (pillarFilter === 'avishkar' && t.pillar !== 'avishkar') return false;
-
+  const workBaseTasks = tasks.filter(t => {
     if (activeTab === 'to_verify') {
       // To Verify shows BOTH project tasks and normal tasks where user is verifier
       const isVerifierTask = (Number(t.verifier_id) === Number(user.id) || Number(t.completed_by) === Number(user.id)) && Number(t.assignee_id) !== Number(user.id);
@@ -279,6 +274,16 @@ export default function ManagerDashboard({ user }) {
     } else {
       return t.status !== 'completed';
     }
+  });
+
+  const allWorkPillarCount = workBaseTasks.length;
+  const vishwasPillarCount = workBaseTasks.filter(t => t.pillar === 'vishwas').length;
+  const avishkarPillarCount = workBaseTasks.filter(t => t.pillar === 'avishkar').length;
+
+  const displayedTasks = workBaseTasks.filter(t => {
+    if (pillarFilter === 'vishwas' && t.pillar !== 'vishwas') return false;
+    if (pillarFilter === 'avishkar' && t.pillar !== 'avishkar') return false;
+    return true;
   }).sort((a, b) => {
     if (activeTab === 'to_verify') {
       if (a.status === 'under_review' && b.status !== 'under_review') return -1;
@@ -297,11 +302,6 @@ export default function ManagerDashboard({ user }) {
   const empCompletedTasksCount = selectedEmp ? tasks.filter(t => Number(t.assignee_id) === Number(selectedEmp.id) && t.status === 'completed').length : 0;
   const empCreatedForOthersCount = selectedEmp ? tasks.filter(t => Number(t.creator_id) === Number(selectedEmp.id) && Number(t.assignee_id) !== Number(selectedEmp.id) && (!t.parent_id || t.id === t.parent_id)).length : 0;
   const empVerifiedTasksCount = selectedEmp ? tasks.filter(t => t.status === 'completed' && (Number(t.completed_by) === Number(selectedEmp.id) || Number(t.verifier_id) === Number(selectedEmp.id)) && Number(t.assignee_id) !== Number(selectedEmp.id)).length : 0;
-
-  const workBaseTasks = tasks.filter(t => selectedEmp ? (Number(t.assignee_id) === Number(selectedEmp.id)) : (!t.project_id && (t.status !== 'completed' || activeTab === 'completed')));
-  const allWorkPillarCount = workBaseTasks.length;
-  const vishwasPillarCount = workBaseTasks.filter(t => t.pillar === 'vishwas').length;
-  const avishkarPillarCount = workBaseTasks.filter(t => t.pillar === 'avishkar').length;
 
   const metricCards = stats ? [
     { label: 'Total Tasks', value: stats.totalTasks, icon: ListTodo, color: 'text-gray-500' },
@@ -566,36 +566,57 @@ export default function ManagerDashboard({ user }) {
       {(activeTab === 'work' || activeTab === 'to_verify' || activeTab === 'completed' || selectedEmp) && activeTab !== 'projects' && activeTab !== 'repeated_tasks' && (
         <>
           {/* Work Pillars: All Work, Vishwas, Avishkar */}
-          <div className="flex items-center gap-2 p-1 bg-gray-100/90 rounded-xl border border-gray-200/80 w-fit flex-wrap mb-3">
+          <div className="flex items-center gap-2.5 p-1.5 bg-slate-100/90 rounded-2xl border border-slate-200/90 w-fit flex-wrap mb-3 shadow-xs">
             <button
               onClick={() => setPillarFilter('all')}
-              className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 ${
+              className={`px-4 py-2 sm:px-4.5 sm:py-2.5 text-xs sm:text-sm font-bold rounded-xl transition-all duration-200 flex items-center gap-2.5 cursor-pointer ${
                 pillarFilter === 'all'
-                  ? 'bg-white text-gray-900 shadow-xs'
-                  : 'text-gray-500 hover:text-gray-800'
+                  ? 'bg-slate-900 text-white shadow-md shadow-slate-900/20 scale-[1.02]'
+                  : 'bg-white text-slate-700 hover:text-slate-900 hover:bg-slate-50 border border-slate-200/80 shadow-xs'
               }`}
             >
-              🌐 All Work <span className="text-[10px] opacity-75 font-normal">({allWorkPillarCount})</span>
+              <span className="flex items-center gap-1.5">🌐 All Work</span>
+              <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
+                pillarFilter === 'all'
+                  ? 'bg-white/20 text-white border border-white/20'
+                  : 'bg-slate-100 text-slate-700'
+              }`}>
+                {allWorkPillarCount}
+              </span>
             </button>
             <button
               onClick={() => setPillarFilter('vishwas')}
-              className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 ${
+              className={`px-4 py-2 sm:px-4.5 sm:py-2.5 text-xs sm:text-sm font-bold rounded-xl transition-all duration-200 flex items-center gap-2.5 cursor-pointer ${
                 pillarFilter === 'vishwas'
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'text-blue-700 hover:bg-blue-50/70'
+                  ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 text-white shadow-md shadow-blue-500/30 scale-[1.02]'
+                  : 'bg-blue-50/80 text-blue-700 hover:bg-blue-100/90 border border-blue-200/80 shadow-xs'
               }`}
             >
-              🛡️ Vishwas (Quality & Improvement) <span className="text-[10px] opacity-90 font-normal">({vishwasPillarCount})</span>
+              <span className="flex items-center gap-1.5">🛡️ Vishwas (Quality & Improvement)</span>
+              <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
+                pillarFilter === 'vishwas'
+                  ? 'bg-white/25 text-white border border-white/20'
+                  : 'bg-blue-200/70 text-blue-800'
+              }`}>
+                {vishwasPillarCount}
+              </span>
             </button>
             <button
               onClick={() => setPillarFilter('avishkar')}
-              className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 ${
+              className={`px-4 py-2 sm:px-4.5 sm:py-2.5 text-xs sm:text-sm font-bold rounded-xl transition-all duration-200 flex items-center gap-2.5 cursor-pointer ${
                 pillarFilter === 'avishkar'
-                  ? 'bg-amber-600 text-white shadow-xs'
-                  : 'text-amber-700 hover:bg-amber-50/70'
+                  ? 'bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 text-white shadow-md shadow-amber-500/30 scale-[1.02]'
+                  : 'bg-amber-50/80 text-amber-800 hover:bg-amber-100/90 border border-amber-200/80 shadow-xs'
               }`}
             >
-              💡 Avishkar (Innovation & Optimization) <span className="text-[10px] opacity-90 font-normal">({avishkarPillarCount})</span>
+              <span className="flex items-center gap-1.5">💡 Avishkar (Innovation & Optimization)</span>
+              <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
+                pillarFilter === 'avishkar'
+                  ? 'bg-white/25 text-white border border-white/20'
+                  : 'bg-amber-200/70 text-amber-900'
+              }`}>
+                {avishkarPillarCount}
+              </span>
             </button>
           </div>
 
