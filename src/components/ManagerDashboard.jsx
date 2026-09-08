@@ -54,7 +54,7 @@ export default function ManagerDashboard({ user }) {
   const [searchText, setSearchText] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
-  const [pillarFilter, setPillarFilter] = useState('all');
+  const [pillarFilter, setPillarFilter] = useState('general');
   const [priorityFilter, setPriorityFilter] = useState('');
   const [employeeFilter, setEmployeeFilter] = useState(null);
   const [selectedEmp, setSelectedEmp] = useState(null);
@@ -107,12 +107,12 @@ export default function ManagerDashboard({ user }) {
         }
       }
       if (rtRes.status === 'fulfilled') {
-        const rt = rtRes.value;
+        const rt = rtRes.value || [];
         const myRt = Array.isArray(rt) ? rt.filter(item => {
-          if (user?.role === 'admin') return true;
-          if (Number(item.creator_id) === Number(user?.id)) return true;
+          if (user.role === 'admin') return true;
+          if (Number(item.creator_id) === Number(user.id)) return true;
           if (Array.isArray(item.members)) {
-            return item.members.some(m => Number(m.user_id || m.id) === Number(user?.id));
+            return item.members.some(m => Number(m.user_id || m.id) === Number(user.id));
           }
           return false;
         }) : [];
@@ -124,6 +124,7 @@ export default function ManagerDashboard({ user }) {
   useEffect(() => {
     const handleHashChange = () => {
       const hash = window.location.hash;
+      setStatusFilter('');
       if (!hash || hash === '#' || hash === '#work') {
         setActiveTab('work');
         setEmployeeFilter(null);
@@ -185,14 +186,14 @@ export default function ManagerDashboard({ user }) {
     setStatusFilter('');
     setPriorityFilter('');
     setCategoryFilter('');
-    setPillarFilter('all');
+    setPillarFilter('general');
   };
 
   const handleViewEmployeeTasks = (emp) => {
     setStatusFilter('');
     setPriorityFilter('');
     setCategoryFilter('');
-    setPillarFilter('all');
+    setPillarFilter('general');
     window.location.hash = `all/employee/${emp.id}`;
   };
 
@@ -200,7 +201,7 @@ export default function ManagerDashboard({ user }) {
     setStatusFilter('');
     setPriorityFilter('');
     setCategoryFilter('');
-    setPillarFilter('all');
+    setPillarFilter('general');
     const targetTab = status === 'completed' ? 'completed' : 'work';
     window.location.hash = `${targetTab}/employee/${emp.id}`;
     if (status !== 'completed') {
@@ -230,35 +231,35 @@ export default function ManagerDashboard({ user }) {
       const isVerifierTask = (Number(t.verifier_id) === Number(user.id) || Number(t.completed_by) === Number(user.id)) && Number(t.assignee_id) !== Number(user.id);
       if (!isVerifierTask) return false;
       if (t.parent_id && t.id !== t.parent_id) return false;
-      if (statusFilter) return t.status === statusFilter;
+      if (statusFilter && t.status !== statusFilter) return false;
       return true;
     }
 
     if (selectedEmp) {
       if (activeTab === 'verified') {
         const isVerified = t.status === 'completed' && (Number(t.completed_by) === Number(selectedEmp.id) || Number(t.verifier_id) === Number(selectedEmp.id)) && Number(t.assignee_id) !== Number(selectedEmp.id);
-        if (statusFilter) return isVerified && t.status === statusFilter;
+        if (statusFilter && statusFilter !== 'completed') return false;
         return isVerified;
       }
       if (activeTab === 'assigned_by_me') {
         const isCreatedForOthers = Number(t.creator_id) === Number(selectedEmp.id) && Number(t.assignee_id) !== Number(selectedEmp.id);
         if (t.parent_id && t.id !== t.parent_id) return false;
-        if (statusFilter) return isCreatedForOthers && t.status === statusFilter;
+        if (statusFilter && t.status !== statusFilter) return false;
         return isCreatedForOthers;
       }
       if (activeTab === 'completed') {
         const isCompleted = Number(t.assignee_id) === Number(selectedEmp.id) && t.status === 'completed';
-        if (statusFilter) return isCompleted && t.status === statusFilter;
+        if (statusFilter && statusFilter !== 'completed') return false;
         return isCompleted;
       }
       if (activeTab === 'work') {
         const isActive = Number(t.assignee_id) === Number(selectedEmp.id) && t.status !== 'completed';
-        if (statusFilter) return isActive && t.status === statusFilter;
+        if (statusFilter && t.status !== statusFilter) return false;
         return isActive;
       }
       // activeTab === 'all' or default (All tasks assigned to this user):
       const isMine = Number(t.assignee_id) === Number(selectedEmp.id);
-      if (statusFilter) return isMine && t.status === statusFilter;
+      if (statusFilter && t.status !== statusFilter) return false;
       return isMine;
     }
 
@@ -268,19 +269,26 @@ export default function ManagerDashboard({ user }) {
     if (myTasksOnly && t.creator_id !== user.id && t.assignee_id !== user.id) {
       return false;
     }
-    if (statusFilter) return true;
     if (activeTab === 'completed') {
-      return t.status === 'completed';
+      if (t.status !== 'completed') return false;
+      if (statusFilter && statusFilter !== 'completed') return false;
+      return true;
+    } else if (activeTab === 'work') {
+      if (t.status === 'completed') return false;
+      if (statusFilter && t.status !== statusFilter) return false;
+      return true;
     } else {
-      return t.status !== 'completed';
+      if (statusFilter && t.status !== statusFilter) return false;
+      return true;
     }
   });
 
-  const allWorkPillarCount = workBaseTasks.length;
+  const generalPillarCount = workBaseTasks.filter(t => !t.pillar || t.pillar === 'general').length;
   const vishwasPillarCount = workBaseTasks.filter(t => t.pillar === 'vishwas').length;
   const avishkarPillarCount = workBaseTasks.filter(t => t.pillar === 'avishkar').length;
 
   const displayedTasks = workBaseTasks.filter(t => {
+    if (pillarFilter === 'general' && t.pillar && t.pillar !== 'general') return false;
     if (pillarFilter === 'vishwas' && t.pillar !== 'vishwas') return false;
     if (pillarFilter === 'avishkar' && t.pillar !== 'avishkar') return false;
     return true;
@@ -565,55 +573,55 @@ export default function ManagerDashboard({ user }) {
 
       {(activeTab === 'work' || activeTab === 'to_verify' || activeTab === 'completed' || selectedEmp) && activeTab !== 'projects' && activeTab !== 'repeated_tasks' && (
         <>
-          {/* Work Pillars: All Work, Vishwas, Avishkar */}
-          <div className="flex items-center gap-2.5 p-1.5 bg-slate-100/90 rounded-2xl border border-slate-200/90 w-fit flex-wrap mb-3 shadow-xs">
+          {/* Work Pillars: General Tasks, Vishwas, Avishkar */}
+          <div className="flex items-center gap-2 p-1.5 bg-gray-100/90 rounded-xl border border-gray-200/80 w-fit flex-wrap mb-3 shadow-xs">
             <button
-              onClick={() => setPillarFilter('all')}
-              className={`px-4 py-2 sm:px-4.5 sm:py-2.5 text-xs sm:text-sm font-bold rounded-xl transition-all duration-200 flex items-center gap-2.5 cursor-pointer ${
-                pillarFilter === 'all'
-                  ? 'bg-slate-900 text-white shadow-md shadow-slate-900/20 scale-[1.02]'
-                  : 'bg-white text-slate-700 hover:text-slate-900 hover:bg-slate-50 border border-slate-200/80 shadow-xs'
+              onClick={() => setPillarFilter('general')}
+              className={`px-3.5 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-all duration-150 flex items-center gap-2 cursor-pointer ${
+                pillarFilter === 'general'
+                  ? 'bg-slate-800 text-white shadow-xs'
+                  : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200/80 shadow-xs'
               }`}
             >
-              <span className="flex items-center gap-1.5">🌐 All Work</span>
+              <span className="flex items-center gap-1.5">📋 General Tasks</span>
               <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
-                pillarFilter === 'all'
-                  ? 'bg-white/20 text-white border border-white/20'
-                  : 'bg-slate-100 text-slate-700'
+                pillarFilter === 'general'
+                  ? 'bg-slate-700 text-slate-100'
+                  : 'bg-gray-100 text-gray-600'
               }`}>
-                {allWorkPillarCount}
+                {generalPillarCount}
               </span>
             </button>
             <button
               onClick={() => setPillarFilter('vishwas')}
-              className={`px-4 py-2 sm:px-4.5 sm:py-2.5 text-xs sm:text-sm font-bold rounded-xl transition-all duration-200 flex items-center gap-2.5 cursor-pointer ${
+              className={`px-3.5 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-all duration-150 flex items-center gap-2 cursor-pointer ${
                 pillarFilter === 'vishwas'
-                  ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 text-white shadow-md shadow-blue-500/30 scale-[1.02]'
-                  : 'bg-blue-50/80 text-blue-700 hover:bg-blue-100/90 border border-blue-200/80 shadow-xs'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'bg-white text-blue-700 hover:bg-blue-50/70 border border-blue-200/80 shadow-xs'
               }`}
             >
               <span className="flex items-center gap-1.5">🛡️ Vishwas (Quality & Improvement)</span>
               <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
                 pillarFilter === 'vishwas'
-                  ? 'bg-white/25 text-white border border-white/20'
-                  : 'bg-blue-200/70 text-blue-800'
+                  ? 'bg-blue-500 text-white'
+                  : 'bg-blue-50 text-blue-700 border border-blue-200/60'
               }`}>
                 {vishwasPillarCount}
               </span>
             </button>
             <button
               onClick={() => setPillarFilter('avishkar')}
-              className={`px-4 py-2 sm:px-4.5 sm:py-2.5 text-xs sm:text-sm font-bold rounded-xl transition-all duration-200 flex items-center gap-2.5 cursor-pointer ${
+              className={`px-3.5 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-all duration-150 flex items-center gap-2 cursor-pointer ${
                 pillarFilter === 'avishkar'
-                  ? 'bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 text-white shadow-md shadow-amber-500/30 scale-[1.02]'
-                  : 'bg-amber-50/80 text-amber-800 hover:bg-amber-100/90 border border-amber-200/80 shadow-xs'
+                  ? 'bg-amber-600 text-white shadow-xs'
+                  : 'bg-white text-amber-800 hover:bg-amber-50/70 border border-amber-200/80 shadow-xs'
               }`}
             >
               <span className="flex items-center gap-1.5">💡 Avishkar (Innovation & Optimization)</span>
               <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
                 pillarFilter === 'avishkar'
-                  ? 'bg-white/25 text-white border border-white/20'
-                  : 'bg-amber-200/70 text-amber-900'
+                  ? 'bg-amber-500 text-white'
+                  : 'bg-amber-50 text-amber-800 border border-amber-200/60'
               }`}>
                 {avishkarPillarCount}
               </span>
