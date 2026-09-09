@@ -250,13 +250,10 @@ export default function AdminDashboard({ user }) {
 
   const handleViewEmployeeTasks = (emp) => {
     setStatusFilter('');
-    setPriorityFilter('');
-    setCategoryFilter('');
-    setPillarFilter('general');
-    setDateRangeFilter('');
-    setCustomFromDate('');
-    setCustomToDate('');
-    window.location.hash = `all/employee/${emp.id}`;
+    setEmployeeFilter(emp.id);
+    setSelectedEmp(emp);
+    const targetTab = (activeTab === 'team' || activeTab === 'admin') ? activeTab : 'work';
+    window.location.hash = `${targetTab}/employee/${emp.id}`;
   };
 
   const handleViewEmployeeTasksByStatus = (emp, status) => {
@@ -267,7 +264,7 @@ export default function AdminDashboard({ user }) {
     setDateRangeFilter('');
     setCustomFromDate('');
     setCustomToDate('');
-    const targetTab = status === 'completed' ? 'completed' : 'work';
+    const targetTab = status === 'completed' ? 'completed' : (activeTab === 'admin' ? 'admin' : 'work');
     window.location.hash = `${targetTab}/employee/${emp.id}`;
     if (status !== 'completed') {
       setStatusFilter(status);
@@ -275,7 +272,8 @@ export default function AdminDashboard({ user }) {
   };
 
   const clearEmployeeFilter = () => {
-    window.location.hash = 'team';
+    const defaultTab = activeTab === 'admin' ? 'admin' : 'team';
+    window.location.hash = defaultTab;
     setStatusFilter('');
     setPriorityFilter('');
     setCategoryFilter('');
@@ -319,7 +317,7 @@ export default function AdminDashboard({ user }) {
         if (statusFilter && t.status !== statusFilter) return false;
         return isActive;
       }
-      // activeTab === 'all' or default (All tasks assigned to this user):
+      // activeTab === 'all' or 'admin' or default (All tasks assigned to this user):
       if (statusFilter && t.status !== statusFilter) return false;
       return isMine;
     }
@@ -327,7 +325,13 @@ export default function AdminDashboard({ user }) {
     // Main workspace views strictly exclude project tasks (managed in Projects tab)
     if (t.project_id) return false;
 
-    if (activeTab === 'completed') {
+    if (activeTab === 'admin') {
+      const adminUserIds = employees.filter(e => e.role === 'admin').map(e => Number(e.id));
+      const isAdminTask = adminUserIds.includes(Number(t.assignee_id)) || adminUserIds.includes(Number(t.hiring_lead_id));
+      if (!isAdminTask) return false;
+      if (statusFilter && t.status !== statusFilter) return false;
+      return true;
+    } else if (activeTab === 'completed') {
       if (t.status !== 'completed') return false;
       if (statusFilter && statusFilter !== 'completed') return false;
       return true;
@@ -534,7 +538,7 @@ export default function AdminDashboard({ user }) {
         </div>
       )}
 
-      {(activeTab === 'work' || activeTab === 'all' || activeTab === 'completed' || activeTab === 'assigned_by_me' || activeTab === 'verified') && (
+      {(activeTab === 'work' || activeTab === 'all' || activeTab === 'completed' || activeTab === 'assigned_by_me' || activeTab === 'verified' || activeTab === 'admin') && (
         <div className="space-y-4">
           {/* Work Pillars: General Tasks, Vishwas, Avishkar, Nirantar, Saksham */}
           <div className="flex items-center gap-2 p-1.5 bg-gray-100/90 rounded-xl border border-gray-200/80 w-fit flex-wrap shadow-xs">
