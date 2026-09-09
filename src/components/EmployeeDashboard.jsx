@@ -310,18 +310,13 @@ export default function EmployeeDashboard({ user }) {
         <div className="space-y-4">
           <div className="flex items-center justify-between bg-white border border-gray-200 rounded-xl p-3 sm:p-4 shadow-sm">
             <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <h2 className="text-sm sm:text-base font-bold text-gray-900">
-                  {selectedEmp.name}'s Profile / Work
-                  {Number(selectedEmp.id) !== Number(user.id) && (
-                    <span className="text-red-500 font-semibold text-xs ml-1.5 bg-red-50 px-1.5 py-0.5 rounded border border-red-200/50">Read Only</span>
-                  )}
-                </h2>
-                <span className={`text-[10px] px-2 py-0.5 rounded-md font-bold border flex items-center gap-1 ${getTrainingLevelStyle(selectedEmp.training_level).bg}`}>
-                  ⚡ Saksham: {getTrainingLevelStyle(selectedEmp.training_level).text}
-                </span>
-              </div>
-              <p className="text-[9px] sm:text-[11px] text-gray-400 mt-0.5 uppercase font-semibold">{selectedEmp.role} &middot; {selectedEmp.department} &middot; {selectedEmp.email} &middot; {selectedEmp.completed_saksham_count || 0} Saksham Modules Completed</p>
+              <h2 className="text-sm sm:text-base font-bold text-gray-900">
+                {selectedEmp.name}'s Profile / Work
+                {Number(selectedEmp.id) !== Number(user.id) && (
+                  <span className="text-red-500 font-semibold text-xs ml-1.5 bg-red-50 px-1.5 py-0.5 rounded border border-red-200/50">Read Only</span>
+                )}
+              </h2>
+              <p className="text-[9px] sm:text-[11px] text-gray-400 mt-0.5 uppercase font-semibold">{selectedEmp.role} &middot; {selectedEmp.department} &middot; {selectedEmp.email}</p>
             </div>
             <button onClick={clearEmployeeFilter} className="bg-gray-800 hover:bg-gray-700 text-white text-[10px] sm:text-xs font-semibold px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg transition-all shadow-sm">
               Back to Team

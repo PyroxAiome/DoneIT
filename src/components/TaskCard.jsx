@@ -192,7 +192,7 @@ export default function TaskCard({ task, compact, onEdit, onDelete, onSelect, on
             {task.pillar === 'saksham' && (
               <>
                 <span className="text-[9px] sm:text-[10px] px-1.5 py-0.5 rounded border font-semibold bg-amber-50 text-amber-800 border-amber-300 flex items-center gap-1">
-                  ⚡ Saksham {task.training_level ? `(${task.training_level})` : ''}
+                  ⚡ Saksham
                 </span>
                 {task.training_module && (
                   <span className="text-[9px] sm:text-[10px] px-1.5 py-0.5 rounded border font-semibold bg-amber-100/80 text-amber-950 border-amber-400 flex items-center gap-1">

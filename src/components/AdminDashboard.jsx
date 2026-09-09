@@ -381,14 +381,8 @@ export default function AdminDashboard({ user }) {
         <div className="space-y-4">
           <div className="flex items-center justify-between bg-white border border-gray-200 rounded-xl p-3 sm:p-4 shadow-sm">
             <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <h2 className="text-sm sm:text-base font-bold text-gray-900">{selectedEmp.name}'s Profile / Work</h2>
-                <span className={`text-[10px] px-2 py-0.5 rounded-md font-bold border flex items-center gap-1 ${getTrainingLevelStyle(selectedEmp.training_level).bg}`}>
-                  ⚡ Saksham: {getTrainingLevelStyle(selectedEmp.training_level).text}
-                  {selectedEmp.is_manual_level && <span className="text-[9px] opacity-75 ml-0.5">(Manual)</span>}
-                </span>
-              </div>
-              <p className="text-[9px] sm:text-[11px] text-gray-400 mt-0.5 uppercase font-semibold">{selectedEmp.role} &middot; {selectedEmp.department} &middot; {selectedEmp.email} &middot; {selectedEmp.completed_saksham_count || 0} Saksham Modules Completed</p>
+              <h2 className="text-sm sm:text-base font-bold text-gray-900">{selectedEmp.name}'s Profile / Work</h2>
+              <p className="text-[9px] sm:text-[11px] text-gray-400 mt-0.5 uppercase font-semibold">{selectedEmp.role} &middot; {selectedEmp.department} &middot; {selectedEmp.email}</p>
             </div>
             <button onClick={clearEmployeeFilter} className="bg-gray-800 hover:bg-gray-700 text-white text-[10px] sm:text-xs font-semibold px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg transition-all shadow-sm">
               Back to Team
@@ -824,12 +818,7 @@ export default function AdminDashboard({ user }) {
                       {emp.name.charAt(0)}
                     </div>
                     <div>
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <p className="text-sm font-medium text-gray-800">{emp.name}</p>
-                        <span className={`text-[9px] px-1.5 py-0.2 rounded font-bold border ${getTrainingLevelStyle(emp.training_level).bg}`}>
-                          ⚡ {getTrainingLevelStyle(emp.training_level).text}
-                        </span>
-                      </div>
+                      <p className="text-sm font-medium text-gray-800">{emp.name}</p>
                       <p className="text-[10px] text-amber-700 font-semibold uppercase">{emp.role ? emp.role.replace('_', ' ') : ''}</p>
                       {emp.role === 'intern' && (
                         <p className="text-[10px] text-indigo-600 font-medium mt-0.5">
@@ -867,63 +856,7 @@ export default function AdminDashboard({ user }) {
                   </div>
                   <span className="text-[11px] text-gray-500">{emp.avg_progress}%</span>
                 </div>
-                <p className="text-xs text-gray-400 mt-1.5">{emp.task_count} task{emp.task_count !== 1 ? 's' : ''} &middot; {emp.completed_saksham_count || 0} Saksham modules</p>
-
-                {emp.role !== 'admin' && (
-                  <div className="mt-2.5 pt-2.5 border-t border-gray-100 space-y-2 text-[11px] text-gray-600" onClick={(e) => e.stopPropagation()}>
-                    <div className="flex items-center justify-between gap-1 flex-wrap">
-                      <span className="font-semibold text-gray-500 text-[10px] uppercase">Access Approval:</span>
-                      <div className="flex items-center gap-2">
-                        <label className="flex items-center gap-1 cursor-pointer hover:text-purple-700">
-                          <input
-                            type="checkbox"
-                            checked={Boolean(emp.can_access_nirantar)}
-                            onChange={(e) => {
-                              const nextNirantar = e.target.checked;
-                              api.updateUserPermissions(emp.id, {
-                                can_access_nirantar: nextNirantar,
-                                can_access_saksham: Boolean(emp.can_access_saksham)
-                              }).then(() => fetchAll());
-                            }}
-                            className="rounded text-purple-600 focus:ring-purple-500 w-3 h-3"
-                          />
-                          <span>Nirantar</span>
-                        </label>
-                        <label className="flex items-center gap-1 cursor-pointer hover:text-indigo-700">
-                          <input
-                            type="checkbox"
-                            checked={Boolean(emp.can_access_saksham)}
-                            onChange={(e) => {
-                              const nextSaksham = e.target.checked;
-                              api.updateUserPermissions(emp.id, {
-                                can_access_nirantar: Boolean(emp.can_access_nirantar),
-                                can_access_saksham: nextSaksham
-                              }).then(() => fetchAll());
-                            }}
-                            className="rounded text-indigo-600 focus:ring-indigo-500 w-3 h-3"
-                          />
-                          <span>Saksham</span>
-                        </label>
-                      </div>
-                    </div>
-                    <div className="flex items-center justify-between gap-1">
-                      <span className="font-semibold text-gray-500 text-[10px] uppercase">Saksham Level:</span>
-                      <select
-                        value={emp.is_manual_level ? emp.training_level : 'Auto'}
-                        onChange={(e) => {
-                          api.updateEmployeeTrainingLevel(emp.id, e.target.value).then(() => fetchAll());
-                        }}
-                        className="text-[10px] font-semibold bg-gray-50 border border-gray-200 rounded px-1.5 py-0.5 text-gray-700 focus:outline-none focus:ring-1 focus:ring-amber-500"
-                      >
-                        <option value="Auto">🤖 Auto ({emp.calculated_training_level || 'Beginner'})</option>
-                        <option value="Beginner">🥉 Beginner</option>
-                        <option value="Intermediate">🥈 Intermediate</option>
-                        <option value="Advanced">🥇 Advanced</option>
-                        <option value="Expert">👑 Expert</option>
-                      </select>
-                    </div>
-                  </div>
-                )}
+                <p className="text-xs text-gray-400 mt-1.5">{emp.task_count} task{emp.task_count !== 1 ? 's' : ''}</p>
                 <div className="flex gap-2 mt-4 pt-3 border-t border-gray-100">
                   <button
                     onClick={(e) => {

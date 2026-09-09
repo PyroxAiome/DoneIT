@@ -352,14 +352,8 @@ export default function ManagerDashboard({ user }) {
         <div className="space-y-4">
           <div className="flex items-center justify-between bg-white border border-gray-200 rounded-xl p-3 sm:p-4 shadow-sm">
             <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <h2 className="text-sm sm:text-base font-bold text-gray-900">{selectedEmp.name}'s Profile / Work</h2>
-                <span className={`text-[10px] px-2 py-0.5 rounded-md font-bold border flex items-center gap-1 ${getTrainingLevelStyle(selectedEmp.training_level).bg}`}>
-                  ⚡ Saksham: {getTrainingLevelStyle(selectedEmp.training_level).text}
-                  {selectedEmp.is_manual_level && <span className="text-[9px] opacity-75 ml-0.5">(Manual)</span>}
-                </span>
-              </div>
-              <p className="text-[9px] sm:text-[11px] text-gray-400 mt-0.5 uppercase font-semibold">{selectedEmp.role ? selectedEmp.role.replace('_', ' ') : ''} &middot; {selectedEmp.department} &middot; {selectedEmp.email} &middot; {selectedEmp.completed_saksham_count || 0} Saksham Modules Completed</p>
+              <h2 className="text-sm sm:text-base font-bold text-gray-900">{selectedEmp.name}'s Profile / Work</h2>
+              <p className="text-[9px] sm:text-[11px] text-gray-400 mt-0.5 uppercase font-semibold">{selectedEmp.role ? selectedEmp.role.replace('_', ' ') : ''} &middot; {selectedEmp.department} &middot; {selectedEmp.email}</p>
             </div>
             <button onClick={clearEmployeeFilter} className="bg-gray-800 hover:bg-gray-700 text-white text-[10px] sm:text-xs font-semibold px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg transition-all shadow-sm">
               Back to Team
@@ -562,12 +556,7 @@ export default function ManagerDashboard({ user }) {
                         {emp.name.charAt(0)}
                       </div>
                       <div>
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <p className="text-sm font-medium text-gray-800">{emp.name} {isSelf && <span className="text-[10px] text-amber-600 bg-amber-50 px-1 py-0.2 rounded font-semibold">You</span>}</p>
-                          <span className={`text-[9px] px-1.5 py-0.2 rounded font-bold border ${getTrainingLevelStyle(emp.training_level).bg}`}>
-                            ⚡ {getTrainingLevelStyle(emp.training_level).text}
-                          </span>
-                        </div>
+                        <p className="text-sm font-medium text-gray-800">{emp.name} {isSelf && <span className="text-[10px] text-amber-600 bg-amber-50 px-1 py-0.2 rounded ml-1 font-semibold">You</span>}</p>
                         <p className="text-[10px] text-amber-700 font-semibold uppercase">{emp.role ? emp.role.replace('_', ' ') : ''}</p>
                         {emp.role === 'intern' && (
                           <p className="text-[10px] text-indigo-600 font-medium mt-0.5">
@@ -583,7 +572,7 @@ export default function ManagerDashboard({ user }) {
                     </div>
                     <span className="text-[11px] text-gray-500">{emp.avg_progress}%</span>
                   </div>
-                  <p className="text-xs text-gray-400 mt-1.5">{emp.task_count} task{emp.task_count !== 1 ? 's' : ''} &middot; {emp.completed_saksham_count || 0} Saksham modules</p>
+                  <p className="text-xs text-gray-400 mt-1.5">{emp.task_count} task{emp.task_count !== 1 ? 's' : ''}</p>
                   <div className="flex gap-2 mt-4 pt-3 border-t border-gray-100">
                     <button
                       onClick={(e) => {
