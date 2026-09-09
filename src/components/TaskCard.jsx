@@ -172,6 +172,40 @@ export default function TaskCard({ task, compact, onEdit, onDelete, onSelect, on
                 💡 Avishkar
               </span>
             )}
+            {task.pillar === 'nirantar' && (
+              <>
+                <span className="text-[9px] sm:text-[10px] px-1.5 py-0.5 rounded border font-semibold bg-purple-50 text-purple-700 border-purple-200 flex items-center gap-1">
+                  🔁 Nirantar {task.vacancies_count > 0 ? `(${task.vacancies_count} Vacancies)` : ''}
+                </span>
+                {task.hiring_department && (
+                  <span className="text-[9px] sm:text-[10px] px-1.5 py-0.5 rounded border font-semibold bg-purple-100/60 text-purple-900 border-purple-300 flex items-center gap-1">
+                    🏢 {task.hiring_department}
+                  </span>
+                )}
+                {task.hiring_stage && (
+                  <span className="text-[9px] sm:text-[10px] px-1.5 py-0.5 rounded border font-medium bg-amber-50 text-amber-800 border-amber-200 flex items-center gap-1">
+                    📌 {task.hiring_stage}
+                  </span>
+                )}
+              </>
+            )}
+            {task.pillar === 'saksham' && (
+              <>
+                <span className="text-[9px] sm:text-[10px] px-1.5 py-0.5 rounded border font-semibold bg-amber-50 text-amber-800 border-amber-300 flex items-center gap-1">
+                  ⚡ Saksham {task.training_level ? `(${task.training_level})` : ''}
+                </span>
+                {task.training_module && (
+                  <span className="text-[9px] sm:text-[10px] px-1.5 py-0.5 rounded border font-semibold bg-amber-100/80 text-amber-950 border-amber-400 flex items-center gap-1">
+                    📚 {task.training_module}
+                  </span>
+                )}
+                {task.training_video_url && (
+                  <span className="text-[9px] sm:text-[10px] px-1.5 py-0.5 rounded border font-medium bg-red-50 text-red-700 border-red-200 flex items-center gap-1">
+                    ▶️ Video Lesson
+                  </span>
+                )}
+              </>
+            )}
             {task.category && task.category !== 'General' && (
               <span className="text-[9px] sm:text-[10px] px-1.5 py-0.5 rounded border font-medium bg-gray-50 text-gray-600 border-gray-200">
                 {task.category}
@@ -232,6 +266,30 @@ export default function TaskCard({ task, compact, onEdit, onDelete, onSelect, on
                     {statusActions.map(s => (
                       <button key={s} onClick={() => handleStatusChange(s)} className="w-full text-left px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50">{statusLabels[s]}</button>
                     ))}
+                    {canModifyTask(user, task) && (
+                      <>
+                        <div className="border-t border-gray-100 my-1" />
+                        <div className="px-3 py-1.5 text-[10px] text-gray-400 uppercase tracking-wider">Set Track</div>
+                        {[
+                          { id: 'general', label: 'General Task', icon: '📋', allowed: true },
+                          { id: 'vishwas', label: 'Vishwas Track', icon: '🛡️', allowed: true },
+                          { id: 'avishkar', label: 'Avishkar Track', icon: '💡', allowed: true },
+                          { id: 'nirantar', label: 'Nirantar Track', icon: '🔁', allowed: user?.role === 'admin' || user?.can_access_nirantar },
+                          { id: 'saksham', label: 'Saksham Track', icon: '⚡', allowed: user?.role === 'admin' || user?.can_access_saksham },
+                        ].filter(p => p.allowed && p.id !== (task.pillar || 'general')).map(p => (
+                          <button
+                            key={p.id}
+                            onClick={() => {
+                              api.updateTask(task.id, { pillar: p.id }).then(() => onEdit?.());
+                              setShowMenu(false);
+                            }}
+                            className="w-full text-left px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-1.5"
+                          >
+                            <span>{p.icon}</span> Move to {p.label}
+                          </button>
+                        ))}
+                      </>
+                    )}
                     {canModifyTask(user, task) && (
                       <>
                         <div className="border-t border-gray-100 my-1" />

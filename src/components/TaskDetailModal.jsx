@@ -23,6 +23,24 @@ const formatDescription = (desc) => {
   return desc.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1');
 };
 
+const getEmbedVideoUrl = (url) => {
+  if (!url) return null;
+  const str = url.trim();
+  if (str.includes('youtube.com/watch')) {
+    const match = str.match(/v=([a-zA-Z0-9_-]+)/);
+    if (match) return `https://www.youtube.com/embed/${match[1]}`;
+  }
+  if (str.includes('youtu.be/')) {
+    const match = str.match(/youtu\.be\/([a-zA-Z0-9_-]+)/);
+    if (match) return `https://www.youtube.com/embed/${match[1]}`;
+  }
+  if (str.includes('vimeo.com/')) {
+    const match = str.match(/vimeo\.com\/([0-9]+)/);
+    if (match) return `https://player.vimeo.com/video/${match[1]}`;
+  }
+  return null;
+};
+
 export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated, readOnly }) {
   const user = useAuth();
    const [tab, setTab] = useState(task?.defaultTab || 'reviews');
@@ -438,6 +456,261 @@ export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated, 
             <span className="bg-amber-200/70 text-amber-900 font-semibold text-[10px] px-2 py-0.5 rounded-full">
               Re-Verification Pending
             </span>
+          </div>
+        )}
+
+        {/* Nirantar Recruitment & Vacancy Hub Block */}
+        {(taskData?.pillar || task.pillar) === 'nirantar' && (
+          <div className="mx-5 mt-4 p-4 bg-purple-50/70 border border-purple-200 rounded-2xl space-y-4">
+            <div className="flex items-center justify-between flex-wrap gap-2 border-b border-purple-200/70 pb-3">
+              <div className="flex items-center gap-2">
+                <span className="p-1.5 bg-purple-600 text-white rounded-lg text-xs font-bold shadow-xs">🔁</span>
+                <div>
+                  <h3 className="text-xs font-extrabold text-purple-950 uppercase tracking-wide">
+                    Nirantar Recruitment & Vacancy Hub
+                  </h3>
+                  <p className="text-[11px] text-purple-700">
+                    Live hiring pipeline, vacancy tracking, and HR action plan
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="bg-amber-500 text-white text-xs font-bold px-3 py-1 rounded-full shadow-xs">
+                  🔁 {taskData?.vacancies_count || task.vacancies_count || 0} Open Vacancies
+                </span>
+              </div>
+            </div>
+
+            {/* Quick Overview Badges */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+              <div className="bg-white p-2.5 rounded-xl border border-purple-100 shadow-xs">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-purple-400 block mb-0.5">Target Department</span>
+                <span className="font-semibold text-purple-950">
+                  {(taskData?.hiring_department || task.hiring_department) || (taskData?.category || task.category) || 'General / Not Specified'}
+                </span>
+              </div>
+              <div className="bg-white p-2.5 rounded-xl border border-purple-100 shadow-xs">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-purple-400 block mb-0.5">Assigned People / Team</span>
+                <span className="font-semibold text-purple-950 truncate block" title={taskData?.group_assignees && taskData.group_assignees.length > 0 ? taskData.group_assignees.join(', ') : (taskData?.assignee_name || task.assignee_name)}>
+                  {taskData?.group_assignees && taskData.group_assignees.length > 0
+                    ? `${taskData.group_assignees.length} Assigned (${taskData.group_assignees.join(', ')})`
+                    : ((taskData?.assignee_name || task.assignee_name) || 'Not Assigned')}
+                </span>
+              </div>
+              <div className="bg-white p-2.5 rounded-xl border border-purple-100 shadow-xs">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-purple-400 block mb-0.5">Total Vacancies</span>
+                <span className="font-semibold text-purple-950">
+                  🔁 {taskData?.vacancies_count || task.vacancies_count || 0} Open Positions
+                </span>
+              </div>
+            </div>
+
+            {/* Interactive Hiring Stage Progress & Updater Attribution */}
+            <div className="bg-white p-3 rounded-xl border border-purple-100 shadow-xs space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-[11px] font-bold uppercase tracking-wider text-purple-900">
+                  Hiring Stage & Pipeline Status
+                </label>
+                <span className="text-[10px] text-purple-600 font-medium">Click to advance stage</span>
+              </div>
+              <select
+                value={taskData?.hiring_stage || task.hiring_stage || 'Requisition Opened'}
+                onChange={async (e) => {
+                  const newStage = e.target.value;
+                  try {
+                    const updated = await api.updateTask(task.id, { hiring_stage: newStage });
+                    setTaskData(updated);
+                    onTaskUpdated?.();
+                  } catch (err) {
+                    alert(err.message);
+                  }
+                }}
+                className="w-full text-xs font-semibold px-3 py-2 rounded-lg border border-purple-300 bg-purple-50/50 text-purple-950 focus:outline-none focus:ring-2 focus:ring-purple-400 cursor-pointer"
+              >
+                <option value="Requisition Opened">Requisition Opened</option>
+                <option value="Candidate Sourcing & Screening">Candidate Sourcing & Screening</option>
+                <option value="Interviews Ongoing">Interviews Ongoing</option>
+                <option value="Offer Extended">Offer Extended</option>
+                <option value="Hired & Onboarded">Hired & Onboarded</option>
+                <option value="On Hold">On Hold</option>
+              </select>
+              {(taskData?.hiring_stage_updater_name || taskData?.last_edited_by_name) && (
+                <div className="text-[11px] text-purple-800 bg-purple-50 px-2.5 py-1 rounded-md border border-purple-200/60 flex items-center justify-between">
+                  <span>👤 Stage updated by: <strong>{taskData.hiring_stage_updater_name || taskData.last_edited_by_name}</strong></span>
+                  {(taskData.hiring_stage_updated_at || taskData.updated_at) && (
+                    <span className="text-[10px] text-purple-600">
+                      {new Date(taskData.hiring_stage_updated_at || taskData.updated_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Recruitment Channels & HR Action Plan (Moved Down) */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="bg-white p-3 rounded-xl border border-purple-100 shadow-xs space-y-1.5">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-purple-900 block">
+                  Recruitment Channels / Way of Hiring
+                </span>
+                <input
+                  type="text"
+                  defaultValue={(taskData?.way_of_hiring || task.way_of_hiring) || ''}
+                  placeholder="e.g. LinkedIn, Employee Referrals, Job Portals..."
+                  onBlur={async (e) => {
+                    const val = e.target.value;
+                    if (val !== (taskData?.way_of_hiring || task.way_of_hiring)) {
+                      try {
+                        const updated = await api.updateTask(task.id, { way_of_hiring: val });
+                        setTaskData(updated);
+                        onTaskUpdated?.();
+                      } catch {}
+                    }
+                  }}
+                  className="w-full text-xs font-semibold text-purple-950 bg-purple-50/50 border border-purple-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-purple-400"
+                />
+              </div>
+              <div className="bg-white p-3 rounded-xl border border-purple-100 shadow-xs space-y-1.5">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-purple-900 block">
+                  HR Strategy & Action Plan
+                </span>
+                <p className="text-xs text-gray-700 whitespace-pre-wrap leading-relaxed">
+                  {(taskData?.hr_strategy_notes || task.hr_strategy_notes) || 'No specific strategy notes logged yet.'}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Saksham Skill Enablement & Employee Training Hub Block */}
+        {(taskData?.pillar || task.pillar) === 'saksham' && (
+          <div className="mx-5 mt-4 p-4 bg-amber-50/80 border border-amber-200 rounded-2xl space-y-4">
+            <div className="flex items-center justify-between flex-wrap gap-2 border-b border-amber-200/80 pb-3">
+              <div className="flex items-center gap-2">
+                <span className="p-1.5 bg-amber-500 text-white rounded-lg text-xs font-bold shadow-xs">⚡</span>
+                <div>
+                  <h3 className="text-xs font-extrabold text-amber-950 uppercase tracking-wide">
+                    Saksham Skill Enablement & Training Hub
+                  </h3>
+                  <p className="text-[11px] text-amber-800">
+                    Interactive module-based training, video lessons, and skill assessment
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="bg-amber-600 text-white text-xs font-bold px-3 py-1 rounded-full shadow-xs">
+                  Level: {(taskData?.training_level || task.training_level || 'Beginner')}
+                </span>
+              </div>
+            </div>
+
+            {/* Overview Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+              <div className="bg-white p-2.5 rounded-xl border border-amber-100 shadow-xs">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-amber-500 block mb-0.5">Training Course / Topic</span>
+                <span className="font-semibold text-amber-950 block truncate">
+                  {(taskData?.title || task.title)}
+                </span>
+              </div>
+              <div className="bg-white p-2.5 rounded-xl border border-amber-100 shadow-xs">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-amber-500 block mb-0.5">Assigned Trainee(s)</span>
+                <span className="font-semibold text-amber-950 block truncate" title={taskData?.group_assignees && taskData.group_assignees.length > 0 ? taskData.group_assignees.join(', ') : (taskData?.assignee_name || task.assignee_name)}>
+                  {taskData?.group_assignees && taskData.group_assignees.length > 0
+                    ? `${taskData.group_assignees.length} Trainees (${taskData.group_assignees.join(', ')})`
+                    : ((taskData?.assignee_name || task.assignee_name) || 'Self Assigned')}
+                </span>
+              </div>
+            </div>
+
+            {/* Interactive Video Link Input & Doc Reference */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="bg-white p-3 rounded-xl border border-amber-200/80 shadow-xs space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-amber-900 block">
+                    ▶️ Training Video Link (URL)
+                  </span>
+                  {(taskData?.training_video_url || task.training_video_url) && (
+                    <a
+                      href={taskData?.training_video_url || task.training_video_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[10px] text-amber-600 hover:text-amber-800 font-bold underline"
+                    >
+                      Open in New Tab ↗
+                    </a>
+                  )}
+                </div>
+                <input
+                  type="url"
+                  defaultValue={(taskData?.training_video_url || task.training_video_url) || ''}
+                  placeholder="Paste YouTube, Vimeo, or video link (e.g. https://www.youtube.com/watch?v=...)"
+                  onBlur={async (e) => {
+                    const val = e.target.value;
+                    if (val !== (taskData?.training_video_url || task.training_video_url)) {
+                      try {
+                        const updated = await api.updateTask(task.id, { training_video_url: val });
+                        setTaskData(updated);
+                        onTaskUpdated?.();
+                      } catch {}
+                    }
+                  }}
+                  className="w-full text-xs font-semibold text-amber-950 bg-amber-50/50 border border-amber-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-amber-400"
+                />
+              </div>
+
+              <div className="bg-white p-3 rounded-xl border border-amber-200/80 shadow-xs space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-amber-900 block">
+                    📄 Document / SOP Link (Optional)
+                  </span>
+                  {(taskData?.training_doc_url || task.training_doc_url) && (
+                    <a
+                      href={taskData?.training_doc_url || task.training_doc_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[10px] text-amber-600 hover:text-amber-800 font-bold underline"
+                    >
+                      View Doc ↗
+                    </a>
+                  )}
+                </div>
+                <input
+                  type="url"
+                  defaultValue={(taskData?.training_doc_url || task.training_doc_url) || ''}
+                  placeholder="Paste PDF / Google Drive / SOP document link..."
+                  onBlur={async (e) => {
+                    const val = e.target.value;
+                    if (val !== (taskData?.training_doc_url || task.training_doc_url)) {
+                      try {
+                        const updated = await api.updateTask(task.id, { training_doc_url: val });
+                        setTaskData(updated);
+                        onTaskUpdated?.();
+                      } catch {}
+                    }
+                  }}
+                  className="w-full text-xs font-semibold text-amber-950 bg-amber-50/50 border border-amber-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-amber-400"
+                />
+              </div>
+            </div>
+
+            {/* Embedded Video Player (if YouTube/Vimeo link) */}
+            {(() => {
+              const videoUrl = taskData?.training_video_url || task.training_video_url;
+              const embedUrl = getEmbedVideoUrl(videoUrl);
+              if (embedUrl) {
+                return (
+                  <div className="bg-black/90 rounded-xl overflow-hidden shadow-md border border-amber-200 aspect-video relative">
+                    <iframe
+                      src={embedUrl}
+                      title="Saksham Training Video"
+                      className="w-full h-full border-0"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allowFullScreen
+                    />
+                  </div>
+                );
+              }
+              return null;
+            })()}
           </div>
         )}
 

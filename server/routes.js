@@ -199,7 +199,7 @@ router.post('/auth/login', async (req, res) => {
 
 router.get('/auth/me', auth, async (req, res) => {
   try {
-    const { rows } = await db.query('SELECT id, name, email, role, department, avatar_url, created_at FROM users WHERE id = $1', [req.user.id]);
+    const { rows } = await db.query('SELECT id, name, email, role, department, avatar_url, can_access_nirantar, can_access_saksham, created_at FROM users WHERE id = $1', [req.user.id]);
     const user = rows[0];
     if (!user) return res.status(404).json({ error: 'User not found' });
     res.json(user);
@@ -232,6 +232,22 @@ router.put('/auth/change-password', auth, async (req, res) => {
   }
 });
 
+// Admin toggle permissions endpoint
+router.put('/users/:id/permissions', auth, adminOnly, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { can_access_nirantar, can_access_saksham } = req.body;
+    await db.query(
+      'UPDATE users SET can_access_nirantar = $1, can_access_saksham = $2 WHERE id = $3',
+      [Boolean(can_access_nirantar), Boolean(can_access_saksham), id]
+    );
+    const { rows } = await db.query('SELECT id, name, email, role, department, can_access_nirantar, can_access_saksham FROM users WHERE id = $1', [id]);
+    res.json({ success: true, user: rows[0] });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── USERS ──────────────────────────────────────────────────────
 const ALLOWED_ROLES = [
   'admin', 'manager', 'site_manager',
@@ -242,7 +258,11 @@ const ALLOWED_ROLES = [
 router.get('/employees', auth, async (req, res) => {
   try {
     const { rows: users } = await db.query(`
-      SELECT u.id, u.name, u.email, u.role, u.department, u.avatar_url, u.mentor_id, m.name as mentor_name, u.created_at,
+      SELECT u.id, u.name, u.email, u.role, u.department, u.avatar_url, u.mentor_id, m.name as mentor_name,
+        COALESCE(u.can_access_nirantar, false) as can_access_nirantar,
+        COALESCE(u.can_access_saksham, false) as can_access_saksham,
+        u.manual_training_level,
+        u.created_at,
         (
           SELECT COUNT(DISTINCT t.id)
           FROM tasks t
@@ -254,13 +274,55 @@ router.get('/employees', auth, async (req, res) => {
             FROM tasks t
             WHERE t.assignee_id = u.id AND (t.parent_id IS NULL OR t.id = t.parent_id)
           ), 0
-        ) as avg_progress
+        ) as avg_progress,
+        (
+          SELECT COUNT(DISTINCT t.id)
+          FROM tasks t
+          WHERE (t.assignee_id = u.id OR t.completed_by = u.id)
+            AND LOWER(COALESCE(t.work_pillar, '')) = 'saksham'
+            AND t.status = 'completed'
+        ) as completed_saksham_count
       FROM users u
       LEFT JOIN users m ON u.mentor_id = m.id
       ORDER BY u.name
     `);
 
-    res.json(users);
+    const formattedUsers = users.map(u => {
+      const completedCount = parseInt(u.completed_saksham_count || 0, 10);
+      let calculatedLevel = 'Beginner';
+      if (completedCount >= 8) calculatedLevel = 'Expert';
+      else if (completedCount >= 4) calculatedLevel = 'Advanced';
+      else if (completedCount >= 1) calculatedLevel = 'Intermediate';
+
+      const effectiveLevel = (u.manual_training_level && u.manual_training_level !== 'Auto')
+        ? u.manual_training_level
+        : calculatedLevel;
+
+      return {
+        ...u,
+        completed_saksham_count: completedCount,
+        training_level: effectiveLevel,
+        calculated_training_level: calculatedLevel,
+        is_manual_level: !!(u.manual_training_level && u.manual_training_level !== 'Auto')
+      };
+    });
+
+    res.json(formattedUsers);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.put('/employees/:id/training-level', auth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { training_level } = req.body;
+    if (req.user.role !== 'admin' && req.user.role !== 'manager') {
+      return res.status(403).json({ error: 'Only Admin or Manager can update employee training level' });
+    }
+    const valToStore = (training_level === 'Auto' || !training_level) ? null : training_level;
+    await db.query('UPDATE users SET manual_training_level = $1 WHERE id = $2', [valToStore, id]);
+    res.json({ success: true, manual_training_level: valToStore });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -398,14 +460,18 @@ router.get('/tasks', auth, async (req, res) => {
         c.name as creator_name, c.role as creator_role, c.department as creator_department, 
         e.name as last_edited_by_name,
         v.name as verifier_name, v.role as verifier_role, v.department as verifier_department,
+        hl.name as hiring_lead_name, hl.role as hiring_lead_role,
         comp.name as completer_name,
+        hsu.name as hiring_stage_updater_name,
         p.name as project_name
       FROM tasks t
       LEFT JOIN users u ON t.assignee_id = u.id
       LEFT JOIN users c ON t.creator_id = c.id
       LEFT JOIN users e ON t.last_edited_by = e.id
       LEFT JOIN users v ON t.verifier_id = v.id
+      LEFT JOIN users hl ON t.hiring_lead_id = hl.id
       LEFT JOIN users comp ON t.completed_by = comp.id
+      LEFT JOIN users hsu ON t.hiring_stage_updated_by = hsu.id
       LEFT JOIN projects p ON t.project_id = p.id
       WHERE 1=1
     `;
@@ -430,6 +496,10 @@ router.get('/tasks', auth, async (req, res) => {
         sql += ` AND LOWER(t.pillar) = 'vishwas'`;
       } else if (req.query.pillar === 'avishkar') {
         sql += ` AND LOWER(t.pillar) = 'avishkar'`;
+      } else if (req.query.pillar === 'nirantar') {
+        sql += ` AND LOWER(t.pillar) = 'nirantar'`;
+      } else if (req.query.pillar === 'saksham') {
+        sql += ` AND LOWER(t.pillar) = 'saksham'`;
       } else if (req.query.pillar === 'general') {
         sql += ` AND (t.pillar IS NULL OR LOWER(t.pillar) = 'general')`;
       }
@@ -515,14 +585,18 @@ router.get('/tasks/:id', auth, async (req, res) => {
         c.name as creator_name, c.role as creator_role, c.department as creator_department, 
         e.name as last_edited_by_name,
         v.name as verifier_name, v.role as verifier_role, v.department as verifier_department,
+        hl.name as hiring_lead_name, hl.role as hiring_lead_role,
         comp.name as completer_name,
+        hsu.name as hiring_stage_updater_name,
         p.name as project_name
       FROM tasks t
       LEFT JOIN users u ON t.assignee_id = u.id
       LEFT JOIN users c ON t.creator_id = c.id
       LEFT JOIN users e ON t.last_edited_by = e.id
       LEFT JOIN users v ON t.verifier_id = v.id
+      LEFT JOIN users hl ON t.hiring_lead_id = hl.id
       LEFT JOIN users comp ON t.completed_by = comp.id
+      LEFT JOIN users hsu ON t.hiring_stage_updated_by = hsu.id
       LEFT JOIN projects p ON t.project_id = p.id
       WHERE t.id = $1
     `, [req.params.id]);
@@ -545,9 +619,23 @@ router.get('/tasks/:id', auth, async (req, res) => {
 router.post('/tasks', auth, async (req, res) => {
   try {
     const { title, description, color, status, priority, category, pillar, assignee_id, assignee_ids,
-      start_date, due_date, estimated_hours, project_id, verifier_id } = req.body;
+      start_date, due_date, estimated_hours, project_id, verifier_id,
+      vacancies_count, hiring_stage, hr_strategy_notes,
+      hiring_department, hiring_lead_id, way_of_hiring,
+      training_module, training_level, training_video_url, training_doc_url } = req.body;
 
-    if (!title) return res.status(400).json({ error: 'Title required' });
+    const cleanTitle = (title || '').trim();
+    if (!cleanTitle) return res.status(400).json({ error: 'Title required' });
+
+    const { rows: existingDuplicate } = await db.query(
+      'SELECT id, title FROM tasks WHERE LOWER(TRIM(title)) = LOWER($1) LIMIT 1',
+      [cleanTitle]
+    );
+    if (existingDuplicate.length > 0) {
+      return res.status(400).json({
+        error: `A task with the title "${existingDuplicate[0].title}" already exists. Task titles must be unique.`
+      });
+    }
 
     if (req.user.role === 'intern') {
       return res.status(403).json({ 
@@ -596,8 +684,10 @@ router.post('/tasks', auth, async (req, res) => {
       const targetId = assignees[i];
       const result = await db.query(`
         INSERT INTO tasks (title, description, color, status, priority, category, pillar,
-          assignee_id, creator_id, start_date, due_date, estimated_hours, parent_id, project_id, verifier_id)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING id
+          assignee_id, creator_id, start_date, due_date, estimated_hours, parent_id, project_id, verifier_id,
+          vacancies_count, hiring_stage, hr_strategy_notes, hiring_department, hiring_lead_id, way_of_hiring,
+          training_module, training_level, training_video_url, training_doc_url)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25) RETURNING id
       `, [
         title, description || '', color || 'slate', status || 'todo',
         priority || 'medium', category || 'General', pillar || 'general',
@@ -605,7 +695,17 @@ router.post('/tasks', auth, async (req, res) => {
         start_date || null, due_date || null, estimated_hours || 0,
         i === 0 ? null : parentId,
         project_id || null,
-        verifier_id || null
+        verifier_id || null,
+        Number(vacancies_count || 0),
+        hiring_stage || '',
+        hr_strategy_notes || '',
+        hiring_department || '',
+        hiring_lead_id ? Number(hiring_lead_id) : null,
+        way_of_hiring || '',
+        training_module || '',
+        training_level || 'Beginner',
+        training_video_url || '',
+        training_doc_url || ''
       ]);
 
       const insertedId = result.rows[0].id;
@@ -682,6 +782,19 @@ router.post('/tasks/bulk', auth, async (req, res) => {
       await client.query('BEGIN');
       for (const t of tasks) {
         const { title, description, priority, category, pillar, assignee_id } = t;
+        const cleanTitle = (title || '').trim();
+        if (cleanTitle) {
+          const { rows: existingDuplicate } = await client.query(
+            'SELECT id, title FROM tasks WHERE LOWER(TRIM(title)) = LOWER($1) LIMIT 1',
+            [cleanTitle]
+          );
+          if (existingDuplicate.length > 0) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({
+              error: `Bulk import cancelled: A task with title "${existingDuplicate[0].title}" already exists.`
+            });
+          }
+        }
         const result = await client.query(`
           INSERT INTO tasks (title, description, color, status, priority, category, pillar,
             assignee_id, creator_id)
@@ -812,9 +925,37 @@ router.put('/tasks/:id', auth, async (req, res) => {
       req.body.verified_at = null;
     }
 
+    if (req.body.title !== undefined) {
+      const cleanTitle = (req.body.title || '').trim();
+      if (!cleanTitle) return res.status(400).json({ error: 'Task title cannot be empty.' });
+
+      const currentTitle = (currentTask.title || '').trim().toLowerCase();
+      // Only enforce duplicate title check if the title is actually being modified
+      if (cleanTitle.toLowerCase() !== currentTitle) {
+        const currentParentId = currentTask.parent_id || currentTask.id;
+        const { rows: existingDuplicate } = await db.query(
+          'SELECT id, title FROM tasks WHERE LOWER(TRIM(title)) = LOWER($1) AND id != $2 AND parent_id IS DISTINCT FROM $3 AND id != $3 LIMIT 1',
+          [cleanTitle, id, currentParentId]
+        );
+        if (existingDuplicate.length > 0) {
+          return res.status(400).json({
+            error: `A task with the title "${existingDuplicate[0].title}" already exists. Task titles must be unique.`
+          });
+        }
+      }
+    }
+
+    if (req.body.hiring_stage !== undefined && req.body.hiring_stage !== currentTask.hiring_stage) {
+      req.body.hiring_stage_updated_by = req.user.id;
+      req.body.hiring_stage_updated_at = new Date();
+    }
+
     const fields = ['title', 'description', 'color', 'status', 'priority', 'category', 'pillar',
       'progress_percent', 'start_date', 'due_date', 'estimated_hours',
-      'logical_explanation', 'project_id', 'verifier_id', 'verified_at', 'completed_by'];
+      'logical_explanation', 'project_id', 'verifier_id', 'verified_at', 'completed_by',
+      'vacancies_count', 'hiring_stage', 'hiring_stage_updated_by', 'hiring_stage_updated_at', 'hr_strategy_notes',
+      'hiring_department', 'hiring_lead_id', 'way_of_hiring',
+      'training_module', 'training_level', 'training_video_url', 'training_doc_url'];
 
     const updates = [];
     const values = [];
@@ -830,127 +971,148 @@ router.put('/tasks/:id', auth, async (req, res) => {
 
     const assignee_id = req.body.assignee_id;
     const assignee_ids = req.body.assignee_ids;
-    
-    let primaryAssignee = null;
 
+    let desiredAssigneeIds = null;
     if (assignee_ids && Array.isArray(assignee_ids)) {
-      const selectedSet = new Set(assignee_ids.map(Number));
-      if (selectedSet.has(Number(currentTask.assignee_id))) {
-        primaryAssignee = currentTask.assignee_id;
-      } else if (assignee_ids.length > 0) {
-        primaryAssignee = assignee_ids[0];
-      }
-    } else if (assignee_id !== undefined) {
-      primaryAssignee = assignee_id;
+      desiredAssigneeIds = [...new Set(assignee_ids.map(Number).filter(Boolean))];
+    } else if (req.body.assignee_id !== undefined) {
+      desiredAssigneeIds = req.body.assignee_id ? [Number(req.body.assignee_id)] : [];
     }
 
-    if (req.body.assignee_ids !== undefined || req.body.assignee_id !== undefined) {
-      updates.push(`assignee_id = $${paramIdx++}`);
-      values.push(primaryAssignee);
-    }
+    let currentParentId = currentTask.parent_id || currentTask.id;
+    const targetId = Number(id);
 
-    let currentParentId = currentTask.parent_id;
-    if ((assignee_ids && assignee_ids.length > 1) || currentParentId) {
-      currentParentId = currentParentId || currentTask.id;
-      updates.push(`parent_id = $${paramIdx++}`);
-      values.push(currentParentId);
-    }
+    // Fetch existing tasks in this group
+    const { rows: groupTasks } = await db.query(
+      'SELECT id, assignee_id, parent_id FROM tasks WHERE id = $1 OR parent_id = $1',
+      [currentParentId]
+    );
 
-    if (updates.length === 0) return res.status(400).json({ error: 'No fields to update' });
+    const primaryUpdates = [...updates];
+    const primaryValues = [...values];
 
-    updates.push("updated_at = CURRENT_TIMESTAMP");
-    updates.push(`last_edited_by = $${paramIdx++}`);
-    values.push(req.user.id);
-    
-    const fieldValues = [...values];
-    
-    // 1. Always update the primary task row first
-    await db.query(`UPDATE tasks SET ${updates.join(', ')} WHERE id = $${paramIdx}`, [...fieldValues, id]);
+    if (desiredAssigneeIds !== null) {
+      const remainingDesired = new Set(desiredAssigneeIds);
+      const targetRow = groupTasks.find(t => t.id === targetId);
 
-    // 2. Fetch the updated task to use as the template for cloning
-    const { rows: updatedTaskRows } = await db.query('SELECT * FROM tasks WHERE id = $1', [id]);
-    const updatedTask = updatedTaskRows[0];
-
-    // 3. Synchronize other tasks in the group if assignee_ids array is provided
-    if (assignee_ids && Array.isArray(assignee_ids)) {
-      const selectedSet = new Set(assignee_ids.map(Number));
-
-      const { rows: allGroupTasks } = await db.query('SELECT id, assignee_id FROM tasks WHERE id = $1 OR parent_id = $2', [currentParentId, currentParentId]);
-
-      const parentTaskRow = allGroupTasks.find(t => t.id === currentParentId);
-      const cloneTaskRows = allGroupTasks.filter(t => t.id !== currentParentId);
-
-      let parentRowTargetAssignee = parentTaskRow && selectedSet.has(parentTaskRow.assignee_id) ? parentTaskRow.assignee_id : null;
-      
-      if (parentTaskRow && !parentRowTargetAssignee && selectedSet.size > 0) {
-        parentRowTargetAssignee = Array.from(selectedSet)[0];
+      // 1. Manage target task row's assignee
+      if (targetRow && targetRow.assignee_id && remainingDesired.has(Number(targetRow.assignee_id))) {
+        // Current assignee of target row is still selected by user — keep as is
+        remainingDesired.delete(Number(targetRow.assignee_id));
+      } else if (remainingDesired.size > 0) {
+        // Reassign target row to the first remaining selected assignee
+        const firstAssignee = Array.from(remainingDesired)[0];
+        primaryUpdates.push(`assignee_id = $${paramIdx++}`);
+        primaryValues.push(firstAssignee);
+        remainingDesired.delete(firstAssignee);
+      } else {
+        primaryUpdates.push(`assignee_id = $${paramIdx++}`);
+        primaryValues.push(null);
       }
 
-      if (parentTaskRow && parentRowTargetAssignee) {
-        const parentUpdates = [...updates];
-        const parentValues = [...fieldValues];
-        // find the dynamic index for assignee_id
-        let assigneeIndex = -1;
-        for (let i = 0; i < parentUpdates.length; i++) {
-          if (parentUpdates[i].startsWith('assignee_id =')) {
-            assigneeIndex = i;
-            break;
-          }
-        }
-        if (assigneeIndex !== -1) {
-          parentValues[assigneeIndex] = parentRowTargetAssignee;
-        }
-        await db.query(`UPDATE tasks SET ${parentUpdates.join(', ')} WHERE id = $${paramIdx}`, [...parentValues, currentParentId]);
-        
-        selectedSet.delete(parentRowTargetAssignee);
-      }
-
-      for (const cloneRow of cloneTaskRows) {
-        if (cloneRow.id === id) {
-          selectedSet.delete(cloneRow.assignee_id);
-          continue;
-        }
-
-        if (selectedSet.has(cloneRow.assignee_id)) {
-          await db.query(`UPDATE tasks SET ${updates.join(', ')} WHERE id = $${paramIdx}`, [...fieldValues, cloneRow.id]);
-          selectedSet.delete(cloneRow.assignee_id);
+      // 2. Delete tasks for assignees who were un-selected / removed by the user
+      const otherRows = groupTasks.filter(t => t.id !== targetId);
+      for (const row of otherRows) {
+        const rowAssignee = Number(row.assignee_id);
+        if (rowAssignee && remainingDesired.has(rowAssignee)) {
+          remainingDesired.delete(rowAssignee);
         } else {
-          await db.query('DELETE FROM tasks WHERE id = $1', [cloneRow.id]);
+          // Assignee removed by user — delete child task clone
+          await db.query('DELETE FROM tasks WHERE id = $1', [row.id]);
         }
       }
 
-      if (selectedSet.size > 0 && currentParentId) {
-        const { rows: templateRows } = await db.query('SELECT * FROM tasks WHERE id = $1', [currentParentId]);
-        const templateTask = templateRows[0];
+      // 3. Create task clones for any new assignees added
+      if (remainingDesired.size > 0) {
+        const { rows: templateRows } = await db.query('SELECT * FROM tasks WHERE id = $1', [targetId]);
+        const templateTask = templateRows[0] || currentTask;
 
-        for (const newAssigneeId of selectedSet) {
+        for (const newAssigneeId of remainingDesired) {
           await db.query(`
-            INSERT INTO tasks (title, description, color, status, priority, category,
-              assignee_id, creator_id, start_date, due_date, estimated_hours, parent_id, project_id, verifier_id)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+            INSERT INTO tasks (title, description, color, status, priority, category, pillar,
+              assignee_id, creator_id, start_date, due_date, estimated_hours, parent_id, project_id, verifier_id,
+              vacancies_count, hiring_stage, hr_strategy_notes, hiring_department, hiring_lead_id, way_of_hiring,
+              training_module, training_level, training_video_url, training_doc_url)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25)
           `, [
             templateTask.title,
-            templateTask.description,
-            templateTask.color,
-            templateTask.status,
-            templateTask.priority,
-            templateTask.category,
+            templateTask.description || '',
+            templateTask.color || 'slate',
+            templateTask.status || 'todo',
+            templateTask.priority || 'medium',
+            templateTask.category || 'General',
+            templateTask.pillar || 'general',
             newAssigneeId,
             templateTask.creator_id,
-            templateTask.start_date,
-            templateTask.due_date,
-            templateTask.estimated_hours,
+            templateTask.start_date || null,
+            templateTask.due_date || null,
+            templateTask.estimated_hours || 0,
             currentParentId,
             templateTask.project_id || null,
-            templateTask.verifier_id || null
+            templateTask.verifier_id || null,
+            templateTask.vacancies_count || 0,
+            templateTask.hiring_stage || 'Requisition Opened',
+            templateTask.hr_strategy_notes || '',
+            templateTask.hiring_department || null,
+            templateTask.hiring_lead_id || null,
+            templateTask.way_of_hiring || null,
+            templateTask.training_module || '',
+            templateTask.training_level || 'Beginner',
+            templateTask.training_video_url || '',
+            templateTask.training_doc_url || ''
           ]);
         }
       }
-    } else if (currentParentId) {
-      const { rows: otherGroupTasks } = await db.query('SELECT id FROM tasks WHERE (parent_id = $1 OR id = $2) AND id != $3', [currentParentId, currentParentId, id]);
-      for (const gt of otherGroupTasks) {
-        await db.query(`UPDATE tasks SET ${updates.join(', ')} WHERE id = $${paramIdx}`, [...fieldValues, gt.id]);
+
+      // Update parent_id references appropriately across remaining group tasks
+      const { rows: finalGroupTasks } = await db.query(
+        'SELECT id FROM tasks WHERE id = $1 OR parent_id = $1',
+        [currentParentId]
+      );
+      if (finalGroupTasks.length > 1) {
+        await db.query('UPDATE tasks SET parent_id = $1 WHERE (id = $1 OR parent_id = $1) AND (parent_id IS NULL OR parent_id != $1)', [currentParentId]);
+      } else if (finalGroupTasks.length === 1) {
+        await db.query('UPDATE tasks SET parent_id = NULL WHERE id = $1 OR parent_id = $1', [currentParentId]);
       }
+    }
+
+    if (primaryUpdates.length === 0) return res.status(400).json({ error: 'No fields to update' });
+
+    primaryUpdates.push("updated_at = CURRENT_TIMESTAMP");
+    primaryUpdates.push(`last_edited_by = $${paramIdx++}`);
+    primaryValues.push(req.user.id);
+
+    // Update target task row
+    await db.query(`UPDATE tasks SET ${primaryUpdates.join(', ')} WHERE id = $${paramIdx}`, [...primaryValues, id]);
+
+    // Synchronize common fields (pillar, status, title, description, priority, category, etc.) to all other tasks in the group
+    const commonFieldList = ['title', 'description', 'color', 'status', 'priority', 'category', 'pillar',
+      'progress_percent', 'start_date', 'due_date', 'estimated_hours',
+      'logical_explanation', 'project_id', 'verifier_id', 'verified_at', 'completed_by',
+      'vacancies_count', 'hiring_stage', 'hiring_stage_updated_by', 'hiring_stage_updated_at', 'hr_strategy_notes',
+      'hiring_department', 'hiring_lead_id', 'way_of_hiring',
+      'training_module', 'training_level', 'training_video_url', 'training_doc_url'];
+
+    const commonUpdates = [];
+    const commonValues = [];
+    let commonParamIdx = 1;
+
+    for (const field of commonFieldList) {
+      if (req.body[field] !== undefined) {
+        commonUpdates.push(`${field} = $${commonParamIdx++}`);
+        commonValues.push(req.body[field]);
+      }
+    }
+
+    if (commonUpdates.length > 0 && groupTasks.length > 1) {
+      commonUpdates.push("updated_at = CURRENT_TIMESTAMP");
+      commonUpdates.push(`last_edited_by = $${commonParamIdx++}`);
+      commonValues.push(req.user.id);
+
+      await db.query(
+        `UPDATE tasks SET ${commonUpdates.join(', ')} WHERE (id = $${commonParamIdx} OR parent_id = $${commonParamIdx}) AND id != $${commonParamIdx + 1}`,
+        [...commonValues, currentParentId, id]
+      );
     }
 
     const { rows: updatedRows } = await db.query(`
@@ -958,13 +1120,15 @@ router.put('/tasks/:id', auth, async (req, res) => {
         c.name as creator_name, c.role as creator_role, c.department as creator_department, 
         e.name as last_edited_by_name,
         v.name as verifier_name, v.role as verifier_role, v.department as verifier_department,
-        comp.name as completer_name
+        comp.name as completer_name,
+        hsu.name as hiring_stage_updater_name
       FROM tasks t
       LEFT JOIN users u ON t.assignee_id = u.id
       LEFT JOIN users c ON t.creator_id = c.id
       LEFT JOIN users e ON t.last_edited_by = e.id
       LEFT JOIN users v ON t.verifier_id = v.id
       LEFT JOIN users comp ON t.completed_by = comp.id
+      LEFT JOIN users hsu ON t.hiring_stage_updated_by = hsu.id
       WHERE t.id = $1
     `, [id]);
     
@@ -981,8 +1145,7 @@ router.put('/tasks/:id', auth, async (req, res) => {
     } else {
       msg = `${req.user.name} updated task: "${updated.title}"`;
     }
-    const groupResult = await getGroupAssignees(updated.parent_id);
-    updated.group_assignees = groupResult.names;
+    await enrichTask(updated);
     updated.verificationRequired = verificationRequired;
     await notifyRelevantUsers(req.user.id, msg, updated.id);
 

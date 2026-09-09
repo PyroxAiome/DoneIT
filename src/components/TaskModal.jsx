@@ -21,7 +21,7 @@ const getRoleDisplay = (emp) => {
   return roleLabels[emp.role] || (emp.role ? emp.role.replace('_', ' ') : 'Employee');
 };
 
-export default function TaskModal({ isOpen, onClose, onSaved, task, employees, onVerificationNeeded, projectId }) {
+export default function TaskModal({ isOpen, onClose, onSaved, task, employees, onVerificationNeeded, projectId, initialPillar }) {
   const currentUser = useAuth();
   const isEdit = !!task;
   const [form, setForm] = useState({
@@ -93,6 +93,16 @@ export default function TaskModal({ isOpen, onClose, onSaved, task, employees, o
         estimated_hours: task.estimated_hours ? String(task.estimated_hours) : '',
         project_id: task.project_id ? String(task.project_id) : (projectId ? String(projectId) : ''),
         verifier_id: task.verifier_id ? String(task.verifier_id) : '',
+        vacancies_count: task.vacancies_count || 0,
+        hiring_stage: task.hiring_stage || 'Requisition Opened',
+        hr_strategy_notes: task.hr_strategy_notes || '',
+        hiring_department: task.hiring_department || task.category || 'Software',
+        hiring_lead_id: task.hiring_lead_id ? String(task.hiring_lead_id) : '',
+        way_of_hiring: task.way_of_hiring || '',
+        training_module: task.training_module || '',
+        training_level: task.training_level || 'Beginner',
+        training_video_url: task.training_video_url || '',
+        training_doc_url: task.training_doc_url || '',
       });
       if (task.group_assignee_ids && Array.isArray(task.group_assignee_ids)) {
         setSelectedAssigneeIds(task.group_assignee_ids.map(Number));
@@ -104,9 +114,19 @@ export default function TaskModal({ isOpen, onClose, onSaved, task, employees, o
     } else {
       setForm({
         title: '', description: '', color: 'slate', status: 'todo', priority: 'medium',
-        pillar: 'general', category: 'General', assignee_id: currentUser ? String(currentUser.id) : '', start_date: '', due_date: '', estimated_hours: '',
+        pillar: initialPillar || 'general', category: 'General', assignee_id: currentUser ? String(currentUser.id) : '', start_date: '', due_date: '', estimated_hours: '',
         project_id: projectId ? String(projectId) : '',
         verifier_id: '',
+        vacancies_count: 0,
+        hiring_stage: 'Requisition Opened',
+        hr_strategy_notes: '',
+        hiring_department: 'Software',
+        hiring_lead_id: '',
+        way_of_hiring: '',
+        training_module: '',
+        training_level: 'Beginner',
+        training_video_url: '',
+        training_doc_url: '',
       });
       if (currentUser && !['admin', 'manager'].includes(currentUser.role)) {
         setSelectedAssigneeIds([Number(currentUser.id)]);
@@ -115,7 +135,7 @@ export default function TaskModal({ isOpen, onClose, onSaved, task, employees, o
       }
     }
     setError('');
-  }, [task, isOpen, currentUser, projectId]);
+  }, [task, isOpen, currentUser, projectId, initialPillar]);
 
   if (!isOpen) return null;
 
@@ -144,6 +164,7 @@ export default function TaskModal({ isOpen, onClose, onSaved, task, employees, o
       let result;
       const targetProjectId = form.project_id ? Number(form.project_id) : null;
       const targetVerifierId = form.verifier_id ? Number(form.verifier_id) : null;
+      const targetHiringLeadId = form.hiring_lead_id ? Number(form.hiring_lead_id) : null;
       if (isEdit) {
         const payload = {
           ...form,
@@ -152,6 +173,7 @@ export default function TaskModal({ isOpen, onClose, onSaved, task, employees, o
           estimated_hours: form.estimated_hours ? Number(form.estimated_hours) : 0,
           project_id: targetProjectId,
           verifier_id: targetVerifierId,
+          hiring_lead_id: targetHiringLeadId,
         };
         result = await api.updateTask(task.id, payload);
       } else {
@@ -162,6 +184,7 @@ export default function TaskModal({ isOpen, onClose, onSaved, task, employees, o
           estimated_hours: form.estimated_hours ? Number(form.estimated_hours) : 0,
           project_id: targetProjectId,
           verifier_id: targetVerifierId,
+          hiring_lead_id: targetHiringLeadId,
         };
         result = await api.createTask(payload);
       }
@@ -273,6 +296,12 @@ export default function TaskModal({ isOpen, onClose, onSaved, task, employees, o
                 <option value="general">🌐 General / Other</option>
                 <option value="vishwas">🛡️ Vishwas (Quality & Continuous Improvement)</option>
                 <option value="avishkar">💡 Avishkar (Innovation & Product Optimization)</option>
+                {(currentUser?.role === 'admin' || currentUser?.can_access_nirantar || form.pillar === 'nirantar') && (
+                  <option value="nirantar">🔁 Nirantar (Hiring & Vacancies)</option>
+                )}
+                {(currentUser?.role === 'admin' || currentUser?.can_access_saksham || form.pillar === 'saksham') && (
+                  <option value="saksham">⚡ Saksham (Capability Enablement)</option>
+                )}
               </select>
             </div>
             <div>
@@ -289,6 +318,99 @@ export default function TaskModal({ isOpen, onClose, onSaved, task, employees, o
               </select>
             </div>
           </div>
+
+          {form.pillar === 'nirantar' && (
+            <div className="bg-purple-50/70 border border-purple-200 rounded-xl p-3.5 space-y-3">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-purple-950 uppercase tracking-wide border-b border-purple-200/60 pb-2">
+                <span>🔁 Nirantar Recruitment & Vacancy Setup</span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[11px] font-semibold text-purple-900 block mb-1">Open Vacancies (Count)</label>
+                  <input type="number" min="0" value={form.vacancies_count || 0} onChange={handleChange('vacancies_count')} className="input-field bg-white" placeholder="e.g. 2" />
+                </div>
+                <div>
+                  <label className="text-[11px] font-semibold text-purple-900 block mb-1">Hiring Department</label>
+                  <select
+                    value={form.hiring_department || form.category || 'Software'}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setForm(prev => ({ ...prev, hiring_department: val, category: val }));
+                    }}
+                    className="input-field bg-white"
+                  >
+                    <option value="Software">Software</option>
+                    <option value="Electronics">Electronics</option>
+                    <option value="Mechanical">Mechanical</option>
+                    <option value="Production">Production</option>
+                    <option value="HR & Admin">HR & Admin</option>
+                    <option value="Quality">Quality</option>
+                    <option value="Sales & Marketing">Sales & Marketing</option>
+                    <option value="Operations">Operations</option>
+                    <option value="Finance">Finance</option>
+                    <option value="Management">Management</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[11px] font-semibold text-purple-900 block mb-1">Specific Job Requirements & Hiring Needs</label>
+                <textarea
+                  value={form.hr_strategy_notes || ''}
+                  onChange={handleChange('hr_strategy_notes')}
+                  rows={2.5}
+                  className="input-field bg-white text-xs"
+                  placeholder="Describe role details, required qualifications, skills, experience level, and HR action plan..."
+                />
+              </div>
+            </div>
+          )}
+
+          {form.pillar === 'saksham' && (
+            <div className="bg-amber-50/80 border border-amber-200 rounded-xl p-3.5 space-y-3">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-amber-950 uppercase tracking-wide border-b border-amber-200/60 pb-2">
+                <span>⚡ Saksham Skill Enablement & Training Setup</span>
+              </div>
+
+              <div>
+                <label className="text-[11px] font-semibold text-amber-900 block mb-1">Training Level</label>
+                <select
+                  value={form.training_level || 'Beginner'}
+                  onChange={handleChange('training_level')}
+                  className="input-field bg-white text-xs"
+                >
+                  <option value="Beginner">Beginner (Foundational)</option>
+                  <option value="Intermediate">Intermediate (Skill Upgrade)</option>
+                  <option value="Advanced">Advanced (Expert / Leadership)</option>
+                  <option value="Mandatory Compliance">Mandatory Compliance</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-[11px] font-semibold text-amber-900 block mb-1">Training Video Link (URL)</label>
+                <input
+                  type="url"
+                  value={form.training_video_url || ''}
+                  onChange={handleChange('training_video_url')}
+                  className="input-field bg-white text-xs"
+                  placeholder="e.g. https://www.youtube.com/watch?v=... or Google Drive video link"
+                />
+              </div>
+
+              <div>
+                <label className="text-[11px] font-semibold text-amber-900 block mb-1">Document / SOP Reference Link (Optional)</label>
+                <input
+                  type="url"
+                  value={form.training_doc_url || ''}
+                  onChange={handleChange('training_doc_url')}
+                  className="input-field bg-white text-xs"
+                  placeholder="e.g. https://drive.google.com/... or document link"
+                />
+              </div>
+            </div>
+          )}
 
           {/* Task Verifier / Reviewer (Admin & Managers can assign anyone to verify) */}
           {['admin', 'manager'].includes(currentUser?.role) && (

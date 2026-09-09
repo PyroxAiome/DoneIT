@@ -33,6 +33,20 @@ const getPrioritySelectClass = (val) => {
   }
 };
 
+const getTrainingLevelStyle = (level) => {
+  switch (level) {
+    case 'Expert':
+      return { text: 'Expert 👑', bg: 'bg-purple-100 text-purple-800 border-purple-300' };
+    case 'Advanced':
+      return { text: 'Advanced 🥇', bg: 'bg-amber-100 text-amber-800 border-amber-300' };
+    case 'Intermediate':
+      return { text: 'Intermediate 🥈', bg: 'bg-blue-100 text-blue-800 border-blue-300' };
+    case 'Beginner':
+    default:
+      return { text: 'Beginner 🥉', bg: 'bg-emerald-100 text-emerald-800 border-emerald-300' };
+  }
+};
+
 const getStatusSelectClass = (val) => {
   const base = "text-[10px] sm:text-xs border rounded-lg px-1.5 sm:px-2.5 py-0.5 sm:py-1 focus:outline-none focus:ring-1 focus:ring-amber-500 font-semibold transition-all ";
   switch(val) {
@@ -225,6 +239,15 @@ export default function ManagerDashboard({ user }) {
   const inProgressVerifyCount = allVerifierTasks.filter(t => t.status === 'todo' || t.status === 'in_progress').length;
   const verifiedByMeCount = allVerifierTasks.filter(t => t.status === 'completed' && (Number(t.completed_by) === Number(user.id) || Number(t.verifier_id) === Number(user.id))).length;
 
+  const isAssignedToEmp = (t, empId) => {
+    if (!empId) return false;
+    const id = Number(empId);
+    if (Number(t.assignee_id) === id) return true;
+    if (Number(t.hiring_lead_id) === id) return true;
+    if (t.group_assignee_ids && Array.isArray(t.group_assignee_ids) && t.group_assignee_ids.map(Number).includes(id)) return true;
+    return false;
+  };
+
   const workBaseTasks = tasks.filter(t => {
     if (activeTab === 'to_verify') {
       // To Verify shows BOTH project tasks and normal tasks where user is verifier
@@ -236,29 +259,30 @@ export default function ManagerDashboard({ user }) {
     }
 
     if (selectedEmp) {
+      const isMine = isAssignedToEmp(t, selectedEmp.id);
+
       if (activeTab === 'verified') {
-        const isVerified = t.status === 'completed' && (Number(t.completed_by) === Number(selectedEmp.id) || Number(t.verifier_id) === Number(selectedEmp.id)) && Number(t.assignee_id) !== Number(selectedEmp.id);
+        const isVerified = t.status === 'completed' && (Number(t.completed_by) === Number(selectedEmp.id) || Number(t.verifier_id) === Number(selectedEmp.id)) && !isMine;
         if (statusFilter && statusFilter !== 'completed') return false;
         return isVerified;
       }
       if (activeTab === 'assigned_by_me') {
-        const isCreatedForOthers = Number(t.creator_id) === Number(selectedEmp.id) && Number(t.assignee_id) !== Number(selectedEmp.id);
+        const isCreatedForOthers = Number(t.creator_id) === Number(selectedEmp.id) && !isMine;
         if (t.parent_id && t.id !== t.parent_id) return false;
         if (statusFilter && t.status !== statusFilter) return false;
         return isCreatedForOthers;
       }
       if (activeTab === 'completed') {
-        const isCompleted = Number(t.assignee_id) === Number(selectedEmp.id) && t.status === 'completed';
+        const isCompleted = isMine && t.status === 'completed';
         if (statusFilter && statusFilter !== 'completed') return false;
         return isCompleted;
       }
       if (activeTab === 'work') {
-        const isActive = Number(t.assignee_id) === Number(selectedEmp.id) && t.status !== 'completed';
+        const isActive = isMine && t.status !== 'completed';
         if (statusFilter && t.status !== statusFilter) return false;
         return isActive;
       }
       // activeTab === 'all' or default (All tasks assigned to this user):
-      const isMine = Number(t.assignee_id) === Number(selectedEmp.id);
       if (statusFilter && t.status !== statusFilter) return false;
       return isMine;
     }
@@ -286,11 +310,16 @@ export default function ManagerDashboard({ user }) {
   const generalPillarCount = workBaseTasks.filter(t => !t.pillar || t.pillar === 'general').length;
   const vishwasPillarCount = workBaseTasks.filter(t => t.pillar === 'vishwas').length;
   const avishkarPillarCount = workBaseTasks.filter(t => t.pillar === 'avishkar').length;
+  const nirantarPillarCount = workBaseTasks.filter(t => t.pillar === 'nirantar').length;
+  const sakshamPillarCount = workBaseTasks.filter(t => t.pillar === 'saksham').length;
 
   const displayedTasks = workBaseTasks.filter(t => {
+    if (pillarFilter === 'all' || !pillarFilter) return true;
     if (pillarFilter === 'general' && t.pillar && t.pillar !== 'general') return false;
     if (pillarFilter === 'vishwas' && t.pillar !== 'vishwas') return false;
     if (pillarFilter === 'avishkar' && t.pillar !== 'avishkar') return false;
+    if (pillarFilter === 'nirantar' && t.pillar !== 'nirantar') return false;
+    if (pillarFilter === 'saksham' && t.pillar !== 'saksham') return false;
     return true;
   }).sort((a, b) => {
     if (activeTab === 'to_verify') {
@@ -305,11 +334,11 @@ export default function ManagerDashboard({ user }) {
     return 0;
   });
 
-  const empAllTasksCount = selectedEmp ? tasks.filter(t => Number(t.assignee_id) === Number(selectedEmp.id)).length : 0;
-  const empActiveTasksCount = selectedEmp ? tasks.filter(t => Number(t.assignee_id) === Number(selectedEmp.id) && t.status !== 'completed').length : 0;
-  const empCompletedTasksCount = selectedEmp ? tasks.filter(t => Number(t.assignee_id) === Number(selectedEmp.id) && t.status === 'completed').length : 0;
-  const empCreatedForOthersCount = selectedEmp ? tasks.filter(t => Number(t.creator_id) === Number(selectedEmp.id) && Number(t.assignee_id) !== Number(selectedEmp.id) && (!t.parent_id || t.id === t.parent_id)).length : 0;
-  const empVerifiedTasksCount = selectedEmp ? tasks.filter(t => t.status === 'completed' && (Number(t.completed_by) === Number(selectedEmp.id) || Number(t.verifier_id) === Number(selectedEmp.id)) && Number(t.assignee_id) !== Number(selectedEmp.id)).length : 0;
+  const empAllTasksCount = selectedEmp ? tasks.filter(t => isAssignedToEmp(t, selectedEmp.id)).length : 0;
+  const empActiveTasksCount = selectedEmp ? tasks.filter(t => isAssignedToEmp(t, selectedEmp.id) && t.status !== 'completed').length : 0;
+  const empCompletedTasksCount = selectedEmp ? tasks.filter(t => isAssignedToEmp(t, selectedEmp.id) && t.status === 'completed').length : 0;
+  const empCreatedForOthersCount = selectedEmp ? tasks.filter(t => Number(t.creator_id) === Number(selectedEmp.id) && !isAssignedToEmp(t, selectedEmp.id) && (!t.parent_id || t.id === t.parent_id)).length : 0;
+  const empVerifiedTasksCount = selectedEmp ? tasks.filter(t => t.status === 'completed' && (Number(t.completed_by) === Number(selectedEmp.id) || Number(t.verifier_id) === Number(selectedEmp.id)) && !isAssignedToEmp(t, selectedEmp.id)).length : 0;
 
   const metricCards = stats ? [
     { label: 'Total Tasks', value: stats.totalTasks, icon: ListTodo, color: 'text-gray-500' },
@@ -323,8 +352,14 @@ export default function ManagerDashboard({ user }) {
         <div className="space-y-4">
           <div className="flex items-center justify-between bg-white border border-gray-200 rounded-xl p-3 sm:p-4 shadow-sm">
             <div>
-              <h2 className="text-sm sm:text-base font-bold text-gray-900">{selectedEmp.name}'s Profile / Work</h2>
-              <p className="text-[9px] sm:text-[11px] text-gray-400 mt-0.5 uppercase font-semibold">{selectedEmp.role ? selectedEmp.role.replace('_', ' ') : ''} &middot; {selectedEmp.department} &middot; {selectedEmp.email}</p>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h2 className="text-sm sm:text-base font-bold text-gray-900">{selectedEmp.name}'s Profile / Work</h2>
+                <span className={`text-[10px] px-2 py-0.5 rounded-md font-bold border flex items-center gap-1 ${getTrainingLevelStyle(selectedEmp.training_level).bg}`}>
+                  ⚡ Saksham: {getTrainingLevelStyle(selectedEmp.training_level).text}
+                  {selectedEmp.is_manual_level && <span className="text-[9px] opacity-75 ml-0.5">(Manual)</span>}
+                </span>
+              </div>
+              <p className="text-[9px] sm:text-[11px] text-gray-400 mt-0.5 uppercase font-semibold">{selectedEmp.role ? selectedEmp.role.replace('_', ' ') : ''} &middot; {selectedEmp.department} &middot; {selectedEmp.email} &middot; {selectedEmp.completed_saksham_count || 0} Saksham Modules Completed</p>
             </div>
             <button onClick={clearEmployeeFilter} className="bg-gray-800 hover:bg-gray-700 text-white text-[10px] sm:text-xs font-semibold px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg transition-all shadow-sm">
               Back to Team
@@ -527,7 +562,12 @@ export default function ManagerDashboard({ user }) {
                         {emp.name.charAt(0)}
                       </div>
                       <div>
-                        <p className="text-sm font-medium text-gray-800">{emp.name} {isSelf && <span className="text-[10px] text-amber-600 bg-amber-50 px-1 py-0.2 rounded ml-1 font-semibold">You</span>}</p>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <p className="text-sm font-medium text-gray-800">{emp.name} {isSelf && <span className="text-[10px] text-amber-600 bg-amber-50 px-1 py-0.2 rounded font-semibold">You</span>}</p>
+                          <span className={`text-[9px] px-1.5 py-0.2 rounded font-bold border ${getTrainingLevelStyle(emp.training_level).bg}`}>
+                            ⚡ {getTrainingLevelStyle(emp.training_level).text}
+                          </span>
+                        </div>
                         <p className="text-[10px] text-amber-700 font-semibold uppercase">{emp.role ? emp.role.replace('_', ' ') : ''}</p>
                         {emp.role === 'intern' && (
                           <p className="text-[10px] text-indigo-600 font-medium mt-0.5">
@@ -543,7 +583,7 @@ export default function ManagerDashboard({ user }) {
                     </div>
                     <span className="text-[11px] text-gray-500">{emp.avg_progress}%</span>
                   </div>
-                  <p className="text-xs text-gray-400 mt-1.5">{emp.task_count} task{emp.task_count !== 1 ? 's' : ''}</p>
+                  <p className="text-xs text-gray-400 mt-1.5">{emp.task_count} task{emp.task_count !== 1 ? 's' : ''} &middot; {emp.completed_saksham_count || 0} Saksham modules</p>
                   <div className="flex gap-2 mt-4 pt-3 border-t border-gray-100">
                     <button
                       onClick={(e) => {
@@ -573,20 +613,20 @@ export default function ManagerDashboard({ user }) {
 
       {(activeTab === 'work' || activeTab === 'to_verify' || activeTab === 'completed' || selectedEmp) && activeTab !== 'projects' && activeTab !== 'repeated_tasks' && (
         <>
-          {/* Work Pillars: General Tasks, Vishwas, Avishkar */}
+          {/* Work Pillars: General Tasks, Vishwas, Avishkar, Nirantar, Saksham */}
           <div className="flex items-center gap-2 p-1.5 bg-gray-100/90 rounded-xl border border-gray-200/80 w-fit flex-wrap mb-3 shadow-xs">
             <button
               onClick={() => setPillarFilter('general')}
               className={`px-3.5 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-all duration-150 flex items-center gap-2 cursor-pointer ${
                 pillarFilter === 'general'
-                  ? 'bg-slate-800 text-white shadow-xs'
+                  ? 'bg-amber-500 text-white shadow-xs'
                   : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200/80 shadow-xs'
               }`}
             >
               <span className="flex items-center gap-1.5">📋 General Tasks</span>
               <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
                 pillarFilter === 'general'
-                  ? 'bg-slate-700 text-slate-100'
+                  ? 'bg-amber-600 text-white'
                   : 'bg-gray-100 text-gray-600'
               }`}>
                 {generalPillarCount}
@@ -596,15 +636,15 @@ export default function ManagerDashboard({ user }) {
               onClick={() => setPillarFilter('vishwas')}
               className={`px-3.5 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-all duration-150 flex items-center gap-2 cursor-pointer ${
                 pillarFilter === 'vishwas'
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'bg-white text-blue-700 hover:bg-blue-50/70 border border-blue-200/80 shadow-xs'
+                  ? 'bg-amber-500 text-white shadow-xs'
+                  : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200/80 shadow-xs'
               }`}
             >
               <span className="flex items-center gap-1.5">🛡️ Vishwas (Quality & Improvement)</span>
               <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
                 pillarFilter === 'vishwas'
-                  ? 'bg-blue-500 text-white'
-                  : 'bg-blue-50 text-blue-700 border border-blue-200/60'
+                  ? 'bg-amber-600 text-white'
+                  : 'bg-gray-100 text-gray-600'
               }`}>
                 {vishwasPillarCount}
               </span>
@@ -613,20 +653,76 @@ export default function ManagerDashboard({ user }) {
               onClick={() => setPillarFilter('avishkar')}
               className={`px-3.5 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-all duration-150 flex items-center gap-2 cursor-pointer ${
                 pillarFilter === 'avishkar'
-                  ? 'bg-amber-600 text-white shadow-xs'
-                  : 'bg-white text-amber-800 hover:bg-amber-50/70 border border-amber-200/80 shadow-xs'
+                  ? 'bg-amber-500 text-white shadow-xs'
+                  : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200/80 shadow-xs'
               }`}
             >
               <span className="flex items-center gap-1.5">💡 Avishkar (Innovation & Optimization)</span>
               <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
                 pillarFilter === 'avishkar'
-                  ? 'bg-amber-500 text-white'
-                  : 'bg-amber-50 text-amber-800 border border-amber-200/60'
+                  ? 'bg-amber-600 text-white'
+                  : 'bg-gray-100 text-gray-600'
               }`}>
                 {avishkarPillarCount}
               </span>
             </button>
+            {(user?.role === 'admin' || user?.can_access_nirantar || selectedEmp?.can_access_nirantar || nirantarPillarCount > 0) && (
+              <button
+                onClick={() => setPillarFilter('nirantar')}
+                className={`px-3.5 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-all duration-150 flex items-center gap-2 cursor-pointer ${
+                  pillarFilter === 'nirantar'
+                    ? 'bg-amber-500 text-white shadow-xs'
+                    : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200/80 shadow-xs'
+                }`}
+              >
+                <span className="flex items-center gap-1.5">🔁 Nirantar (Hiring & Vacancies)</span>
+                <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
+                  pillarFilter === 'nirantar'
+                    ? 'bg-amber-600 text-white'
+                    : 'bg-gray-100 text-gray-600'
+                }`}>
+                  {nirantarPillarCount}
+                </span>
+              </button>
+            )}
+            {(user?.role === 'admin' || user?.can_access_saksham || selectedEmp?.can_access_saksham || sakshamPillarCount > 0) && (
+              <button
+                onClick={() => setPillarFilter('saksham')}
+                className={`px-3.5 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-all duration-150 flex items-center gap-2 cursor-pointer ${
+                  pillarFilter === 'saksham'
+                    ? 'bg-amber-500 text-white shadow-xs'
+                    : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200/80 shadow-xs'
+                }`}
+              >
+                <span className="flex items-center gap-1.5">⚡ Saksham (Skill Enablement)</span>
+                <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
+                  pillarFilter === 'saksham'
+                    ? 'bg-amber-600 text-white'
+                    : 'bg-gray-100 text-gray-600'
+                }`}>
+                  {sakshamPillarCount}
+                </span>
+              </button>
+            )}
           </div>
+
+          {pillarFilter === 'nirantar' && (
+            <div className="flex items-center gap-2 bg-amber-50/80 border border-amber-200 rounded-lg px-3 py-1.5 text-xs font-semibold text-amber-900 w-fit mb-3">
+              <span>🔁 Total Open Vacancies:</span>
+              <span className="bg-amber-600 text-white text-[11px] font-bold px-2 py-0.5 rounded-full">
+                {displayedTasks.reduce((acc, t) => acc + (Number(t.vacancies_count) || 0), 0)}
+              </span>
+            </div>
+          )}
+
+          {pillarFilter === 'saksham' && (
+            <div className="flex items-center gap-2 bg-amber-50/80 border border-amber-200 rounded-lg px-3 py-1.5 text-xs font-semibold text-amber-900 w-fit mb-3">
+              <span>⚡ Saksham Training Modules:</span>
+              <span className="bg-amber-600 text-white text-[11px] font-bold px-2 py-0.5 rounded-full">
+                {displayedTasks.length} Modules / Lessons
+              </span>
+            </div>
+          )}
 
           <div className="flex items-center gap-3 flex-wrap">
             <div className="relative flex-1 min-w-[200px] max-w-sm">
@@ -721,7 +817,7 @@ export default function ManagerDashboard({ user }) {
         </>
       )}
 
-      <TaskModal isOpen={showTaskModal} onClose={() => { setShowTaskModal(false); setEditTask(null); }} onSaved={fetchAll} task={editTask} employees={employees} onVerificationNeeded={setVerificationTask} />
+      <TaskModal isOpen={showTaskModal} onClose={() => { setShowTaskModal(false); setEditTask(null); }} onSaved={fetchAll} task={editTask} employees={employees} onVerificationNeeded={setVerificationTask} initialPillar={pillarFilter} />
       <TaskDetailModal isOpen={!!detailTask} onClose={() => setDetailTask(null)} task={detailTask} onTaskUpdated={fetchAll} />
       <TaskVerificationModal isOpen={!!verificationTask} onClose={() => setVerificationTask(null)} task={verificationTask} />
       <ConfirmDeleteModal isOpen={!!deleteTask} onClose={() => setDeleteTask(null)} onConfirm={handleDeleteTask}

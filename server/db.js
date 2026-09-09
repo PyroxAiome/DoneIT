@@ -43,8 +43,35 @@ const initDatabase = async () => {
   // ── Add mentor_id column to users for intern supervisor relationship ───
   try {
     await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS mentor_id INTEGER REFERENCES users(id) ON DELETE SET NULL');
+    await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS can_access_nirantar BOOLEAN DEFAULT FALSE');
+    await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS can_access_saksham BOOLEAN DEFAULT FALSE');
+    await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS manual_training_level TEXT DEFAULT NULL');
   } catch (e) {
-    console.log('users mentor_id column migration note:', e.message);
+    console.log('users mentor_id & track permissions column migration note:', e.message);
+  }
+
+  // ── Add Nirantar custom columns to tasks ────────────────────────────────
+  try {
+    await pool.query('ALTER TABLE tasks ADD COLUMN IF NOT EXISTS vacancies_count INTEGER DEFAULT 0');
+    await pool.query('ALTER TABLE tasks ADD COLUMN IF NOT EXISTS hiring_stage TEXT DEFAULT \'\'');
+    await pool.query('ALTER TABLE tasks ADD COLUMN IF NOT EXISTS hr_strategy_notes TEXT DEFAULT \'\'');
+    await pool.query('ALTER TABLE tasks ADD COLUMN IF NOT EXISTS hiring_department TEXT DEFAULT \'\'');
+    await pool.query('ALTER TABLE tasks ADD COLUMN IF NOT EXISTS hiring_lead_id INTEGER REFERENCES users(id) ON DELETE SET NULL');
+    await pool.query('ALTER TABLE tasks ADD COLUMN IF NOT EXISTS way_of_hiring TEXT DEFAULT \'\'');
+    await pool.query('ALTER TABLE tasks ADD COLUMN IF NOT EXISTS hiring_stage_updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL');
+    await pool.query('ALTER TABLE tasks ADD COLUMN IF NOT EXISTS hiring_stage_updated_at TIMESTAMP');
+  } catch (e) {
+    console.log('tasks Nirantar columns migration note:', e.message);
+  }
+
+  // ── Add Saksham custom columns to tasks ─────────────────────────────────
+  try {
+    await pool.query('ALTER TABLE tasks ADD COLUMN IF NOT EXISTS training_module TEXT DEFAULT \'\'');
+    await pool.query('ALTER TABLE tasks ADD COLUMN IF NOT EXISTS training_level TEXT DEFAULT \'Beginner\'');
+    await pool.query('ALTER TABLE tasks ADD COLUMN IF NOT EXISTS training_video_url TEXT DEFAULT \'\'');
+    await pool.query('ALTER TABLE tasks ADD COLUMN IF NOT EXISTS training_doc_url TEXT DEFAULT \'\'');
+  } catch (e) {
+    console.log('tasks Saksham columns migration note:', e.message);
   }
 
   // ── Add verification columns to project_physical_audits ──────────────

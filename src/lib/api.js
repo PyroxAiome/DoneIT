@@ -55,6 +55,12 @@ export const api = {
   updateUser: (id, data) =>
     request(`/users/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
 
+  updateUserPermissions: (id, permissions) =>
+    request(`/users/${id}/permissions`, { method: 'PUT', body: JSON.stringify(permissions) }),
+
+  updateEmployeeTrainingLevel: (id, training_level) =>
+    request(`/employees/${id}/training-level`, { method: 'PUT', body: JSON.stringify({ training_level }) }),
+
   getTasks: (params = {}) => {
     const qs = new URLSearchParams();
     if (params.assignee_id) qs.set('assignee_id', params.assignee_id);
