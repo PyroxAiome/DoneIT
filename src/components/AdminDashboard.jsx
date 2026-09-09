@@ -538,7 +538,7 @@ export default function AdminDashboard({ user }) {
         </div>
       )}
 
-      {(activeTab === 'work' || activeTab === 'all' || activeTab === 'completed' || activeTab === 'assigned_by_me' || activeTab === 'verified' || activeTab === 'admin') && (
+      {(activeTab === 'work' || activeTab === 'all' || activeTab === 'completed' || activeTab === 'assigned_by_me' || activeTab === 'verified' || selectedEmp) && (
         <div className="space-y-4">
           {/* Work Pillars: General Tasks, Vishwas, Avishkar, Nirantar, Saksham */}
           <div className="flex items-center gap-2 p-1.5 bg-gray-100/90 rounded-xl border border-gray-200/80 w-fit flex-wrap shadow-xs">
@@ -804,7 +804,7 @@ export default function AdminDashboard({ user }) {
         <RepeatedTasksList user={user} />
       )}
 
-      {activeTab === 'team' && (
+      {(activeTab === 'team' && !selectedEmp) && (
         <div className="space-y-4">
           <div className="flex justify-end">
             <button onClick={() => setShowUserModal(true)} className="btn-amber text-sm flex items-center gap-2">
@@ -887,7 +887,7 @@ export default function AdminDashboard({ user }) {
         </div>
       )}
 
-      {activeTab === 'admin' && (
+      {(activeTab === 'admin' && !selectedEmp) && (
         <div className="space-y-4">
           <div className="flex justify-end">
             <button onClick={() => setShowUserModal(true)} className="btn-amber text-sm flex items-center gap-2">
