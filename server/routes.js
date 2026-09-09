@@ -279,7 +279,7 @@ router.get('/employees', auth, async (req, res) => {
           SELECT COUNT(DISTINCT t.id)
           FROM tasks t
           WHERE (t.assignee_id = u.id OR t.completed_by = u.id)
-            AND LOWER(COALESCE(t.work_pillar, '')) = 'saksham'
+            AND LOWER(COALESCE(t.pillar, '')) = 'saksham'
             AND t.status = 'completed'
         ) as completed_saksham_count
       FROM users u
