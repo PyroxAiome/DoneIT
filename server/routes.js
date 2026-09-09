@@ -479,7 +479,14 @@ router.get('/tasks', auth, async (req, res) => {
     let paramIdx = 1;
 
     if (req.query.assignee_id) {
-      sql += ` AND (t.assignee_id = $${paramIdx} OR t.creator_id = $${paramIdx} OR t.verifier_id = $${paramIdx} OR t.completed_by = $${paramIdx})`;
+      sql += ` AND (
+        t.assignee_id = $${paramIdx} 
+        OR t.creator_id = $${paramIdx} 
+        OR t.verifier_id = $${paramIdx} 
+        OR t.completed_by = $${paramIdx} 
+        OR t.hiring_lead_id = $${paramIdx}
+        OR EXISTS (SELECT 1 FROM tasks child WHERE child.parent_id = t.id AND child.assignee_id = $${paramIdx})
+      )`;
       params.push(req.query.assignee_id);
       paramIdx++;
     }
@@ -541,10 +548,8 @@ router.get('/tasks', auth, async (req, res) => {
       }
     }
 
-    // Deduplicate group task copies for Admin and Manager views, AND when viewing a project
-    if (!req.query.assignee_id && (req.user.role === 'admin' || req.user.role === 'manager' || req.query.project_id)) {
-      sql += ' AND (t.parent_id IS NULL OR t.id = t.parent_id)';
-    }
+    // Deduplicate group task copies across all views (always return root tasks only)
+    sql += ' AND (t.parent_id IS NULL OR t.id = t.parent_id)';
 
     // Role-specific task visibility restrictions:
     if (req.user.role === 'intern') {
