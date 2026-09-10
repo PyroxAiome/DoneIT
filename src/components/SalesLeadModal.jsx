@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { api } from '../lib/api';
-import { X, Briefcase, Check, AlertCircle, Info, Calendar, DollarSign, MapPin, Tag } from 'lucide-react';
+import { X, Briefcase, Check, AlertCircle, Info, Tag, MapPin } from 'lucide-react';
 
 const SOURCES = [
   { value: 'referral', label: '🤝 Referral' },
@@ -29,12 +29,9 @@ const INDUSTRIES = [
 ];
 
 const PRODUCTS = [
-  { value: 'building_automation', label: '🏢 Building Automation' },
-  { value: 'hvac', label: '❄️ HVAC' },
-  { value: 'electrical', label: '⚡ Electrical' },
-  { value: 'plumbing', label: '🚿 Plumbing' },
-  { value: 'fire_safety', label: '🔥 Fire Safety' },
-  { value: 'integrated_solution', label: '🔗 Integrated Solution' },
+  { value: 'home_automation', label: '🏠 Home Automation' },
+  { value: 'fire_ready', label: '🔥 Fire-ready' },
+  { value: 'firesafety', label: '🧯 Firesafety' },
   { value: 'other', label: '📌 Other' }
 ];
 
@@ -47,7 +44,10 @@ const REGIONS = [
   { value: 'international', label: '🌍 International' }
 ];
 
-export default function SalesLeadModal({ isOpen, onClose, onSave, editingLead, employees = [], goals = [], user }) {
+export default function SalesLeadModal({ 
+  isOpen, onClose, onSave, editingLead, employees = [], goals = [], user,
+  initialCategory, initialGoalId, initialSource, initialRegion, initialPriority
+}) {
   const [form, setForm] = useState({
     title: '',
     description: '',
@@ -55,8 +55,11 @@ export default function SalesLeadModal({ isOpen, onClose, onSave, editingLead, e
     goal_id: '',
     lead_value: '',
     lead_source: '',
+    lead_source_other: '',
     industry: '',
+    industry_other: '',
     product_category: '',
+    product_category_other: '',
     priority: 'medium',
     region: '',
     country: 'India',
@@ -67,6 +70,7 @@ export default function SalesLeadModal({ isOpen, onClose, onSave, editingLead, e
     consultant_email: '',
     consultant_phone: '',
     assignee_id: '',
+    start_date: new Date().toISOString().split('T')[0],
     expected_close_date: ''
   });
 
@@ -83,8 +87,11 @@ export default function SalesLeadModal({ isOpen, onClose, onSave, editingLead, e
         goal_id: editingLead.goal_id || '',
         lead_value: editingLead.lead_value || '',
         lead_source: editingLead.lead_source || '',
+        lead_source_other: editingLead.lead_source_other || '',
         industry: editingLead.industry || '',
+        industry_other: editingLead.industry_other || '',
         product_category: editingLead.product_category || '',
+        product_category_other: editingLead.product_category_other || '',
         priority: editingLead.priority || 'medium',
         region: editingLead.region || '',
         country: editingLead.country || 'India',
@@ -95,20 +102,27 @@ export default function SalesLeadModal({ isOpen, onClose, onSave, editingLead, e
         consultant_email: editingLead.consultant_email || '',
         consultant_phone: editingLead.consultant_phone || '',
         assignee_id: editingLead.assignee_id || '',
+        start_date: editingLead.start_date || new Date().toISOString().split('T')[0],
         expected_close_date: editingLead.expected_close_date || ''
       });
     } else {
+      const selectedCat = initialCategory || (initialGoalId ? 'lakshya' : 'general');
+      const selectedGoal = initialGoalId || (goals.length > 0 ? goals[0].id : '');
+
       setForm({
         title: '',
         description: '',
-        category: 'general',
-        goal_id: '',
+        category: selectedCat,
+        goal_id: selectedCat === 'lakshya' ? selectedGoal : '',
         lead_value: '',
-        lead_source: '',
+        lead_source: initialSource || '',
+        lead_source_other: '',
         industry: '',
+        industry_other: '',
         product_category: '',
-        priority: 'medium',
-        region: '',
+        product_category_other: '',
+        priority: initialPriority || 'medium',
+        region: initialRegion || '',
         country: 'India',
         city: '',
         site_address: '',
@@ -117,22 +131,31 @@ export default function SalesLeadModal({ isOpen, onClose, onSave, editingLead, e
         consultant_email: '',
         consultant_phone: '',
         assignee_id: user?.id || '',
+        start_date: new Date().toISOString().split('T')[0],
         expected_close_date: ''
       });
     }
     setError('');
 
-    // Fetch quota if creating new lead and user is sales_executive
     if (isOpen && !editingLead && user?.role === 'sales_executive') {
       api.getSalesQuota()
         .then(res => setQuota(res))
         .catch(err => console.error('Quota fetch error:', err));
     }
-  }, [editingLead, isOpen, user]);
+  }, [editingLead, isOpen, user, initialCategory, initialGoalId, initialSource, initialRegion, initialPriority, goals]);
 
   if (!isOpen) return null;
 
   const handleChange = (field) => (e) => setForm({ ...form, [field]: e.target.value });
+
+  const handleCategoryChange = (e) => {
+    const newCat = e.target.value;
+    let newGoal = form.goal_id;
+    if (newCat === 'lakshya' && !newGoal && goals.length > 0) {
+      newGoal = initialGoalId || goals[0].id;
+    }
+    setForm({ ...form, category: newCat, goal_id: newCat === 'lakshya' ? newGoal : '' });
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -148,7 +171,7 @@ export default function SalesLeadModal({ isOpen, onClose, onSave, editingLead, e
         ...form,
         title: form.title.trim(),
         lead_value: parseFloat(form.lead_value) || 0,
-        goal_id: form.goal_id ? parseInt(form.goal_id, 10) : null,
+        goal_id: form.category === 'lakshya' && form.goal_id ? parseInt(form.goal_id, 10) : null,
         assignee_id: form.assignee_id ? parseInt(form.assignee_id, 10) : null
       };
 
@@ -181,7 +204,6 @@ export default function SalesLeadModal({ isOpen, onClose, onSave, editingLead, e
           </button>
         </div>
 
-        {/* Quota Banner for Sales Executives */}
         {!editingLead && quota?.isRestricted && (
           <div className="px-4 py-2 bg-slate-50 border-b border-slate-200 flex items-center justify-between text-xs text-slate-800">
             <div className="flex items-center gap-1.5 font-medium">
@@ -202,7 +224,6 @@ export default function SalesLeadModal({ isOpen, onClose, onSave, editingLead, e
         )}
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
-          {/* Title & Classification */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="sm:col-span-2">
               <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider block mb-1">Lead Title / Client Name *</label>
@@ -217,21 +238,20 @@ export default function SalesLeadModal({ isOpen, onClose, onSave, editingLead, e
             </div>
             <div>
               <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider block mb-1">Category</label>
-              <select value={form.category} onChange={handleChange('category')} className="input-field">
+              <select value={form.category} onChange={handleCategoryChange} className="input-field">
                 <option value="general">📋 General Lead</option>
                 <option value="lakshya">🎯 Lakshya (Goal)</option>
               </select>
             </div>
           </div>
 
-          {/* Lakshya Goal Tagging */}
           {form.category === 'lakshya' && (
             <div className="p-3.5 bg-amber-50/50 border border-amber-200 rounded-xl space-y-1 animate-in fade-in">
               <label className="text-xs font-semibold text-amber-900 flex items-center gap-1">
                 <Tag className="w-3.5 h-3.5 text-amber-600" />
-                Select Lakshya (Goal) Container
+                Select Lakshya (Goal) Container *
               </label>
-              <select value={form.goal_id} onChange={handleChange('goal_id')} className="input-field bg-white">
+              <select value={form.goal_id} onChange={handleChange('goal_id')} className="input-field bg-white" required={form.category === 'lakshya'}>
                 <option value="">-- Select Target Goal --</option>
                 {goals.map(g => (
                   <option key={g.id} value={g.id}>{g.name} ({g.period_type})</option>
@@ -240,7 +260,6 @@ export default function SalesLeadModal({ isOpen, onClose, onSave, editingLead, e
             </div>
           )}
 
-          {/* Description */}
           <div>
             <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider block mb-1">Description / Project Scope</label>
             <textarea
@@ -251,7 +270,6 @@ export default function SalesLeadModal({ isOpen, onClose, onSave, editingLead, e
             />
           </div>
 
-          {/* Classification Dropdowns: Source, Industry, Product, Priority (2x2 Grid for spacious fit) */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider block mb-1">Lead Source</label>
@@ -259,21 +277,54 @@ export default function SalesLeadModal({ isOpen, onClose, onSave, editingLead, e
                 <option value="">-- Select Lead Source --</option>
                 {SOURCES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
               </select>
+              {form.lead_source === 'other' && (
+                <input
+                  type="text"
+                  value={form.lead_source_other}
+                  onChange={handleChange('lead_source_other')}
+                  placeholder="Please specify other lead source..."
+                  className="input-field mt-2 bg-white text-xs animate-in fade-in"
+                  required
+                />
+              )}
             </div>
+
             <div>
               <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider block mb-1">Industry</label>
               <select value={form.industry} onChange={handleChange('industry')} className="input-field">
                 <option value="">-- Select Industry --</option>
                 {INDUSTRIES.map(i => <option key={i.value} value={i.value}>{i.label}</option>)}
               </select>
+              {form.industry === 'other' && (
+                <input
+                  type="text"
+                  value={form.industry_other}
+                  onChange={handleChange('industry_other')}
+                  placeholder="Please specify other industry..."
+                  className="input-field mt-2 bg-white text-xs animate-in fade-in"
+                  required
+                />
+              )}
             </div>
+
             <div>
               <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider block mb-1">Product Category</label>
               <select value={form.product_category} onChange={handleChange('product_category')} className="input-field">
                 <option value="">-- Select Product Category --</option>
                 {PRODUCTS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
               </select>
+              {form.product_category === 'other' && (
+                <input
+                  type="text"
+                  value={form.product_category_other}
+                  onChange={handleChange('product_category_other')}
+                  placeholder="Please specify other product category..."
+                  className="input-field mt-2 bg-white text-xs animate-in fade-in"
+                  required
+                />
+              )}
             </div>
+
             <div>
               <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider block mb-1">Priority</label>
               <select value={form.priority} onChange={handleChange('priority')} className="input-field">
@@ -285,26 +336,14 @@ export default function SalesLeadModal({ isOpen, onClose, onSave, editingLead, e
             </div>
           </div>
 
-          {/* Value, Sales Person Assignment, Expected Close Date (3 Columns in max-w-3xl) */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
             <div>
               <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider block mb-1">Estimated Value (₹)</label>
-              <input
-                type="number"
-                value={form.lead_value}
-                onChange={handleChange('lead_value')}
-                placeholder="e.g. 2500000"
-                className="input-field"
-              />
+              <input type="number" value={form.lead_value} onChange={handleChange('lead_value')} placeholder="e.g. 2500000" className="input-field" />
             </div>
             <div>
               <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider block mb-1">Assigned Sales Person *</label>
-              <select
-                value={form.assignee_id}
-                onChange={handleChange('assignee_id')}
-                disabled={user?.role === 'sales_executive'}
-                className="input-field disabled:bg-gray-100"
-              >
+              <select value={form.assignee_id} onChange={handleChange('assignee_id')} disabled={user?.role === 'sales_executive'} className="input-field disabled:bg-gray-100">
                 <option value="">-- Select Sales Person --</option>
                 {(salesTeamMembers.length > 0 ? salesTeamMembers : employees).map(emp => (
                   <option key={emp.id} value={emp.id}>{emp.name} ({emp.role.replace('_', ' ')})</option>
@@ -312,17 +351,15 @@ export default function SalesLeadModal({ isOpen, onClose, onSave, editingLead, e
               </select>
             </div>
             <div>
+              <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider block mb-1">Start Date</label>
+              <input type="date" value={form.start_date} onChange={handleChange('start_date')} className="input-field" />
+            </div>
+            <div>
               <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider block mb-1">Expected Close Date</label>
-              <input
-                type="date"
-                value={form.expected_close_date}
-                onChange={handleChange('expected_close_date')}
-                className="input-field"
-              />
+              <input type="date" value={form.expected_close_date} onChange={handleChange('expected_close_date')} className="input-field" />
             </div>
           </div>
 
-          {/* Region & Location Details */}
           <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
             <h4 className="text-xs font-semibold text-slate-800 uppercase tracking-wider flex items-center gap-1">
               <MapPin className="w-3.5 h-3.5 text-slate-500" />
@@ -351,25 +388,24 @@ export default function SalesLeadModal({ isOpen, onClose, onSave, editingLead, e
             </div>
           </div>
 
-          {/* External Consultant Info */}
           <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
             <h4 className="text-xs font-semibold text-slate-800 uppercase tracking-wider">Consultant / Key Person Info</h4>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="text-[11px] text-slate-600 block mb-1">Consultant Name</label>
-                <input type="text" value={form.consultant_name} onChange={handleChange('consultant_name')} placeholder="Consultant Name" className="input-field bg-white" />
+                <input type="text" value={form.consultant_name} onChange={handleChange('consultant_name')} className="input-field bg-white" />
               </div>
               <div>
                 <label className="text-[11px] text-slate-600 block mb-1">Consultant Firm</label>
-                <input type="text" value={form.consultant_firm} onChange={handleChange('consultant_firm')} placeholder="Consulting Firm" className="input-field bg-white" />
+                <input type="text" value={form.consultant_firm} onChange={handleChange('consultant_firm')} className="input-field bg-white" />
               </div>
               <div>
                 <label className="text-[11px] text-slate-600 block mb-1">Consultant Email</label>
-                <input type="email" value={form.consultant_email} onChange={handleChange('consultant_email')} placeholder="consultant@firm.com" className="input-field bg-white" />
+                <input type="email" value={form.consultant_email} onChange={handleChange('consultant_email')} className="input-field bg-white" />
               </div>
               <div>
                 <label className="text-[11px] text-slate-600 block mb-1">Consultant Phone</label>
-                <input type="text" value={form.consultant_phone} onChange={handleChange('consultant_phone')} placeholder="+91-9876543210" className="input-field bg-white" />
+                <input type="text" value={form.consultant_phone} onChange={handleChange('consultant_phone')} className="input-field bg-white" />
               </div>
             </div>
           </div>

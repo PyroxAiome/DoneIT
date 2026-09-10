@@ -3423,7 +3423,8 @@ router.post('/sales/leads', auth, salesAccessOnly, async (req, res) => {
       title, description, category, goal_id, lead_value, lead_source, industry,
       product_category, priority, region, country, city, site_address,
       consultant_name, consultant_firm, consultant_email, consultant_phone,
-      assignee_id, expected_close_date
+      assignee_id, start_date, expected_close_date,
+      lead_source_other, industry_other, product_category_other
     } = req.body;
 
     if (!title || !title.trim()) {
@@ -3436,22 +3437,25 @@ router.post('/sales/leads', auth, salesAccessOnly, async (req, res) => {
 
     const now = new Date();
     const enquiryMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const effectiveStartDate = start_date || now.toISOString().split('T')[0];
 
     const { rows } = await db.query(`
       INSERT INTO sales_leads (
         title, description, category, goal_id, current_stage, stage_updated_at, stage_updated_by,
         lead_value, probability_pct, lead_source, industry, product_category, priority,
         region, country, city, site_address, consultant_name, consultant_firm,
-        consultant_email, consultant_phone, assignee_id, creator_id, expected_close_date, enquiry_month
+        consultant_email, consultant_phone, assignee_id, creator_id, start_date, expected_close_date, enquiry_month,
+        lead_source_other, industry_other, product_category_other
       )
-      VALUES ($1, $2, $3, $4, 'suspect', CURRENT_TIMESTAMP, $5, $6, 5, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
+      VALUES ($1, $2, $3, $4, 'suspect', CURRENT_TIMESTAMP, $5, $6, 5, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26)
       RETURNING *
     `, [
       title.trim(), description || '', category || 'general', goal_id || null, req.user.id,
       lead_value || 0, lead_source || '', industry || '', product_category || '', priority || 'medium',
       region || '', country || 'India', city || '', site_address || '', consultant_name || '',
       consultant_firm || '', consultant_email || '', consultant_phone || '', effectiveAssignee,
-      req.user.id, expected_close_date || null, enquiryMonth
+      req.user.id, effectiveStartDate, expected_close_date || null, enquiryMonth,
+      lead_source_other || '', industry_other || '', product_category_other || ''
     ]);
 
     const lead = rows[0];
@@ -3483,7 +3487,8 @@ router.put('/sales/leads/:id', auth, salesAccessOnly, async (req, res) => {
       title, description, category, goal_id, lead_value, lead_source, industry,
       product_category, priority, region, country, city, site_address,
       consultant_name, consultant_firm, consultant_email, consultant_phone,
-      assignee_id, expected_close_date, probability_pct
+      assignee_id, start_date, expected_close_date, probability_pct,
+      lead_source_other, industry_other, product_category_other
     } = req.body;
 
     const { rows } = await db.query(`
@@ -3506,16 +3511,21 @@ router.put('/sales/leads/:id', auth, salesAccessOnly, async (req, res) => {
           consultant_email = COALESCE($16, consultant_email),
           consultant_phone = COALESCE($17, consultant_phone),
           assignee_id = COALESCE($18, assignee_id),
-          expected_close_date = COALESCE($19, expected_close_date),
-          probability_pct = COALESCE($20, probability_pct),
+          start_date = COALESCE($19, start_date),
+          expected_close_date = COALESCE($20, expected_close_date),
+          probability_pct = COALESCE($21, probability_pct),
+          lead_source_other = COALESCE($22, lead_source_other),
+          industry_other = COALESCE($23, industry_other),
+          product_category_other = COALESCE($24, product_category_other),
           updated_at = CURRENT_TIMESTAMP
-      WHERE id = $21
+      WHERE id = $25
       RETURNING *
     `, [
       title, description, category, goal_id || null, lead_value, lead_source, industry,
       product_category, priority, region, country, city, site_address,
       consultant_name, consultant_firm, consultant_email, consultant_phone,
-      assignee_id, expected_close_date, probability_pct, id
+      assignee_id, start_date, expected_close_date, probability_pct,
+      lead_source_other, industry_other, product_category_other, id
     ]);
 
     if (!rows[0]) return res.status(404).json({ error: 'Lead not found' });

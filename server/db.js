@@ -75,6 +75,19 @@ const initDatabase = async () => {
     console.log('tasks Saksham columns migration note:', e.message);
   }
 
+  // ── Add Sales Lead custom columns and drop restrictive checks ───────────
+  try {
+    await pool.query('ALTER TABLE sales_leads DROP CONSTRAINT IF EXISTS sales_leads_product_category_check');
+    await pool.query('ALTER TABLE sales_leads DROP CONSTRAINT IF EXISTS sales_leads_lead_source_check');
+    await pool.query('ALTER TABLE sales_leads DROP CONSTRAINT IF EXISTS sales_leads_industry_check');
+    await pool.query('ALTER TABLE sales_leads ADD COLUMN IF NOT EXISTS start_date TEXT');
+    await pool.query('ALTER TABLE sales_leads ADD COLUMN IF NOT EXISTS lead_source_other TEXT DEFAULT \'\'');
+    await pool.query('ALTER TABLE sales_leads ADD COLUMN IF NOT EXISTS industry_other TEXT DEFAULT \'\'');
+    await pool.query('ALTER TABLE sales_leads ADD COLUMN IF NOT EXISTS product_category_other TEXT DEFAULT \'\'');
+  } catch (e) {
+    console.log('sales_leads migration note:', e.message);
+  }
+
   // ── Add verification columns to project_physical_audits ──────────────
   try {
     await pool.query('ALTER TABLE project_physical_audits ADD COLUMN IF NOT EXISTS status TEXT DEFAULT \'pending\'');

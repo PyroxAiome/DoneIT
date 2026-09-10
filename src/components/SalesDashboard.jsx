@@ -408,6 +408,11 @@ export default function SalesDashboard({ user }) {
         employees={employees}
         goals={goals}
         user={user}
+        initialCategory={subCategory}
+        initialGoalId={selectedGoalId}
+        initialSource={sourceFilter}
+        initialRegion={regionFilter}
+        initialPriority={priorityFilter}
       />
 
       <SalesGoalModal
