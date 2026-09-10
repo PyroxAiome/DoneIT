@@ -101,6 +101,7 @@ export default function AdminDashboard({ user }) {
   const [detailTask, setDetailTask] = useState(null);
   const [compact, setCompact] = useState(false);
   const [selectedProject, setSelectedProject] = useState(null);
+  const [salesPersonFilter, setSalesPersonFilter] = useState('');
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -121,6 +122,9 @@ export default function AdminDashboard({ user }) {
     setCustomToDate('');
     if (tabId !== 'projects') {
       setSelectedProject(null);
+    }
+    if (tabId !== 'sales') {
+      setSalesPersonFilter('');
     }
   };
 
@@ -192,10 +196,13 @@ export default function AdminDashboard({ user }) {
       }
       const parts = hash.substring(1).split('/');
       const tabId = parts[0];
-      if (['overview', 'projects', 'all', 'work', 'completed', 'assigned_by_me', 'verified', 'team', 'admin'].includes(tabId)) {
+      if (['overview', 'projects', 'all', 'work', 'sales', 'completed', 'assigned_by_me', 'verified', 'team', 'admin'].includes(tabId)) {
         setActiveTab(tabId);
         if (tabId !== 'projects') {
           setSelectedProject(null);
+        }
+        if (tabId !== 'sales') {
+          setSalesPersonFilter('');
         }
       }
       if (parts[1] === 'employee' && parts[2]) {
