@@ -199,7 +199,7 @@ router.post('/auth/login', async (req, res) => {
 
 router.get('/auth/me', auth, async (req, res) => {
   try {
-    const { rows } = await db.query('SELECT id, name, email, role, department, avatar_url, can_access_nirantar, can_access_saksham, created_at FROM users WHERE id = $1', [req.user.id]);
+    const { rows } = await db.query('SELECT id, name, email, role, department, avatar_url, can_access_nirantar, can_access_saksham, COALESCE(can_access_sales, false) as can_access_sales, created_at FROM users WHERE id = $1', [req.user.id]);
     const user = rows[0];
     if (!user) return res.status(404).json({ error: 'User not found' });
     res.json(user);
@@ -236,12 +236,12 @@ router.put('/auth/change-password', auth, async (req, res) => {
 router.put('/users/:id/permissions', auth, adminOnly, async (req, res) => {
   try {
     const { id } = req.params;
-    const { can_access_nirantar, can_access_saksham } = req.body;
+    const { can_access_nirantar, can_access_saksham, can_access_sales } = req.body;
     await db.query(
-      'UPDATE users SET can_access_nirantar = $1, can_access_saksham = $2 WHERE id = $3',
-      [Boolean(can_access_nirantar), Boolean(can_access_saksham), id]
+      'UPDATE users SET can_access_nirantar = $1, can_access_saksham = $2, can_access_sales = $3 WHERE id = $4',
+      [Boolean(can_access_nirantar), Boolean(can_access_saksham), Boolean(can_access_sales), id]
     );
-    const { rows } = await db.query('SELECT id, name, email, role, department, can_access_nirantar, can_access_saksham FROM users WHERE id = $1', [id]);
+    const { rows } = await db.query('SELECT id, name, email, role, department, can_access_nirantar, can_access_saksham, can_access_sales FROM users WHERE id = $1', [id]);
     res.json({ success: true, user: rows[0] });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -252,7 +252,7 @@ router.put('/users/:id/permissions', auth, adminOnly, async (req, res) => {
 const ALLOWED_ROLES = [
   'admin', 'manager', 'site_manager',
   'software_engineer', 'electronics_engineer', 'mechanical_engineer', 'production_engineer',
-  'intern', 'hr', 'employee'
+  'intern', 'hr', 'employee', 'sales_manager', 'sales_executive'
 ];
 
 router.get('/employees', auth, async (req, res) => {
@@ -261,6 +261,7 @@ router.get('/employees', auth, async (req, res) => {
       SELECT u.id, u.name, u.email, u.role, u.department, u.avatar_url, u.mentor_id, m.name as mentor_name,
         COALESCE(u.can_access_nirantar, false) as can_access_nirantar,
         COALESCE(u.can_access_saksham, false) as can_access_saksham,
+        COALESCE(u.can_access_sales, false) as can_access_sales,
         u.manual_training_level,
         u.created_at,
         (
@@ -3100,6 +3101,806 @@ router.post('/repeated-tasks/:id/reviews', auth, async (req, res) => {
     }
 
     res.status(201).json(review);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── SALES PIPELINE MODULE ─────────────────────────────────────
+const STAGE_ORDER = [
+  'suspect', 'prospect', 'enquiry', 'presentation', 'demo',
+  'spec_tender', 'design_negotiation', 'dfp', 'order', 'billing'
+];
+
+const STAGE_PROBABILITIES = {
+  suspect: 5,
+  prospect: 10,
+  enquiry: 20,
+  presentation: 30,
+  demo: 40,
+  spec_tender: 50,
+  design_negotiation: 60,
+  dfp: 70,
+  order: 85,
+  billing: 95
+};
+
+const salesAccessOnly = async (req, res, next) => {
+  try {
+    if (['admin', 'sales_manager'].includes(req.user.role)) return next();
+    const { rows } = await db.query('SELECT can_access_sales FROM users WHERE id = $1', [req.user.id]);
+    if (rows[0]?.can_access_sales) return next();
+    return res.status(403).json({ error: 'Sales access required' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// ── Lakshya (Sales Goals) Endpoints ──
+router.get('/sales/goals', auth, salesAccessOnly, async (req, res) => {
+  try {
+    const { rows } = await db.query(`
+      SELECT g.*, u.name as creator_name,
+        (SELECT COUNT(*) FROM sales_leads WHERE goal_id = g.id) as total_leads,
+        (SELECT COALESCE(SUM(lead_value), 0) FROM sales_leads WHERE goal_id = g.id) as current_value,
+        (SELECT COUNT(*) FROM sales_leads WHERE goal_id = g.id AND current_stage IN ('order', 'billing')) as won_leads
+      FROM sales_goals g
+      LEFT JOIN users u ON g.creator_id = u.id
+      ORDER BY g.created_at DESC
+    `);
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/sales/goals', auth, salesAccessOnly, async (req, res) => {
+  try {
+    if (!['admin', 'sales_manager'].includes(req.user.role)) {
+      return res.status(403).json({ error: 'Only Admin or Sales Manager can create goals' });
+    }
+    const { name, description, target_value, target_leads, period_type, period_start, period_end } = req.body;
+    if (!name) return res.status(400).json({ error: 'Goal name is required' });
+
+    const { rows } = await db.query(`
+      INSERT INTO sales_goals (name, description, target_value, target_leads, period_type, period_start, period_end, creator_id)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      RETURNING *
+    `, [name, description || '', target_value || 0, target_leads || 0, period_type || 'monthly', period_start || null, period_end || null, req.user.id]);
+
+    res.status(201).json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.put('/sales/goals/:id', auth, salesAccessOnly, async (req, res) => {
+  try {
+    if (!['admin', 'sales_manager'].includes(req.user.role)) {
+      return res.status(403).json({ error: 'Only Admin or Sales Manager can edit goals' });
+    }
+    const { id } = req.params;
+    const { name, description, target_value, target_leads, period_type, period_start, period_end, status } = req.body;
+
+    const { rows } = await db.query(`
+      UPDATE sales_goals
+      SET name = COALESCE($1, name),
+          description = COALESCE($2, description),
+          target_value = COALESCE($3, target_value),
+          target_leads = COALESCE($4, target_leads),
+          period_type = COALESCE($5, period_type),
+          period_start = COALESCE($6, period_start),
+          period_end = COALESCE($7, period_end),
+          status = COALESCE($8, status),
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = $9
+      RETURNING *
+    `, [name, description, target_value, target_leads, period_type, period_start, period_end, status, id]);
+
+    if (!rows[0]) return res.status(404).json({ error: 'Goal not found' });
+    res.json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete('/sales/goals/:id', auth, adminOnly, async (req, res) => {
+  try {
+    const { id } = req.params;
+    await db.query('DELETE FROM sales_goals WHERE id = $1', [id]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Quota Endpoint ──
+router.get('/sales/leads/quota', auth, salesAccessOnly, async (req, res) => {
+  try {
+    if (['admin', 'manager', 'sales_manager'].includes(req.user.role)) {
+      return res.json({ role: req.user.role, isRestricted: false });
+    }
+    const { rows: weekRows } = await db.query(`
+      SELECT COUNT(*) as count FROM sales_leads
+      WHERE creator_id = $1 AND created_at >= DATE_TRUNC('week', CURRENT_TIMESTAMP)
+    `, [req.user.id]);
+    const { rows: monthRows } = await db.query(`
+      SELECT COUNT(*) as count FROM sales_leads
+      WHERE creator_id = $1 AND created_at >= DATE_TRUNC('month', CURRENT_TIMESTAMP)
+    `, [req.user.id]);
+
+    const weekCount = parseInt(weekRows[0]?.count || '0', 10);
+    const monthCount = parseInt(monthRows[0]?.count || '0', 10);
+
+    res.json({
+      role: req.user.role,
+      isRestricted: true,
+      weekCount,
+      weekLimit: 2,
+      monthCount,
+      monthLimit: 8,
+      canCreate: weekCount < 2 && monthCount < 8
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Sales Leads CRUD ──
+router.get('/sales/leads', auth, salesAccessOnly, async (req, res) => {
+  try {
+    const { stage, category, goal_id, assignee_id, region, lead_source, industry, priority, month, search } = req.query;
+
+    let conditions = ['1=1'];
+    let params = [];
+    let paramIdx = 1;
+
+    // Scope restriction: sales_executive can only see own or assigned leads unless admin/sales_manager
+    if (req.user.role === 'sales_executive') {
+      conditions.push(`(l.assignee_id = $${paramIdx} OR l.creator_id = $${paramIdx})`);
+      params.push(req.user.id);
+      paramIdx++;
+    } else if (assignee_id) {
+      conditions.push(`l.assignee_id = $${paramIdx}`);
+      params.push(assignee_id);
+      paramIdx++;
+    }
+
+    if (stage) {
+      conditions.push(`l.current_stage = $${paramIdx}`);
+      params.push(stage);
+      paramIdx++;
+    }
+
+    if (category) {
+      conditions.push(`l.category = $${paramIdx}`);
+      params.push(category);
+      paramIdx++;
+    }
+
+    if (goal_id) {
+      conditions.push(`l.goal_id = $${paramIdx}`);
+      params.push(goal_id);
+      paramIdx++;
+    }
+
+    if (region) {
+      conditions.push(`l.region = $${paramIdx}`);
+      params.push(region);
+      paramIdx++;
+    }
+
+    if (lead_source) {
+      conditions.push(`l.lead_source = $${paramIdx}`);
+      params.push(lead_source);
+      paramIdx++;
+    }
+
+    if (industry) {
+      conditions.push(`l.industry = $${paramIdx}`);
+      params.push(industry);
+      paramIdx++;
+    }
+
+    if (priority) {
+      conditions.push(`l.priority = $${paramIdx}`);
+      params.push(priority);
+      paramIdx++;
+    }
+
+    if (month) {
+      conditions.push(`l.enquiry_month = $${paramIdx}`);
+      params.push(month);
+      paramIdx++;
+    }
+
+    if (search) {
+      conditions.push(`(LOWER(l.title) LIKE $${paramIdx} OR LOWER(l.city) LIKE $${paramIdx} OR LOWER(l.consultant_name) LIKE $${paramIdx})`);
+      params.push(`%${search.toLowerCase().trim()}%`);
+      paramIdx++;
+    }
+
+    const queryStr = `
+      SELECT l.*,
+        a.name as assignee_name, a.avatar_url as assignee_avatar,
+        c.name as creator_name,
+        g.name as goal_name,
+        (SELECT COUNT(*) FROM sales_lead_contacts WHERE lead_id = l.id) as contact_count,
+        (SELECT COUNT(*) FROM sales_lead_contacts WHERE lead_id = l.id AND is_leverage = true) as leverage_contact_count,
+        (SELECT COUNT(*) FROM sales_daily_logs WHERE lead_id = l.id) as log_count,
+        (SELECT COUNT(*) FROM sales_lead_activities WHERE lead_id = l.id) as activity_count
+      FROM sales_leads l
+      LEFT JOIN users a ON l.assignee_id = a.id
+      LEFT JOIN users c ON l.creator_id = c.id
+      LEFT JOIN sales_goals g ON l.goal_id = g.id
+      WHERE ${conditions.join(' AND ')}
+      ORDER BY l.updated_at DESC
+    `;
+
+    const { rows } = await db.query(queryStr, params);
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/sales/leads/:id', auth, salesAccessOnly, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { rows } = await db.query(`
+      SELECT l.*,
+        a.name as assignee_name, a.avatar_url as assignee_avatar,
+        c.name as creator_name,
+        g.name as goal_name
+      FROM sales_leads l
+      LEFT JOIN users a ON l.assignee_id = a.id
+      LEFT JOIN users c ON l.creator_id = c.id
+      LEFT JOIN sales_goals g ON l.goal_id = g.id
+      WHERE l.id = $1
+    `, [id]);
+
+    if (!rows[0]) return res.status(404).json({ error: 'Lead not found' });
+    const lead = rows[0];
+
+    // Fetch contacts
+    const { rows: contacts } = await db.query(
+      'SELECT * FROM sales_lead_contacts WHERE lead_id = $1 ORDER BY created_at ASC', [id]
+    );
+
+    // Fetch stage history
+    const { rows: history } = await db.query(`
+      SELECT h.*, u.name as changed_by_name
+      FROM sales_stage_history h
+      LEFT JOIN users u ON h.changed_by = u.id
+      WHERE h.lead_id = $1
+      ORDER BY h.created_at ASC
+    `, [id]);
+
+    // Fetch activities
+    const { rows: activities } = await db.query(`
+      SELECT act.*, u.name as logged_by_name
+      FROM sales_lead_activities act
+      LEFT JOIN users u ON act.logged_by = u.id
+      WHERE act.lead_id = $1
+      ORDER BY act.created_at DESC
+    `, [id]);
+
+    res.json({
+      ...lead,
+      contacts,
+      history,
+      activities
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/sales/leads', auth, salesAccessOnly, async (req, res) => {
+  try {
+    // Quota check for sales_executive
+    if (req.user.role === 'sales_executive') {
+      const { rows: weekRows } = await db.query(`
+        SELECT COUNT(*) as count FROM sales_leads
+        WHERE creator_id = $1 AND created_at >= DATE_TRUNC('week', CURRENT_TIMESTAMP)
+      `, [req.user.id]);
+      const { rows: monthRows } = await db.query(`
+        SELECT COUNT(*) as count FROM sales_leads
+        WHERE creator_id = $1 AND created_at >= DATE_TRUNC('month', CURRENT_TIMESTAMP)
+      `, [req.user.id]);
+
+      const weekCount = parseInt(weekRows[0]?.count || '0', 10);
+      const monthCount = parseInt(monthRows[0]?.count || '0', 10);
+
+      if (weekCount >= 2 || monthCount >= 8) {
+        return res.status(400).json({
+          error: `Lead creation limit reached (2/week, 8/month). Current: ${weekCount} this week, ${monthCount} this month.`
+        });
+      }
+    }
+
+    const {
+      title, description, category, goal_id, lead_value, lead_source, industry,
+      product_category, priority, region, country, city, site_address,
+      consultant_name, consultant_firm, consultant_email, consultant_phone,
+      assignee_id, expected_close_date
+    } = req.body;
+
+    if (!title || !title.trim()) {
+      return res.status(400).json({ error: 'Lead title is required' });
+    }
+
+    const effectiveAssignee = (req.user.role === 'sales_executive')
+      ? req.user.id
+      : (assignee_id || req.user.id);
+
+    const now = new Date();
+    const enquiryMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+    const { rows } = await db.query(`
+      INSERT INTO sales_leads (
+        title, description, category, goal_id, current_stage, stage_updated_at, stage_updated_by,
+        lead_value, probability_pct, lead_source, industry, product_category, priority,
+        region, country, city, site_address, consultant_name, consultant_firm,
+        consultant_email, consultant_phone, assignee_id, creator_id, expected_close_date, enquiry_month
+      )
+      VALUES ($1, $2, $3, $4, 'suspect', CURRENT_TIMESTAMP, $5, $6, 5, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
+      RETURNING *
+    `, [
+      title.trim(), description || '', category || 'general', goal_id || null, req.user.id,
+      lead_value || 0, lead_source || '', industry || '', product_category || '', priority || 'medium',
+      region || '', country || 'India', city || '', site_address || '', consultant_name || '',
+      consultant_firm || '', consultant_email || '', consultant_phone || '', effectiveAssignee,
+      req.user.id, expected_close_date || null, enquiryMonth
+    ]);
+
+    const lead = rows[0];
+
+    // Log initial stage history
+    await db.query(`
+      INSERT INTO sales_stage_history (lead_id, from_stage, to_stage, was_skipped, skipped_list, probability_pct_at, lead_value_at, notes, changed_by)
+      VALUES ($1, NULL, 'suspect', false, '[]', 5, $2, 'Lead created', $3)
+    `, [lead.id, lead.lead_value, req.user.id]);
+
+    // Send notifications to admins
+    const { rows: admins } = await db.query("SELECT id FROM users WHERE role = 'admin'");
+    for (const a of admins) {
+      if (a.id !== req.user.id) {
+        await createNotification(a.id, req.user.id, `${req.user.name} created sales lead "${lead.title}"`);
+      }
+    }
+
+    res.status(201).json(lead);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.put('/sales/leads/:id', auth, salesAccessOnly, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      title, description, category, goal_id, lead_value, lead_source, industry,
+      product_category, priority, region, country, city, site_address,
+      consultant_name, consultant_firm, consultant_email, consultant_phone,
+      assignee_id, expected_close_date, probability_pct
+    } = req.body;
+
+    const { rows } = await db.query(`
+      UPDATE sales_leads
+      SET title = COALESCE($1, title),
+          description = COALESCE($2, description),
+          category = COALESCE($3, category),
+          goal_id = $4,
+          lead_value = COALESCE($5, lead_value),
+          lead_source = COALESCE($6, lead_source),
+          industry = COALESCE($7, industry),
+          product_category = COALESCE($8, product_category),
+          priority = COALESCE($9, priority),
+          region = COALESCE($10, region),
+          country = COALESCE($11, country),
+          city = COALESCE($12, city),
+          site_address = COALESCE($13, site_address),
+          consultant_name = COALESCE($14, consultant_name),
+          consultant_firm = COALESCE($15, consultant_firm),
+          consultant_email = COALESCE($16, consultant_email),
+          consultant_phone = COALESCE($17, consultant_phone),
+          assignee_id = COALESCE($18, assignee_id),
+          expected_close_date = COALESCE($19, expected_close_date),
+          probability_pct = COALESCE($20, probability_pct),
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = $21
+      RETURNING *
+    `, [
+      title, description, category, goal_id || null, lead_value, lead_source, industry,
+      product_category, priority, region, country, city, site_address,
+      consultant_name, consultant_firm, consultant_email, consultant_phone,
+      assignee_id, expected_close_date, probability_pct, id
+    ]);
+
+    if (!rows[0]) return res.status(404).json({ error: 'Lead not found' });
+    res.json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete('/sales/leads/:id', auth, adminOnly, async (req, res) => {
+  try {
+    const { id } = req.params;
+    await db.query('DELETE FROM sales_leads WHERE id = $1', [id]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Stage Transition Endpoint (with Skip Detection & Probability Auto-Update) ──
+router.put('/sales/leads/:id/stage', auth, salesAccessOnly, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { new_stage, notes } = req.body;
+
+    if (!STAGE_ORDER.includes(new_stage)) {
+      return res.status(400).json({ error: `Invalid stage. Must be one of: ${STAGE_ORDER.join(', ')}` });
+    }
+
+    const { rows: currentRows } = await db.query('SELECT * FROM sales_leads WHERE id = $1', [id]);
+    if (!currentRows[0]) return res.status(404).json({ error: 'Lead not found' });
+    const lead = currentRows[0];
+
+    const oldStage = lead.current_stage;
+    if (oldStage === new_stage) {
+      return res.json(lead);
+    }
+
+    const oldIdx = STAGE_ORDER.indexOf(oldStage);
+    const newIdx = STAGE_ORDER.indexOf(new_stage);
+
+    // Calculate skipped stages (stages jumped over when moving forward)
+    let newlySkipped = [];
+    if (newIdx > oldIdx + 1) {
+      for (let i = oldIdx + 1; i < newIdx; i++) {
+        newlySkipped.push(STAGE_ORDER[i]);
+      }
+    }
+
+    let existingSkipped = [];
+    try {
+      existingSkipped = JSON.parse(lead.skipped_stages || '[]');
+    } catch (e) {
+      existingSkipped = [];
+    }
+
+    const updatedSkippedSet = new Set([...existingSkipped, ...newlySkipped]);
+    // If we later revisit a skipped stage, remove it from skipped list
+    updatedSkippedSet.delete(new_stage);
+    const updatedSkippedArray = Array.from(updatedSkippedSet);
+
+    const defaultProb = STAGE_PROBABILITIES[new_stage] || 5;
+    const isClosed = new_stage === 'billing' || new_stage === 'order';
+    const actualCloseDate = isClosed ? new Date().toISOString().split('T')[0] : lead.actual_close_date;
+
+    const { rows: updatedRows } = await db.query(`
+      UPDATE sales_leads
+      SET current_stage = $1,
+          stage_updated_at = CURRENT_TIMESTAMP,
+          stage_updated_by = $2,
+          probability_pct = $3,
+          skipped_stages = $4,
+          actual_close_date = $5,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = $6
+      RETURNING *
+    `, [new_stage, req.user.id, defaultProb, JSON.stringify(updatedSkippedArray), actualCloseDate, id]);
+
+    const updatedLead = updatedRows[0];
+
+    // Log history entry
+    await db.query(`
+      INSERT INTO sales_stage_history (lead_id, from_stage, to_stage, was_skipped, skipped_list, probability_pct_at, lead_value_at, notes, changed_by)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+    `, [
+      id, oldStage, new_stage, newlySkipped.length > 0,
+      JSON.stringify(newlySkipped), defaultProb, updatedLead.lead_value,
+      notes || '', req.user.id
+    ]);
+
+    // Send notifications
+    if (lead.assignee_id && lead.assignee_id !== req.user.id) {
+      await createNotification(
+        lead.assignee_id,
+        req.user.id,
+        `${req.user.name} moved lead "${lead.title}" to ${new_stage.replace('_', ' ')}`
+      );
+    }
+
+    res.json(updatedLead);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/sales/leads/:id/history', auth, salesAccessOnly, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { rows } = await db.query(`
+      SELECT h.*, u.name as changed_by_name
+      FROM sales_stage_history h
+      LEFT JOIN users u ON h.changed_by = u.id
+      WHERE h.lead_id = $1
+      ORDER BY h.created_at ASC
+    `, [id]);
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Lead Contacts Endpoints ──
+router.get('/sales/leads/:id/contacts', auth, salesAccessOnly, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { rows } = await db.query(
+      'SELECT * FROM sales_lead_contacts WHERE lead_id = $1 ORDER BY created_at ASC', [id]
+    );
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/sales/leads/:id/contacts', auth, salesAccessOnly, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { contact_name, contact_role, contact_email, contact_phone, company_name, is_leverage, notes } = req.body;
+
+    if (!contact_name || !contact_name.trim()) {
+      return res.status(400).json({ error: 'Contact name is required' });
+    }
+
+    const { rows } = await db.query(`
+      INSERT INTO sales_lead_contacts (lead_id, contact_name, contact_role, contact_email, contact_phone, company_name, is_leverage, notes)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      RETURNING *
+    `, [id, contact_name.trim(), contact_role || '', contact_email || '', contact_phone || '', company_name || '', is_leverage === true, notes || '']);
+
+    res.status(201).json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.put('/sales/leads/:id/contacts/:cid', auth, salesAccessOnly, async (req, res) => {
+  try {
+    const { id, cid } = req.params;
+    const { contact_name, contact_role, contact_email, contact_phone, company_name, is_leverage, notes } = req.body;
+
+    const { rows } = await db.query(`
+      UPDATE sales_lead_contacts
+      SET contact_name = COALESCE($1, contact_name),
+          contact_role = COALESCE($2, contact_role),
+          contact_email = COALESCE($3, contact_email),
+          contact_phone = COALESCE($4, contact_phone),
+          company_name = COALESCE($5, company_name),
+          is_leverage = COALESCE($6, is_leverage),
+          notes = COALESCE($7, notes)
+      WHERE id = $8 AND lead_id = $9
+      RETURNING *
+    `, [contact_name, contact_role, contact_email, contact_phone, company_name, is_leverage, notes, cid, id]);
+
+    if (!rows[0]) return res.status(404).json({ error: 'Contact not found' });
+    res.json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete('/sales/leads/:id/contacts/:cid', auth, salesAccessOnly, async (req, res) => {
+  try {
+    const { id, cid } = req.params;
+    await db.query('DELETE FROM sales_lead_contacts WHERE id = $1 AND lead_id = $2', [cid, id]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Daily Progress Logs (Achievements) Endpoints ──
+router.get('/sales/leads/:id/daily-logs', auth, salesAccessOnly, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { rows: logs } = await db.query(`
+      SELECT l.*, u.name as user_name, u.avatar_url as user_avatar
+      FROM sales_daily_logs l
+      LEFT JOIN users u ON l.user_id = u.id
+      WHERE l.lead_id = $1
+      ORDER BY l.log_date DESC, l.created_at DESC
+    `, [id]);
+
+    for (const log of logs) {
+      const { rows: comments } = await db.query(`
+        SELECT c.*, u.name as user_name, u.avatar_url as user_avatar
+        FROM sales_daily_log_comments c
+        LEFT JOIN users u ON c.user_id = u.id
+        WHERE c.log_id = $1
+        ORDER BY c.created_at ASC
+      `, [log.id]);
+      log.comments = comments;
+    }
+
+    res.json(logs);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/sales/leads/:id/daily-logs', auth, salesAccessOnly, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { log_date, content } = req.body;
+
+    if (!content || !content.trim()) {
+      return res.status(400).json({ error: 'Daily log content is required' });
+    }
+
+    const targetDate = log_date || new Date().toISOString().split('T')[0];
+
+    const { rows } = await db.query(`
+      INSERT INTO sales_daily_logs (lead_id, user_id, log_date, content)
+      VALUES ($1, $2, $3, $4)
+      ON CONFLICT (lead_id, user_id, log_date)
+      DO UPDATE SET content = EXCLUDED.content, updated_at = CURRENT_TIMESTAMP
+      RETURNING *
+    `, [id, req.user.id, targetDate, content.trim()]);
+
+    res.status(201).json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete('/sales/leads/:id/daily-logs/:logId', auth, salesAccessOnly, async (req, res) => {
+  try {
+    const { id, logId } = req.params;
+    const { rows } = await db.query('SELECT user_id FROM sales_daily_logs WHERE id = $1 AND lead_id = $2', [logId, id]);
+    if (!rows[0]) return res.status(404).json({ error: 'Daily log not found' });
+    if (rows[0].user_id !== req.user.id && req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Can only delete own daily logs' });
+    }
+    await db.query('DELETE FROM sales_daily_logs WHERE id = $1', [logId]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/sales/leads/:id/daily-logs/:logId/comments', auth, salesAccessOnly, async (req, res) => {
+  try {
+    const { logId } = req.params;
+    const { comment_text } = req.body;
+
+    if (!comment_text || !comment_text.trim()) {
+      return res.status(400).json({ error: 'Comment text is required' });
+    }
+
+    const { rows } = await db.query(`
+      INSERT INTO sales_daily_log_comments (log_id, user_id, comment_text)
+      VALUES ($1, $2, $3)
+      RETURNING *
+    `, [logId, req.user.id, comment_text.trim()]);
+
+    const { rows: commentWithUser } = await db.query(`
+      SELECT c.*, u.name as user_name, u.avatar_url as user_avatar
+      FROM sales_daily_log_comments c
+      LEFT JOIN users u ON c.user_id = u.id
+      WHERE c.id = $1
+    `, [rows[0].id]);
+
+    res.status(201).json(commentWithUser[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Lead Activities & Timeline Endpoints ──
+router.post('/sales/leads/:id/activities', auth, salesAccessOnly, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { activity_type, negative_reason, title, description, probability_change, activity_date } = req.body;
+
+    if (!activity_type || !description || !description.trim()) {
+      return res.status(400).json({ error: 'Activity type and description are required' });
+    }
+
+    const { rows: leadRows } = await db.query('SELECT current_stage, probability_pct FROM sales_leads WHERE id = $1', [id]);
+    if (!leadRows[0]) return res.status(404).json({ error: 'Lead not found' });
+    const lead = leadRows[0];
+
+    const changeVal = parseInt(probability_change || 0, 10);
+    const dateVal = activity_date || new Date().toISOString().split('T')[0];
+
+    const { rows } = await db.query(`
+      INSERT INTO sales_lead_activities (lead_id, activity_type, negative_reason, stage_at_time, title, description, probability_change, logged_by, activity_date)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      RETURNING *
+    `, [id, activity_type, negative_reason || '', lead.current_stage, title || '', description.trim(), changeVal, req.user.id, dateVal]);
+
+    // Update lead probability if changed
+    if (changeVal !== 0) {
+      const newProb = Math.max(0, Math.min(100, (lead.probability_pct || 0) + changeVal));
+      await db.query('UPDATE sales_leads SET probability_pct = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [newProb, id]);
+    }
+
+    res.status(201).json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Sales Stats & Monthly Report Endpoint ──
+router.get('/sales/stats', auth, salesAccessOnly, async (req, res) => {
+  try {
+    const { month } = req.query; // YYYY-MM
+    const currentMonth = month || new Date().toISOString().slice(0, 7);
+
+    // Total counts and values
+    const { rows: overall } = await db.query(`
+      SELECT
+        COUNT(*) as total_leads,
+        COALESCE(SUM(lead_value), 0) as total_pipeline_value,
+        COALESCE(ROUND(AVG(probability_pct), 1), 0) as avg_probability,
+        COUNT(CASE WHEN current_stage IN ('order', 'billing') THEN 1 END) as won_leads,
+        COALESCE(SUM(CASE WHEN current_stage IN ('order', 'billing') THEN lead_value ELSE 0 END), 0) as won_value
+      FROM sales_leads
+    `);
+
+    // Counts per stage
+    const { rows: stageCounts } = await db.query(`
+      SELECT current_stage, COUNT(*) as count, COALESCE(SUM(lead_value), 0) as total_value
+      FROM sales_leads
+      GROUP BY current_stage
+    `);
+
+    // Monthly new leads vs carried over
+    const { rows: monthlyNew } = await db.query(`
+      SELECT COUNT(*) as new_leads_count, COALESCE(SUM(lead_value), 0) as new_leads_value
+      FROM sales_leads
+      WHERE enquiry_month = $1
+    `, [currentMonth]);
+
+    // Salesperson performance table
+    const { rows: reps } = await db.query(`
+      SELECT u.id, u.name, u.role,
+        COUNT(l.id) as active_leads,
+        COALESCE(SUM(l.lead_value), 0) as total_value,
+        COUNT(CASE WHEN l.current_stage IN ('order', 'billing') THEN 1 END) as won_leads,
+        COALESCE(ROUND(AVG(l.probability_pct), 0), 0) as avg_prob
+      FROM users u
+      LEFT JOIN sales_leads l ON l.assignee_id = u.id
+      WHERE u.role IN ('sales_manager', 'sales_executive') OR u.can_access_sales = true
+      GROUP BY u.id, u.name, u.role
+      ORDER BY total_value DESC
+    `);
+
+    // Stale leads (>30 days without stage update)
+    const { rows: staleLeads } = await db.query(`
+      SELECT l.id, l.title, l.current_stage, l.stage_updated_at, l.lead_value, u.name as assignee_name
+      FROM sales_leads l
+      LEFT JOIN users u ON l.assignee_id = u.id
+      WHERE l.current_stage NOT IN ('order', 'billing')
+        AND l.stage_updated_at < CURRENT_TIMESTAMP - INTERVAL '30 days'
+      ORDER BY l.stage_updated_at ASC
+    `);
+
+    res.json({
+      month: currentMonth,
+      summary: overall[0],
+      stage_breakdown: stageCounts,
+      monthly_new: monthlyNew[0],
+      representatives: reps,
+      stale_leads: staleLeads
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

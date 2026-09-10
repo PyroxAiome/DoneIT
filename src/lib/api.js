@@ -384,4 +384,108 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
+
+  // Sales Pipeline APIs
+  getSalesGoals: () => request('/sales/goals'),
+
+  createSalesGoal: (data) =>
+    request('/sales/goals', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  updateSalesGoal: (id, data) =>
+    request(`/sales/goals/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+
+  deleteSalesGoal: (id) =>
+    request(`/sales/goals/${id}`, { method: 'DELETE' }),
+
+  getSalesLeads: (params = {}) => {
+    const qs = new URLSearchParams();
+    if (params.stage) qs.set('stage', params.stage);
+    if (params.category) qs.set('category', params.category);
+    if (params.goal_id) qs.set('goal_id', params.goal_id);
+    if (params.assignee_id) qs.set('assignee_id', params.assignee_id);
+    if (params.region) qs.set('region', params.region);
+    if (params.lead_source) qs.set('lead_source', params.lead_source);
+    if (params.industry) qs.set('industry', params.industry);
+    if (params.priority) qs.set('priority', params.priority);
+    if (params.month) qs.set('month', params.month);
+    if (params.search) qs.set('search', params.search);
+    const q = qs.toString();
+    return request(`/sales/leads${q ? '?' + q : ''}`);
+  },
+
+  getSalesLead: (id) => request(`/sales/leads/${id}`),
+
+  createSalesLead: (data) =>
+    request('/sales/leads', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  updateSalesLead: (id, data) =>
+    request(`/sales/leads/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+
+  deleteSalesLead: (id) =>
+    request(`/sales/leads/${id}`, { method: 'DELETE' }),
+
+  updateSalesLeadStage: (id, new_stage, notes = '') =>
+    request(`/sales/leads/${id}/stage`, {
+      method: 'PUT',
+      body: JSON.stringify({ new_stage, notes }),
+    }),
+
+  getSalesLeadHistory: (id) => request(`/sales/leads/${id}/history`),
+
+  getSalesLeadContacts: (id) => request(`/sales/leads/${id}/contacts`),
+
+  createSalesLeadContact: (id, data) =>
+    request(`/sales/leads/${id}/contacts`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  updateSalesLeadContact: (id, cid, data) =>
+    request(`/sales/leads/${id}/contacts/${cid}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+
+  deleteSalesLeadContact: (id, cid) =>
+    request(`/sales/leads/${id}/contacts/${cid}`, { method: 'DELETE' }),
+
+  getSalesDailyLogs: (id) => request(`/sales/leads/${id}/daily-logs`),
+
+  saveSalesDailyLog: (id, log_date, content) =>
+    request(`/sales/leads/${id}/daily-logs`, {
+      method: 'POST',
+      body: JSON.stringify({ log_date, content }),
+    }),
+
+  deleteSalesDailyLog: (id, logId) =>
+    request(`/sales/leads/${id}/daily-logs/${logId}`, { method: 'DELETE' }),
+
+  addSalesDailyLogComment: (id, logId, comment_text) =>
+    request(`/sales/leads/${id}/daily-logs/${logId}/comments`, {
+      method: 'POST',
+      body: JSON.stringify({ comment_text }),
+    }),
+
+  createSalesActivity: (id, data) =>
+    request(`/sales/leads/${id}/activities`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  getSalesStats: (month = '') =>
+    request(`/sales/stats${month ? '?month=' + month : ''}`),
+
+  getSalesQuota: () => request('/sales/leads/quota'),
 };

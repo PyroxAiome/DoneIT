@@ -8,16 +8,18 @@ import TaskDetailModal from './TaskDetailModal';
 import {
   LayoutDashboard, Briefcase, Users, Plus, Search, Grid3X3, List,
   UserPlus, Trash2, Filter, ListTodo, CheckCircle,
-  MessageSquare, X, Shield, Edit2, FolderGit2, Repeat, ShieldCheck
+  MessageSquare, X, Shield, Edit2, FolderGit2, Repeat, ShieldCheck, TrendingUp
 } from 'lucide-react';
 import ProjectsList from './ProjectsList';
 import ProjectDetail from './ProjectDetail';
 import RepeatedTasksList from './RepeatedTasksList';
+import SalesDashboard from './SalesDashboard';
 
 const tabs = [
   { id: 'overview', label: 'Overview', icon: LayoutDashboard },
   { id: 'projects', label: 'Projects', icon: FolderGit2 },
   { id: 'work', label: 'Work', icon: Briefcase },
+  { id: 'sales', label: 'Sales', icon: TrendingUp },
   { id: 'repeated_tasks', label: 'Repeated Tasks', icon: Repeat },
   { id: 'completed', label: 'Completed', icon: CheckCircle },
   { id: 'team', label: 'Team', icon: Users },
@@ -534,6 +536,10 @@ export default function AdminDashboard({ user }) {
             />
           )}
         </div>
+      )}
+
+      {activeTab === 'sales' && (
+        <SalesDashboard user={user} />
       )}
 
       {(activeTab === 'work' || activeTab === 'all' || activeTab === 'completed' || activeTab === 'assigned_by_me' || activeTab === 'verified' || selectedEmp) && (

@@ -45,6 +45,7 @@ const initDatabase = async () => {
     await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS mentor_id INTEGER REFERENCES users(id) ON DELETE SET NULL');
     await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS can_access_nirantar BOOLEAN DEFAULT FALSE');
     await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS can_access_saksham BOOLEAN DEFAULT FALSE');
+    await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS can_access_sales BOOLEAN DEFAULT FALSE');
     await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS manual_training_level TEXT DEFAULT NULL');
   } catch (e) {
     console.log('users mentor_id & track permissions column migration note:', e.message);
@@ -408,6 +409,114 @@ const initDatabase = async () => {
     
     ALTER TABLE project_documents DROP CONSTRAINT IF EXISTS project_documents_status_check;
     ALTER TABLE project_documents ADD CONSTRAINT project_documents_status_check CHECK(status IN ('pending_manager', 'pending_admin', 'active', 'rejected', 'archived'));
+    -- ── Sales Pipeline Tables ──────────────────────────────────────
+    CREATE TABLE IF NOT EXISTS sales_goals (
+      id SERIAL PRIMARY KEY,
+      name TEXT NOT NULL,
+      description TEXT DEFAULT '',
+      target_value REAL DEFAULT 0,
+      target_leads INTEGER DEFAULT 0,
+      period_type TEXT DEFAULT 'monthly' CHECK(period_type IN ('monthly','quarterly','yearly','custom')),
+      period_start TEXT,
+      period_end TEXT,
+      status TEXT DEFAULT 'active' CHECK(status IN ('active','completed','archived')),
+      creator_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS sales_leads (
+      id SERIAL PRIMARY KEY,
+      title TEXT NOT NULL,
+      description TEXT DEFAULT '',
+      category TEXT DEFAULT 'general' CHECK(category IN ('general','lakshya')),
+      goal_id INTEGER REFERENCES sales_goals(id) ON DELETE SET NULL,
+      current_stage TEXT NOT NULL DEFAULT 'suspect' CHECK(current_stage IN ('suspect','prospect','enquiry','presentation','demo','spec_tender','design_negotiation','dfp','order','billing')),
+      stage_updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      stage_updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      lead_value REAL DEFAULT 0,
+      probability_pct INTEGER DEFAULT 5 CHECK(probability_pct >= 0 AND probability_pct <= 100),
+      skipped_stages TEXT DEFAULT '[]',
+      lead_source TEXT DEFAULT '' CHECK(lead_source IN ('','referral','cold_call','website','exhibition','tender_portal','consultant','existing_client','other')),
+      industry TEXT DEFAULT '' CHECK(industry IN ('','real_estate','banking','healthcare','education','government','hospitality','manufacturing','retail','it_ites','infrastructure','energy','other')),
+      product_category TEXT DEFAULT '' CHECK(product_category IN ('','building_automation','hvac','electrical','plumbing','fire_safety','integrated_solution','other')),
+      priority TEXT DEFAULT 'medium' CHECK(priority IN ('low','medium','high','critical')),
+      region TEXT DEFAULT '' CHECK(region IN ('','north_india','south_india','west_india','east_india','central_india','international')),
+      country TEXT DEFAULT 'India',
+      city TEXT DEFAULT '',
+      site_address TEXT DEFAULT '',
+      consultant_name TEXT DEFAULT '',
+      consultant_firm TEXT DEFAULT '',
+      consultant_email TEXT DEFAULT '',
+      consultant_phone TEXT DEFAULT '',
+      assignee_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      creator_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      expected_close_date TEXT,
+      actual_close_date TEXT,
+      enquiry_month TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS sales_lead_contacts (
+      id SERIAL PRIMARY KEY,
+      lead_id INTEGER NOT NULL REFERENCES sales_leads(id) ON DELETE CASCADE,
+      contact_name TEXT NOT NULL,
+      contact_role TEXT DEFAULT '' CHECK(contact_role IN ('','technical_head','management','procurement','architect','consultant','project_manager','finance','other')),
+      contact_email TEXT DEFAULT '',
+      contact_phone TEXT DEFAULT '',
+      company_name TEXT DEFAULT '',
+      is_leverage BOOLEAN DEFAULT FALSE,
+      notes TEXT DEFAULT '',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS sales_stage_history (
+      id SERIAL PRIMARY KEY,
+      lead_id INTEGER NOT NULL REFERENCES sales_leads(id) ON DELETE CASCADE,
+      from_stage TEXT,
+      to_stage TEXT NOT NULL,
+      was_skipped BOOLEAN DEFAULT FALSE,
+      skipped_list TEXT DEFAULT '[]',
+      probability_pct_at INTEGER DEFAULT 0,
+      lead_value_at REAL DEFAULT 0,
+      notes TEXT DEFAULT '',
+      changed_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS sales_daily_logs (
+      id SERIAL PRIMARY KEY,
+      lead_id INTEGER NOT NULL REFERENCES sales_leads(id) ON DELETE CASCADE,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      log_date TEXT NOT NULL,
+      content TEXT NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(lead_id, user_id, log_date)
+    );
+
+    CREATE TABLE IF NOT EXISTS sales_daily_log_comments (
+      id SERIAL PRIMARY KEY,
+      log_id INTEGER NOT NULL REFERENCES sales_daily_logs(id) ON DELETE CASCADE,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      comment_text TEXT NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS sales_lead_activities (
+      id SERIAL PRIMARY KEY,
+      lead_id INTEGER NOT NULL REFERENCES sales_leads(id) ON DELETE CASCADE,
+      activity_type TEXT NOT NULL CHECK(activity_type IN ('call','meeting','email','site_visit','presentation','negotiation','follow_up','document_shared','positive_event','negative_event')),
+      negative_reason TEXT DEFAULT '' CHECK(negative_reason IN ('','client_delay','competitor_entered','budget_cut','contact_changed')),
+      stage_at_time TEXT NOT NULL,
+      title TEXT DEFAULT '',
+      description TEXT NOT NULL,
+      probability_change INTEGER DEFAULT 0,
+      logged_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      activity_date TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
   `);
 
   // ── Create Indexes ─────────────────────────────────────────────
@@ -424,6 +533,14 @@ const initDatabase = async () => {
     CREATE INDEX IF NOT EXISTS idx_inv_scrap_proj ON project_material_scrap(project_id);
     CREATE INDEX IF NOT EXISTS idx_proj_docs ON project_documents(project_id);
     CREATE INDEX IF NOT EXISTS idx_proj_audits ON project_physical_audits(project_id);
+    CREATE INDEX IF NOT EXISTS idx_sales_leads_assignee ON sales_leads(assignee_id);
+    CREATE INDEX IF NOT EXISTS idx_sales_leads_stage ON sales_leads(current_stage);
+    CREATE INDEX IF NOT EXISTS idx_sales_leads_goal ON sales_leads(goal_id);
+    CREATE INDEX IF NOT EXISTS idx_sales_leads_category ON sales_leads(category);
+    CREATE INDEX IF NOT EXISTS idx_sales_lead_contacts ON sales_lead_contacts(lead_id);
+    CREATE INDEX IF NOT EXISTS idx_sales_stage_history ON sales_stage_history(lead_id);
+    CREATE INDEX IF NOT EXISTS idx_sales_daily_logs ON sales_daily_logs(lead_id);
+    CREATE INDEX IF NOT EXISTS idx_sales_activities ON sales_lead_activities(lead_id);
   `);
 
   // ── Seed / Ensure Default Master Items ──────────────────────────

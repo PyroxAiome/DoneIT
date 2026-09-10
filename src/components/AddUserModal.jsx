@@ -3,7 +3,7 @@ import { api } from '../lib/api';
 import { X, AlertCircle, Check } from 'lucide-react';
 
 export default function AddUserModal({ isOpen, onClose, onCreated, onUpdated, editingUser, employees = [] }) {
-  const [form, setForm] = useState({ name: '', email: '', password: '', role: 'employee', department: 'General', mentor_id: '' });
+  const [form, setForm] = useState({ name: '', email: '', password: '', role: 'employee', department: 'General', mentor_id: '', can_access_sales: false });
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -15,18 +15,32 @@ export default function AddUserModal({ isOpen, onClose, onCreated, onUpdated, ed
         password: '',
         role: editingUser.role || 'employee',
         department: editingUser.department || 'General',
-        mentor_id: editingUser.mentor_id || ''
+        mentor_id: editingUser.mentor_id || '',
+        can_access_sales: !!editingUser.can_access_sales
       });
     } else {
-      setForm({ name: '', email: '', password: '', role: 'employee', department: 'General', mentor_id: '' });
+      setForm({ name: '', email: '', password: '', role: 'employee', department: 'General', mentor_id: '', can_access_sales: false });
     }
     setError('');
   }, [editingUser, isOpen]);
 
   if (!isOpen) return null;
 
-  const handleChange = (field) => (e) => setForm({ ...form, [field]: e.target.value });
-  const reset = () => { setForm({ name: '', email: '', password: '', role: 'employee', department: 'General', mentor_id: '' }); setError(''); };
+  const handleChange = (field) => (e) => {
+    const val = e.target.value;
+    if (field === 'role') {
+      const isSalesRole = val === 'sales_manager' || val === 'sales_executive';
+      setForm({
+        ...form,
+        role: val,
+        department: isSalesRole ? 'Sales & Marketing' : form.department,
+        can_access_sales: isSalesRole ? true : form.can_access_sales
+      });
+    } else {
+      setForm({ ...form, [field]: val });
+    }
+  };
+  const reset = () => { setForm({ name: '', email: '', password: '', role: 'employee', department: 'General', mentor_id: '', can_access_sales: false }); setError(''); };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -43,9 +57,21 @@ export default function AddUserModal({ isOpen, onClose, onCreated, onUpdated, ed
       };
       if (editingUser) {
         const updated = await api.updateUser(editingUser.id, payload);
+        await api.updateUserPermissions(editingUser.id, {
+          can_access_nirantar: editingUser.can_access_nirantar,
+          can_access_saksham: editingUser.can_access_saksham,
+          can_access_sales: form.can_access_sales
+        });
         if (onUpdated) onUpdated(updated);
       } else {
         const user = await api.createUser(payload);
+        if (form.can_access_sales) {
+          await api.updateUserPermissions(user.id, {
+            can_access_nirantar: false,
+            can_access_saksham: false,
+            can_access_sales: true
+          });
+        }
         if (onCreated) onCreated(user);
       }
       reset();
@@ -101,6 +127,8 @@ export default function AddUserModal({ isOpen, onClose, onCreated, onUpdated, ed
                 <option value="intern">Intern</option>
                 <option value="hr">HR</option>
                 <option value="site_manager">Site Manager / QS</option>
+                <option value="sales_manager">Sales Manager</option>
+                <option value="sales_executive">Sales Executive</option>
                 <option value="manager">Manager</option>
                 <option value="admin">Admin</option>
               </select>
@@ -109,6 +137,20 @@ export default function AddUserModal({ isOpen, onClose, onCreated, onUpdated, ed
               <label className="text-xs text-gray-500 uppercase tracking-wider block mb-1">Department</label>
               <input value={form.department} onChange={handleChange('department')} className="input-field" placeholder="Engineering" />
             </div>
+          </div>
+
+          {/* Access Permission Toggle */}
+          <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+            <label className="text-xs font-semibold text-slate-700 block">Module Access Permissions</label>
+            <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-700">
+              <input
+                type="checkbox"
+                checked={form.can_access_sales}
+                onChange={(e) => setForm({ ...form, can_access_sales: e.target.checked })}
+                className="w-4 h-4 text-emerald-600 rounded focus:ring-emerald-500"
+              />
+              <span>Enable Sales Pipeline Access</span>
+            </label>
           </div>
 
           {/* Intern Mentor Assignment */}

@@ -5,6 +5,7 @@ import LoginPage from './components/LoginPage';
 import AdminDashboard from './components/AdminDashboard';
 import ManagerDashboard from './components/ManagerDashboard';
 import EmployeeDashboard from './components/EmployeeDashboard';
+import SalesDashboard from './components/SalesDashboard';
 import ChangePasswordModal from './components/ChangePasswordModal';
 import TaskDetailModal from './components/TaskDetailModal';
 
@@ -56,14 +57,17 @@ export default function App() {
     return <LoginPage onLogin={handleLogin} />;
   }
 
+  const isSalesOnly = (user.role === 'sales_manager' || user.role === 'sales_executive' || (user.can_access_sales && !['admin', 'manager', 'site_manager'].includes(user.role)));
+
   return (
     <AuthContext.Provider value={user}>
       <div className="min-h-screen bg-gray-100">
         <Header user={user} onLogout={handleLogout} onChangePassword={() => setShowChangePassword(true)} onViewTask={(task) => setDetailTask(task)} />
         <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           {user.role === 'admin' && <AdminDashboard user={user} />}
-          {user.role === 'manager' && <ManagerDashboard user={user} />}
-          {!['admin', 'manager'].includes(user.role) && <EmployeeDashboard user={user} />}
+          {isSalesOnly && user.role !== 'admin' && <SalesDashboard user={user} />}
+          {user.role === 'manager' && !isSalesOnly && <ManagerDashboard user={user} />}
+          {!['admin', 'manager', 'sales_manager', 'sales_executive'].includes(user.role) && !isSalesOnly && <EmployeeDashboard user={user} />}
         </main>
       </div>
       <ChangePasswordModal isOpen={showChangePassword} onClose={() => setShowChangePassword(false)} />
