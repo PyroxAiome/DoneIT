@@ -126,6 +126,7 @@ export default function SalesLeadDetailModal({ leadId, isOpen, onClose, user, on
       await api.updateSalesLeadStage(lead.id, targetStage, stageNotes);
       setStageNotes('');
       fetchLeadDetails();
+      window.dispatchEvent(new CustomEvent('sales-updated'));
       if (onUpdated) onUpdated();
     } catch (err) {
       setError(err.message);
@@ -170,6 +171,7 @@ export default function SalesLeadDetailModal({ leadId, isOpen, onClose, user, on
       await api.saveSalesDailyLog(lead.id, logDate, logContent.trim());
       setLogContent('');
       fetchDailyLogs();
+      window.dispatchEvent(new CustomEvent('sales-updated'));
     } catch (err) {
       setError(err.message);
     }
@@ -182,6 +184,7 @@ export default function SalesLeadDetailModal({ leadId, isOpen, onClose, user, on
       await api.addSalesDailyLogComment(lead.id, logId, text.trim());
       setCommentText({ ...commentText, [logId]: '' });
       fetchDailyLogs();
+      window.dispatchEvent(new CustomEvent('sales-updated'));
     } catch (err) {
       setError(err.message);
     }
@@ -196,6 +199,7 @@ export default function SalesLeadDetailModal({ leadId, isOpen, onClose, user, on
       setShowActivityForm(false);
       setActivityForm({ activity_type: 'call', negative_reason: '', title: '', description: '', probability_change: 0, activity_date: new Date().toISOString().split('T')[0] });
       fetchLeadDetails();
+      window.dispatchEvent(new CustomEvent('sales-updated'));
       if (onUpdated) onUpdated();
     } catch (err) {
       setError(err.message);

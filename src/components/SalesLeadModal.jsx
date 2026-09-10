@@ -180,6 +180,7 @@ export default function SalesLeadModal({
       } else {
         await api.createSalesLead(payload);
       }
+      window.dispatchEvent(new CustomEvent('sales-updated'));
       if (onSave) onSave();
       onClose();
     } catch (err) {

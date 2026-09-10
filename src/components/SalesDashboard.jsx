@@ -47,8 +47,8 @@ export default function SalesDashboard({ user, initialAssigneeId = '' }) {
   // Main view tabs: 'board' | 'report'
   const [activeTab, setActiveTab] = useState('board');
 
-  // Sub-filter: 'general' | 'lakshya'
-  const [subCategory, setSubCategory] = useState('general');
+  // Sub-filter: 'all' | 'general' | 'lakshya'
+  const [subCategory, setSubCategory] = useState('all');
   const [selectedGoalId, setSelectedGoalId] = useState(null);
 
   // Data states
@@ -80,6 +80,14 @@ export default function SalesDashboard({ user, initialAssigneeId = '' }) {
 
   useEffect(() => {
     fetchAllData();
+
+    const handleUpdate = () => fetchAllData();
+    window.addEventListener('sales-updated', handleUpdate);
+    window.addEventListener('focus', handleUpdate);
+    return () => {
+      window.removeEventListener('sales-updated', handleUpdate);
+      window.removeEventListener('focus', handleUpdate);
+    };
   }, [subCategory, selectedGoalId, stageFilter, sourceFilter, regionFilter, priorityFilter, assigneeFilter]);
 
   const fetchAllData = async () => {
@@ -87,7 +95,7 @@ export default function SalesDashboard({ user, initialAssigneeId = '' }) {
     try {
       const [leadsRes, goalsRes, empRes] = await Promise.all([
         api.getSalesLeads({
-          category: subCategory,
+          category: subCategory === 'all' ? '' : subCategory,
           goal_id: selectedGoalId,
           stage: stageFilter,
           lead_source: sourceFilter,
@@ -164,8 +172,14 @@ export default function SalesDashboard({ user, initialAssigneeId = '' }) {
         {/* Sub-filters Toggle */}
         <div className="flex items-center bg-gray-100 p-1 rounded-lg border border-gray-200">
           <button
+            onClick={() => { setSubCategory('all'); setSelectedGoalId(null); }}
+            className={`px-3.5 py-1.5 text-xs font-semibold rounded-md transition-all ${subCategory === 'all' ? 'bg-white text-gray-900 shadow-xs font-bold' : 'text-gray-600 hover:text-gray-900'}`}
+          >
+            🌐 All Leads
+          </button>
+          <button
             onClick={() => { setSubCategory('general'); setSelectedGoalId(null); }}
-            className={`px-3.5 py-1.5 text-xs font-semibold rounded-md transition-all ${subCategory === 'general' ? 'bg-white text-gray-900 shadow-xs' : 'text-gray-600 hover:text-gray-900'}`}
+            className={`px-3.5 py-1.5 text-xs font-semibold rounded-md transition-all ${subCategory === 'general' ? 'bg-white text-gray-900 shadow-xs font-bold' : 'text-gray-600 hover:text-gray-900'}`}
           >
             📋 General Leads
           </button>
