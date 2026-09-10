@@ -8,11 +8,10 @@ import TaskDetailModal from './TaskDetailModal';
 import {
   LayoutDashboard, Briefcase, Users, Plus, Search, Grid3X3, List,
   UserPlus, Trash2, Filter, ListTodo, CheckCircle,
-  MessageSquare, X, Shield, Edit2, FolderGit2, Repeat, ShieldCheck, TrendingUp
+  MessageSquare, X, Shield, Edit2, FolderGit2, ShieldCheck, TrendingUp
 } from 'lucide-react';
 import ProjectsList from './ProjectsList';
 import ProjectDetail from './ProjectDetail';
-import RepeatedTasksList from './RepeatedTasksList';
 import SalesDashboard from './SalesDashboard';
 
 const tabs = [
@@ -20,7 +19,6 @@ const tabs = [
   { id: 'projects', label: 'Projects', icon: FolderGit2 },
   { id: 'work', label: 'Work', icon: Briefcase },
   { id: 'sales', label: 'Sales', icon: TrendingUp },
-  { id: 'repeated_tasks', label: 'Repeated Tasks', icon: Repeat },
   { id: 'completed', label: 'Completed', icon: CheckCircle },
   { id: 'team', label: 'Team', icon: Users },
   { id: 'admin', label: 'Admin', icon: Shield },
@@ -194,7 +192,7 @@ export default function AdminDashboard({ user }) {
       }
       const parts = hash.substring(1).split('/');
       const tabId = parts[0];
-      if (['overview', 'projects', 'all', 'work', 'repeated_tasks', 'completed', 'assigned_by_me', 'verified', 'team', 'admin'].includes(tabId)) {
+      if (['overview', 'projects', 'all', 'work', 'completed', 'assigned_by_me', 'verified', 'team', 'admin'].includes(tabId)) {
         setActiveTab(tabId);
         if (tabId !== 'projects') {
           setSelectedProject(null);
@@ -810,10 +808,6 @@ export default function AdminDashboard({ user }) {
             </div>
           )}
         </div>
-      )}
-
-      {activeTab === 'repeated_tasks' && (
-        <RepeatedTasksList user={user} />
       )}
 
       {(activeTab === 'team' && !selectedEmp) && (

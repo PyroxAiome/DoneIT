@@ -5,16 +5,14 @@ import TaskModal from './TaskModal';
 import ConfirmDeleteModal from './ConfirmDeleteModal';
 import TaskDetailModal from './TaskDetailModal';
 import TaskVerificationModal from './TaskVerificationModal';
-import { Search, ListTodo, Filter, Plus, CheckCircle, Users, X, FolderGit2, Repeat, ShieldCheck } from 'lucide-react';
+import { Search, ListTodo, Filter, Plus, CheckCircle, Users, X, FolderGit2, ShieldCheck } from 'lucide-react';
 import ProjectsList from './ProjectsList';
 import ProjectDetail from './ProjectDetail';
-import RepeatedTasksList from './RepeatedTasksList';
 
 const tabs = [
   { id: 'projects', label: 'Projects', icon: FolderGit2 },
   { id: 'work', label: 'Work', icon: ListTodo },
   { id: 'to_verify', label: 'To Verify', icon: ShieldCheck },
-  { id: 'repeated_tasks', label: 'Repeated Tasks', icon: Repeat },
   { id: 'completed', label: 'Completed', icon: CheckCircle },
   { id: 'team', label: 'Team', icon: Users },
 ];
@@ -51,7 +49,6 @@ export default function EmployeeDashboard({ user }) {
   const [editTask, setEditTask] = useState(null);
   const [verificationTask, setVerificationTask] = useState(null);
   const [selectedProject, setSelectedProject] = useState(null);
-  const [repeatedTasksCount, setRepeatedTasksCount] = useState(0);
 
   const fetchTasksOnly = () => {
     setLoading(true);
@@ -73,20 +70,6 @@ export default function EmployeeDashboard({ user }) {
   useEffect(() => {
     api.getEmployees(true)
       .then(setEmployees)
-      .catch(() => {});
-
-    api.getRepeatedTasks()
-      .then(rt => {
-        const myRt = Array.isArray(rt) ? rt.filter(item => {
-          if (user?.role === 'admin') return true;
-          if (Number(item.creator_id) === Number(user?.id)) return true;
-          if (Array.isArray(item.members)) {
-            return item.members.some(m => Number(m.user_id || m.id) === Number(user?.id));
-          }
-          return false;
-        }) : [];
-        setRepeatedTasksCount(myRt.length);
-      })
       .catch(() => {});
   }, []);
 
@@ -110,7 +93,7 @@ export default function EmployeeDashboard({ user }) {
         return;
       }
 
-      if (['projects', 'all', 'work', 'to_verify', 'repeated_tasks', 'completed', 'assigned_by_me', 'verified', 'team'].includes(tabId)) {
+      if (['projects', 'all', 'work', 'to_verify', 'completed', 'assigned_by_me', 'verified', 'team'].includes(tabId)) {
         setActiveTab(tabId);
         if (tabId !== 'projects') setSelectedProject(null);
       }
@@ -418,7 +401,6 @@ export default function EmployeeDashboard({ user }) {
             .filter(tab => {
               if (tab.id === 'team' && user?.role === 'intern') return false;
               if (tab.id === 'to_verify' && allVerifierTasks.length === 0) return false;
-              if (tab.id === 'repeated_tasks' && !(user?.role === 'admin' || repeatedTasksCount > 0)) return false;
               return true;
             })
             .map((tab) => {
@@ -462,12 +444,6 @@ export default function EmployeeDashboard({ user }) {
               onProjectSelect={(p) => setSelectedProject(p)}
             />
           )}
-        </div>
-      )}
-
-      {activeTab === 'repeated_tasks' && (
-        <div className="mt-4">
-          <RepeatedTasksList user={user} projects={[]} />
         </div>
       )}
 

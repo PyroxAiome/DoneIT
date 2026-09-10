@@ -7,17 +7,15 @@ import TaskDetailModal from './TaskDetailModal';
 import TaskVerificationModal from './TaskVerificationModal';
 import {
   BarChart3, Users, CheckCircle, Plus, Search, Filter,
-  ListTodo, User, LayoutGrid, X, FolderGit2, Repeat, ShieldCheck
+  ListTodo, User, LayoutGrid, X, FolderGit2, ShieldCheck
 } from 'lucide-react';
 import ProjectsList from './ProjectsList';
 import ProjectDetail from './ProjectDetail';
-import RepeatedTasksList from './RepeatedTasksList';
 
 const tabs = [
   { id: 'projects', label: 'Projects', icon: FolderGit2 },
   { id: 'work', label: 'Work', icon: ListTodo },
   { id: 'to_verify', label: 'To Verify', icon: ShieldCheck },
-  { id: 'repeated_tasks', label: 'Repeated Tasks', icon: Repeat },
   { id: 'completed', label: 'Completed', icon: CheckCircle },
   { id: 'team', label: 'Team', icon: Users },
 ];
@@ -79,7 +77,6 @@ export default function ManagerDashboard({ user }) {
   const [verificationTask, setVerificationTask] = useState(null);
   const [myTasksOnly, setMyTasksOnly] = useState(false);
   const [selectedProject, setSelectedProject] = useState(null);
-  const [repeatedTasksCount, setRepeatedTasksCount] = useState(0);
 
   const fetchTasksOnly = () => {
     setLoading(true);
@@ -106,9 +103,8 @@ export default function ManagerDashboard({ user }) {
     Promise.allSettled([
       api.getDashboardStats(),
       api.getTasks(params),
-      api.getEmployees(),
-      api.getRepeatedTasks().catch(() => [])
-    ]).then(([sRes, tRes, eRes, rtRes]) => {
+      api.getEmployees()
+    ]).then(([sRes, tRes, eRes]) => {
       if (sRes.status === 'fulfilled') setStats(sRes.value);
       if (tRes.status === 'fulfilled') setTasks(tRes.value);
       if (eRes.status === 'fulfilled') {
@@ -119,18 +115,6 @@ export default function ManagerDashboard({ user }) {
         } else {
           setSelectedEmp(null);
         }
-      }
-      if (rtRes.status === 'fulfilled') {
-        const rt = rtRes.value || [];
-        const myRt = Array.isArray(rt) ? rt.filter(item => {
-          if (user.role === 'admin') return true;
-          if (Number(item.creator_id) === Number(user.id)) return true;
-          if (Array.isArray(item.members)) {
-            return item.members.some(m => Number(m.user_id || m.id) === Number(user.id));
-          }
-          return false;
-        }) : [];
-        setRepeatedTasksCount(myRt.length);
       }
     }).finally(() => setLoading(false));
   };
@@ -148,7 +132,7 @@ export default function ManagerDashboard({ user }) {
       const parts = hash.substring(1).split('/');
       const tabId = parts[0];
 
-      if (['projects', 'all', 'work', 'to_verify', 'repeated_tasks', 'completed', 'assigned_by_me', 'verified', 'team'].includes(tabId)) {
+      if (['projects', 'all', 'work', 'to_verify', 'completed', 'assigned_by_me', 'verified', 'team'].includes(tabId)) {
         setActiveTab(tabId);
         if (tabId !== 'projects') setSelectedProject(null);
       }
@@ -429,7 +413,6 @@ export default function ManagerDashboard({ user }) {
             {tabs
               .filter(tab => {
                 if (tab.id === 'to_verify' && allVerifierTasks.length === 0) return false;
-                if (tab.id === 'repeated_tasks' && !(user?.role === 'admin' || repeatedTasksCount > 0)) return false;
                 return true;
               })
               .map((tab) => {
@@ -494,12 +477,6 @@ export default function ManagerDashboard({ user }) {
               onProjectSelect={(p) => setSelectedProject(p)}
             />
           )}
-        </div>
-      )}
-
-      {activeTab === 'repeated_tasks' && !selectedEmp && (
-        <div className="mt-4">
-          <RepeatedTasksList user={user} projects={[]} />
         </div>
       )}
 
@@ -600,7 +577,7 @@ export default function ManagerDashboard({ user }) {
         </div>
       )}
 
-      {(activeTab === 'work' || activeTab === 'to_verify' || activeTab === 'completed' || selectedEmp) && activeTab !== 'projects' && activeTab !== 'repeated_tasks' && (
+      {(activeTab === 'work' || activeTab === 'to_verify' || activeTab === 'completed' || selectedEmp) && activeTab !== 'projects' && (
         <>
           {/* Work Pillars: General Tasks, Vishwas, Avishkar, Nirantar, Saksham */}
           <div className="flex items-center gap-2 p-1.5 bg-gray-100/90 rounded-xl border border-gray-200/80 w-fit flex-wrap mb-3 shadow-xs">
