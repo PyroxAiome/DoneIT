@@ -336,7 +336,7 @@ export default function SalesLeadModal({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider block mb-1">Estimated Value (₹)</label>
               <input type="number" value={form.lead_value} onChange={handleChange('lead_value')} placeholder="e.g. 2500000" className="input-field" />
