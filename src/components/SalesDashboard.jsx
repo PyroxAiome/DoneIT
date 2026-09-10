@@ -7,7 +7,7 @@ import SalesGoalModal from './SalesGoalModal';
 import SalesMonthlyReport from './SalesMonthlyReport';
 import {
   TrendingUp, Target, Plus, Search, Filter, Briefcase,
-  CheckCircle2, Award, Tag, Calendar, UserCheck
+  CheckCircle2, Award, Tag, Calendar, UserCheck, Edit2, Trash2
 } from 'lucide-react';
 
 const STAGES = [
@@ -221,11 +221,41 @@ export default function SalesDashboard({ user, initialAssigneeId = '' }) {
                     onClick={() => setSelectedGoalId(isSelected ? null : g.id)}
                     className={`p-3.5 rounded-xl border cursor-pointer transition-all ${isSelected ? 'bg-amber-50/70 border-amber-400 ring-2 ring-amber-400/30' : 'bg-gray-50 border-gray-200 hover:bg-white hover:shadow-xs'}`}
                   >
-                    <div className="flex items-center justify-between mb-1">
-                      <h4 className="font-semibold text-xs text-gray-900 truncate">{g.name}</h4>
-                      <span className="text-[10px] uppercase font-semibold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-200">
-                        {g.period_type}
-                      </span>
+                    <div className="flex items-center justify-between mb-1 gap-2">
+                      <h4 className="font-semibold text-xs text-gray-900 truncate flex-1">{g.name}</h4>
+                      <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+                        <span className="text-[10px] uppercase font-semibold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-200">
+                          {g.period_type}
+                        </span>
+                        {['admin', 'sales_manager'].includes(user?.role) && (
+                          <div className="flex items-center gap-0.5 ml-1">
+                            <button
+                              onClick={() => { setEditingGoal(g); setShowGoalModal(true); }}
+                              className="p-1 hover:bg-amber-100 rounded text-gray-500 hover:text-amber-700 transition-colors"
+                              title="Edit Goal"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={async () => {
+                                if (window.confirm(`Delete Lakshya goal "${g.name}"?`)) {
+                                  try {
+                                    await api.deleteSalesGoal(g.id);
+                                    if (selectedGoalId === g.id) setSelectedGoalId(null);
+                                    fetchAllData();
+                                  } catch (err) {
+                                    alert(err.message || 'Failed to delete goal');
+                                  }
+                                }
+                              }}
+                              className="p-1 hover:bg-red-100 rounded text-gray-500 hover:text-red-600 transition-colors"
+                              title="Delete Goal"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </div>
 
                     <div className="space-y-1.5 text-xs text-gray-600 mt-2">
