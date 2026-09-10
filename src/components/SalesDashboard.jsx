@@ -43,7 +43,7 @@ const REGIONS = [
   { value: 'international', label: 'International' }
 ];
 
-export default function SalesDashboard({ user }) {
+export default function SalesDashboard({ user, initialAssigneeId = '' }) {
   // Main view tabs: 'board' | 'report'
   const [activeTab, setActiveTab] = useState('board');
 
@@ -63,7 +63,7 @@ export default function SalesDashboard({ user }) {
   const [sourceFilter, setSourceFilter] = useState('');
   const [regionFilter, setRegionFilter] = useState('');
   const [priorityFilter, setPriorityFilter] = useState('');
-  const [assigneeFilter, setAssigneeFilter] = useState('');
+  const [assigneeFilter, setAssigneeFilter] = useState(initialAssigneeId ? String(initialAssigneeId) : '');
 
   // Modals
   const [showLeadModal, setShowLeadModal] = useState(false);
@@ -71,6 +71,12 @@ export default function SalesDashboard({ user }) {
   const [showGoalModal, setShowGoalModal] = useState(false);
   const [editingGoal, setEditingGoal] = useState(null);
   const [selectedLeadId, setSelectedLeadId] = useState(null);
+
+  useEffect(() => {
+    if (initialAssigneeId !== undefined && initialAssigneeId !== null) {
+      setAssigneeFilter(initialAssigneeId ? String(initialAssigneeId) : '');
+    }
+  }, [initialAssigneeId]);
 
   useEffect(() => {
     fetchAllData();

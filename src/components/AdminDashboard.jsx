@@ -249,6 +249,13 @@ export default function AdminDashboard({ user }) {
   };
 
   const handleViewEmployeeTasks = (emp) => {
+    const isSalesUser = emp.role === 'sales_manager' || emp.role === 'sales_executive' || emp.can_access_sales;
+    if (isSalesUser) {
+      setSalesPersonFilter(String(emp.id));
+      setActiveTab('sales');
+      window.location.hash = 'sales';
+      return;
+    }
     setStatusFilter('');
     setEmployeeFilter(emp.id);
     setSelectedEmp(emp);
@@ -257,6 +264,13 @@ export default function AdminDashboard({ user }) {
   };
 
   const handleViewEmployeeTasksByStatus = (emp, status) => {
+    const isSalesUser = emp.role === 'sales_manager' || emp.role === 'sales_executive' || emp.can_access_sales;
+    if (isSalesUser) {
+      setSalesPersonFilter(String(emp.id));
+      setActiveTab('sales');
+      window.location.hash = 'sales';
+      return;
+    }
     setStatusFilter('');
     setPriorityFilter('');
     setCategoryFilter('');
@@ -539,7 +553,7 @@ export default function AdminDashboard({ user }) {
       )}
 
       {activeTab === 'sales' && (
-        <SalesDashboard user={user} />
+        <SalesDashboard user={user} initialAssigneeId={salesPersonFilter} />
       )}
 
       {(activeTab === 'work' || activeTab === 'all' || activeTab === 'completed' || activeTab === 'assigned_by_me' || activeTab === 'verified' || selectedEmp) && (
@@ -811,76 +825,101 @@ export default function AdminDashboard({ user }) {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-            {employees.filter(e => e.role !== 'admin').map((emp) => (
-              <div key={emp.id} className="bg-white border border-gray-200 rounded-xl p-4 group hover:shadow-md hover:border-gray-300 transition-all cursor-pointer"
-                onClick={() => handleViewEmployeeTasks(emp)}>
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-full bg-gray-100 border border-gray-200 flex items-center justify-center text-sm font-medium text-gray-500">
-                      {emp.name.charAt(0)}
+            {employees.filter(e => e.role !== 'admin').map((emp) => {
+              const isSalesUser = emp.role === 'sales_manager' || emp.role === 'sales_executive' || emp.can_access_sales;
+              return (
+                <div key={emp.id} className="bg-white border border-gray-200 rounded-xl p-4 group hover:shadow-md hover:border-gray-300 transition-all cursor-pointer"
+                  onClick={() => handleViewEmployeeTasks(emp)}>
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-full bg-gray-100 border border-gray-200 flex items-center justify-center text-sm font-medium text-gray-500">
+                        {emp.name.charAt(0)}
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-gray-800">{emp.name}</p>
+                        <p className="text-[10px] text-amber-700 font-semibold uppercase">{emp.role ? emp.role.replace('_', ' ') : ''}</p>
+                        {emp.role === 'intern' && (
+                          <p className="text-[10px] text-indigo-600 font-medium mt-0.5">
+                            Mentor: {emp.mentor_name || <span className="text-gray-400 italic">Not Assigned</span>}
+                          </p>
+                        )}
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-sm font-medium text-gray-800">{emp.name}</p>
-                      <p className="text-[10px] text-amber-700 font-semibold uppercase">{emp.role ? emp.role.replace('_', ' ') : ''}</p>
-                      {emp.role === 'intern' && (
-                        <p className="text-[10px] text-indigo-600 font-medium mt-0.5">
-                          Mentor: {emp.mentor_name || <span className="text-gray-400 italic">Not Assigned</span>}
-                        </p>
-                      )}
-                    </div>
+                    {emp.role !== 'admin' && (
+                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingUser(emp);
+                            setShowUserModal(true);
+                          }}
+                          className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-gray-700 transition-colors"
+                          title="Edit profile"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setDeleteUser(emp); }}
+                          className="p-1.5 hover:bg-red-50 rounded-lg text-gray-300 hover:text-red-500 transition-colors"
+                          title="Delete user"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )}
                   </div>
-                  {emp.role !== 'admin' && (
-                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setEditingUser(emp);
-                          setShowUserModal(true);
-                        }}
-                        className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-gray-700 transition-colors"
-                        title="Edit profile"
-                      >
-                        <Edit2 className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); setDeleteUser(emp); }}
-                        className="p-1.5 hover:bg-red-50 rounded-lg text-gray-300 hover:text-red-500 transition-colors"
-                        title="Delete user"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
+
+                  {isSalesUser ? (
+                    <>
+                      <div className="mt-3 flex items-center gap-1.5 text-xs text-amber-800 font-semibold bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200/60">
+                        💼 Sales Representative Profile
+                      </div>
+                      <div className="mt-4 pt-3 border-t border-gray-100">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleViewEmployeeTasks(emp);
+                          }}
+                          className="w-full text-center py-1.5 px-3 bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold rounded-lg transition-colors shadow-xs"
+                        >
+                          💼 Open Sales Pipeline
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="mt-3 flex items-center gap-2">
+                        <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                          <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${emp.avg_progress}%` }} />
+                        </div>
+                        <span className="text-[11px] text-gray-500">{emp.avg_progress}%</span>
+                      </div>
+                      <p className="text-xs text-gray-400 mt-1.5">{emp.task_count} task{emp.task_count !== 1 ? 's' : ''}</p>
+                      <div className="flex gap-2 mt-4 pt-3 border-t border-gray-100">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleViewEmployeeTasksByStatus(emp, 'in_progress');
+                          }}
+                          className="flex-1 text-center py-1.5 px-2 bg-amber-50 hover:bg-amber-100 text-amber-700 text-[10px] font-semibold rounded-lg transition-colors border border-amber-200/50"
+                        >
+                          In Progress
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleViewEmployeeTasksByStatus(emp, 'completed');
+                          }}
+                          className="flex-1 text-center py-1.5 px-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-[10px] font-semibold rounded-lg transition-colors border border-emerald-200/50"
+                        >
+                          Completed
+                        </button>
+                      </div>
+                    </>
                   )}
                 </div>
-                <div className="mt-3 flex items-center gap-2">
-                  <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                    <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${emp.avg_progress}%` }} />
-                  </div>
-                  <span className="text-[11px] text-gray-500">{emp.avg_progress}%</span>
-                </div>
-                <p className="text-xs text-gray-400 mt-1.5">{emp.task_count} task{emp.task_count !== 1 ? 's' : ''}</p>
-                <div className="flex gap-2 mt-4 pt-3 border-t border-gray-100">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleViewEmployeeTasksByStatus(emp, 'in_progress');
-                    }}
-                    className="flex-1 text-center py-1.5 px-2 bg-amber-50 hover:bg-amber-100 text-amber-700 text-[10px] font-semibold rounded-lg transition-colors border border-amber-200/50"
-                  >
-                    In Progress
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleViewEmployeeTasksByStatus(emp, 'completed');
-                    }}
-                    className="flex-1 text-center py-1.5 px-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-[10px] font-semibold rounded-lg transition-colors border border-emerald-200/50"
-                  >
-                    Completed
-                  </button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
