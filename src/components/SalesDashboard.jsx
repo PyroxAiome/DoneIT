@@ -129,8 +129,29 @@ export default function SalesDashboard({ user }) {
             <TrendingUp className="w-5 h-5" />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-gray-900">Sales Pipeline Command Center</h1>
-            <p className="text-xs text-gray-500">Track company sales leads, 10-stage funnel progress, and Lakshya target goals</p>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-xl font-bold text-gray-900">Sales Pipeline Command Center</h1>
+              {user?.role === 'admin' && (
+                <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200">
+                  Admin Master View
+                </span>
+              )}
+              {user?.role === 'sales_manager' && (
+                <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200">
+                  Sales Manager View
+                </span>
+              )}
+              {user?.role === 'sales_executive' && (
+                <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-gray-100 text-gray-700 border border-gray-200">
+                  Sales Executive • My Assigned Funnel
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-gray-500 mt-0.5">
+              {user?.role === 'sales_executive'
+                ? 'Managing your assigned client leads, stage progress, and personal activity logs'
+                : 'Track company sales leads, 10-stage funnel progress, and Lakshya target goals'}
+            </p>
           </div>
         </div>
 
@@ -304,15 +325,21 @@ export default function SalesDashboard({ user }) {
             </div>
 
             <div>
-              <select value={assigneeFilter} onChange={(e) => setAssigneeFilter(e.target.value)} className="input-field text-xs bg-gray-50">
-                <option value="">All Sales People</option>
-                {(employees.filter(e => e.role === 'sales_manager' || e.role === 'sales_executive' || e.can_access_sales).length > 0
-                  ? employees.filter(e => e.role === 'sales_manager' || e.role === 'sales_executive' || e.can_access_sales)
-                  : employees
-                ).map(emp => (
-                  <option key={emp.id} value={emp.id}>{emp.name}</option>
-                ))}
-              </select>
+              {user?.role === 'sales_executive' ? (
+                <div className="input-field text-xs bg-gray-100 text-gray-700 flex items-center justify-between font-medium cursor-not-allowed select-none">
+                  <span>👤 My Assigned Leads</span>
+                </div>
+              ) : (
+                <select value={assigneeFilter} onChange={(e) => setAssigneeFilter(e.target.value)} className="input-field text-xs bg-gray-50">
+                  <option value="">All Sales People</option>
+                  {(employees.filter(e => e.role === 'sales_manager' || e.role === 'sales_executive' || e.can_access_sales).length > 0
+                    ? employees.filter(e => e.role === 'sales_manager' || e.role === 'sales_executive' || e.can_access_sales)
+                    : employees
+                  ).map(emp => (
+                    <option key={emp.id} value={emp.id}>{emp.name}</option>
+                  ))}
+                </select>
+              )}
             </div>
 
             <div>
