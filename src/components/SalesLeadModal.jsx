@@ -170,22 +170,22 @@ export default function SalesLeadModal({ isOpen, onClose, onSave, editingLead, e
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm" onClick={onClose}>
-      <div className="card max-w-2xl w-full bg-white rounded-2xl shadow-xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between p-4 border-b border-gray-100 bg-amber-50/40">
+      <div className="card max-w-3xl w-full bg-white rounded-2xl shadow-xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between p-4 border-b border-gray-100 bg-white">
           <div className="flex items-center gap-2 text-gray-900">
-            <Briefcase className="w-5 h-5 text-amber-600" />
-            <h3 className="font-semibold">{editingLead ? 'Edit Sales Lead' : 'Create New Sales Lead'}</h3>
+            <Briefcase className="w-5 h-5 text-gray-700" />
+            <h3 className="font-semibold text-gray-900">{editingLead ? 'Edit Sales Lead' : 'Create New Sales Lead'}</h3>
           </div>
-          <button onClick={onClose} className="p-1 hover:bg-gray-200/50 rounded-lg transition-colors">
-            <X className="w-5 h-5 text-gray-500" />
+          <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-lg transition-colors">
+            <X className="w-5 h-5 text-gray-400" />
           </button>
         </div>
 
         {/* Quota Banner for Sales Executives */}
         {!editingLead && quota?.isRestricted && (
-          <div className="px-4 py-2 bg-amber-50/80 border-b border-amber-100 flex items-center justify-between text-xs text-amber-900">
+          <div className="px-4 py-2 bg-slate-50 border-b border-slate-200 flex items-center justify-between text-xs text-slate-800">
             <div className="flex items-center gap-1.5 font-medium">
-              <Info className="w-4 h-4 text-amber-600 shrink-0" />
+              <Info className="w-4 h-4 text-slate-600 shrink-0" />
               <span>Creation Limit: {quota.weekCount}/{quota.weekLimit} this week • {quota.monthCount}/{quota.monthLimit} this month</span>
             </div>
             {!quota.canCreate && (
@@ -201,9 +201,9 @@ export default function SalesLeadModal({ isOpen, onClose, onSave, editingLead, e
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="p-5 space-y-4 max-h-[75vh] overflow-y-auto">
+        <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
           {/* Title & Classification */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="sm:col-span-2">
               <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider block mb-1">Lead Title / Client Name *</label>
               <input
@@ -226,7 +226,7 @@ export default function SalesLeadModal({ isOpen, onClose, onSave, editingLead, e
 
           {/* Lakshya Goal Tagging */}
           {form.category === 'lakshya' && (
-            <div className="p-3 bg-amber-50/60 border border-amber-200 rounded-xl space-y-1 animate-in fade-in">
+            <div className="p-3.5 bg-amber-50/50 border border-amber-200 rounded-xl space-y-1 animate-in fade-in">
               <label className="text-xs font-semibold text-amber-900 flex items-center gap-1">
                 <Tag className="w-3.5 h-3.5 text-amber-600" />
                 Select Lakshya (Goal) Container
@@ -251,12 +251,12 @@ export default function SalesLeadModal({ isOpen, onClose, onSave, editingLead, e
             />
           </div>
 
-          {/* Predefined Dropdowns: Source, Industry, Product, Priority */}
-          <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+          {/* Classification Dropdowns: Source, Industry, Product, Priority (2x2 Grid for spacious fit) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider block mb-1">Lead Source</label>
               <select value={form.lead_source} onChange={handleChange('lead_source')} className="input-field">
-                <option value="">-- Select Source --</option>
+                <option value="">-- Select Lead Source --</option>
                 {SOURCES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
               </select>
             </div>
@@ -270,7 +270,7 @@ export default function SalesLeadModal({ isOpen, onClose, onSave, editingLead, e
             <div>
               <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider block mb-1">Product Category</label>
               <select value={form.product_category} onChange={handleChange('product_category')} className="input-field">
-                <option value="">-- Select Product --</option>
+                <option value="">-- Select Product Category --</option>
                 {PRODUCTS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
               </select>
             </div>
@@ -285,8 +285,8 @@ export default function SalesLeadModal({ isOpen, onClose, onSave, editingLead, e
             </div>
           </div>
 
-          {/* Value & Assignee & Expected Close */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {/* Value, Sales Person Assignment, Expected Close Date (3 Columns in max-w-3xl) */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
               <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider block mb-1">Estimated Value (₹)</label>
               <input
@@ -323,7 +323,7 @@ export default function SalesLeadModal({ isOpen, onClose, onSave, editingLead, e
           </div>
 
           {/* Region & Location Details */}
-          <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+          <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
             <h4 className="text-xs font-semibold text-slate-800 uppercase tracking-wider flex items-center gap-1">
               <MapPin className="w-3.5 h-3.5 text-slate-500" />
               Location & Region Details
@@ -352,7 +352,7 @@ export default function SalesLeadModal({ isOpen, onClose, onSave, editingLead, e
           </div>
 
           {/* External Consultant Info */}
-          <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+          <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
             <h4 className="text-xs font-semibold text-slate-800 uppercase tracking-wider">Consultant / Key Person Info</h4>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
