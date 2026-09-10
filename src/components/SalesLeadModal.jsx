@@ -171,9 +171,9 @@ export default function SalesLeadModal({ isOpen, onClose, onSave, editingLead, e
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm" onClick={onClose}>
       <div className="card max-w-2xl w-full bg-white rounded-2xl shadow-xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between p-4 border-b border-gray-100 bg-emerald-50/50">
-          <div className="flex items-center gap-2 text-emerald-900">
-            <Briefcase className="w-5 h-5 text-emerald-600" />
+        <div className="flex items-center justify-between p-4 border-b border-gray-100 bg-amber-50/40">
+          <div className="flex items-center gap-2 text-gray-900">
+            <Briefcase className="w-5 h-5 text-amber-600" />
             <h3 className="font-semibold">{editingLead ? 'Edit Sales Lead' : 'Create New Sales Lead'}</h3>
           </div>
           <button onClick={onClose} className="p-1 hover:bg-gray-200/50 rounded-lg transition-colors">
@@ -183,9 +183,9 @@ export default function SalesLeadModal({ isOpen, onClose, onSave, editingLead, e
 
         {/* Quota Banner for Sales Executives */}
         {!editingLead && quota?.isRestricted && (
-          <div className="px-4 py-2 bg-blue-50 border-b border-blue-100 flex items-center justify-between text-xs text-blue-800">
+          <div className="px-4 py-2 bg-amber-50/80 border-b border-amber-100 flex items-center justify-between text-xs text-amber-900">
             <div className="flex items-center gap-1.5 font-medium">
-              <Info className="w-4 h-4 text-blue-600 shrink-0" />
+              <Info className="w-4 h-4 text-amber-600 shrink-0" />
               <span>Creation Limit: {quota.weekCount}/{quota.weekLimit} this week • {quota.monthCount}/{quota.monthLimit} this month</span>
             </div>
             {!quota.canCreate && (
@@ -226,9 +226,9 @@ export default function SalesLeadModal({ isOpen, onClose, onSave, editingLead, e
 
           {/* Lakshya Goal Tagging */}
           {form.category === 'lakshya' && (
-            <div className="p-3 bg-emerald-50/70 border border-emerald-200 rounded-xl space-y-1 animate-in fade-in">
-              <label className="text-xs font-semibold text-emerald-900 flex items-center gap-1">
-                <Tag className="w-3.5 h-3.5 text-emerald-600" />
+            <div className="p-3 bg-amber-50/60 border border-amber-200 rounded-xl space-y-1 animate-in fade-in">
+              <label className="text-xs font-semibold text-amber-900 flex items-center gap-1">
+                <Tag className="w-3.5 h-3.5 text-amber-600" />
                 Select Lakshya (Goal) Container
               </label>
               <select value={form.goal_id} onChange={handleChange('goal_id')} className="input-field bg-white">
@@ -298,7 +298,7 @@ export default function SalesLeadModal({ isOpen, onClose, onSave, editingLead, e
               />
             </div>
             <div>
-              <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider block mb-1">Assignee</label>
+              <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider block mb-1">Assigned Sales Person *</label>
               <select
                 value={form.assignee_id}
                 onChange={handleChange('assignee_id')}

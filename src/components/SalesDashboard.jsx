@@ -240,22 +240,22 @@ export default function SalesDashboard({ user }) {
         </div>
 
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600 shrink-0">
+          <div className="w-10 h-10 rounded-lg bg-amber-50 flex items-center justify-center text-amber-600 shrink-0">
             <CheckCircle2 className="w-5 h-5" />
           </div>
           <div>
             <div className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Won Leads</div>
-            <div className="text-xl font-bold text-emerald-700">{wonLeads.length}</div>
+            <div className="text-xl font-bold text-amber-800">{wonLeads.length}</div>
           </div>
         </div>
 
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-purple-50 flex items-center justify-center text-purple-600 shrink-0">
+          <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center text-gray-600 shrink-0">
             <Award className="w-5 h-5" />
           </div>
           <div>
             <div className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Avg Probability</div>
-            <div className="text-xl font-bold text-purple-700">{avgProb}%</div>
+            <div className="text-xl font-bold text-gray-900">{avgProb}%</div>
           </div>
         </div>
       </div>
@@ -290,17 +290,29 @@ export default function SalesDashboard({ user }) {
         {/* Filters */}
         {activeTab !== 'report' && (
           <div className="grid grid-cols-1 sm:grid-cols-6 gap-2">
-            <div className="sm:col-span-2">
+            <div className="sm:col-span-1">
               <form onSubmit={handleSearchSubmit} className="relative">
                 <input
                   type="text"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search leads by title, city, consultant..."
+                  placeholder="Search leads..."
                   className="input-field text-xs pl-8 bg-gray-50"
                 />
                 <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-3" />
               </form>
+            </div>
+
+            <div>
+              <select value={assigneeFilter} onChange={(e) => setAssigneeFilter(e.target.value)} className="input-field text-xs bg-gray-50">
+                <option value="">All Sales People</option>
+                {(employees.filter(e => e.role === 'sales_manager' || e.role === 'sales_executive' || e.can_access_sales).length > 0
+                  ? employees.filter(e => e.role === 'sales_manager' || e.role === 'sales_executive' || e.can_access_sales)
+                  : employees
+                ).map(emp => (
+                  <option key={emp.id} value={emp.id}>{emp.name}</option>
+                ))}
+              </select>
             </div>
 
             <div>

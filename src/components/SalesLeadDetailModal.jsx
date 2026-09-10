@@ -2,8 +2,8 @@ import { useState, useEffect } from 'react';
 import { api } from '../lib/api';
 import {
   X, Briefcase, ChevronRight, Check, AlertCircle, ShieldAlert,
-  UserCheck, Users, Plus, Star, Trash2, Edit3, MessageSquare,
-  Clock, Calendar, Activity, TrendingUp, TrendingDown, Phone, Mail, Building
+  Users, Plus, Star, Trash2, Edit3, MessageSquare,
+  Clock, Calendar, Activity, TrendingUp, TrendingDown, Phone, Mail, Building, Tag, MapPin, User
 } from 'lucide-react';
 
 const STAGE_ORDER = [
@@ -123,7 +123,7 @@ export default function SalesLeadDetailModal({ leadId, isOpen, onClose, user, on
     setMovingStage(true);
     setError('');
     try {
-      const updated = await api.updateSalesLeadStage(lead.id, targetStage, stageNotes);
+      await api.updateSalesLeadStage(lead.id, targetStage, stageNotes);
       setStageNotes('');
       fetchLeadDetails();
       if (onUpdated) onUpdated();
@@ -213,42 +213,54 @@ export default function SalesLeadDetailModal({ leadId, isOpen, onClose, user, on
 
   const currentIdx = STAGE_ORDER.indexOf(lead?.current_stage || 'suspect');
 
+  const formatCurrency = (val) => {
+    if (!val || isNaN(val)) return '₹0';
+    if (val >= 10000000) return `₹${(parseFloat(val) / 10000000).toFixed(2)} Cr`;
+    if (val >= 100000) return `₹${(parseFloat(val) / 100000).toFixed(2)} Lakh`;
+    return `₹${parseFloat(val).toLocaleString('en-IN')}`;
+  };
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm" onClick={onClose}>
-      <div className="card max-w-4xl w-full bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
-        {/* Header Bar */}
-        <div className="p-5 border-b border-gray-100 bg-slate-900 text-white flex items-start justify-between">
-          <div>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/30 backdrop-blur-sm" onClick={onClose}>
+      <div className="bg-white border border-gray-200 rounded-2xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+
+        {/* Clean Light Modal Header (Matching TaskDetailModal) */}
+        <div className="flex items-start justify-between p-5 border-b border-gray-100">
+          <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 flex-wrap mb-1">
-              <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+              <span className="text-xs font-semibold px-2 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200">
                 {STAGE_LABELS[lead?.current_stage] || lead?.current_stage} ({lead?.probability_pct || 0}%)
               </span>
               {lead?.category === 'lakshya' && (
-                <span className="text-xs font-semibold px-2 py-0.5 rounded bg-emerald-400/20 text-emerald-200 border border-emerald-400/30">
-                  🎯 Lakshya
+                <span className="text-xs font-semibold px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200 flex items-center gap-1">
+                  <Tag className="w-3 h-3 text-emerald-600" />
+                  Lakshya
                 </span>
               )}
               {lead?.region && (
-                <span className="text-xs text-slate-300">
-                  📍 {lead.city ? `${lead.city}, ` : ''}{lead.region.replace('_', ' ')}
+                <span className="text-xs text-gray-500 flex items-center gap-1">
+                  <MapPin className="w-3 h-3 text-gray-400" />
+                  {lead.city ? `${lead.city}, ` : ''}{lead.region.replace('_', ' ')}
                 </span>
               )}
             </div>
-            <h2 className="text-xl font-bold">{lead?.title || 'Sales Lead Details'}</h2>
-            <div className="text-xs text-slate-400 mt-1 flex items-center gap-3">
-              <span>Assigned: <strong className="text-slate-200">{lead?.assignee_name || 'Unassigned'}</strong></span>
-              <span>Value: <strong className="text-emerald-400">₹{lead?.lead_value ? lead.lead_value.toLocaleString('en-IN') : 0}</strong></span>
-              {lead?.consultant_name && <span>Consultant: <strong className="text-slate-200">{lead.consultant_name}</strong></span>}
+
+            <h2 className="font-semibold text-lg text-gray-900 truncate">{lead?.title || 'Sales Lead Details'}</h2>
+
+            <div className="text-xs text-gray-500 mt-1 flex items-center gap-3 flex-wrap">
+              <span>Assigned Sales Person: <strong className="text-gray-900 font-semibold">{lead?.assignee_name || 'Unassigned'}</strong></span>
+              <span>Lead Value: <strong className="text-amber-700 font-bold">{formatCurrency(lead?.lead_value)}</strong></span>
+              {lead?.consultant_name && <span>Consultant: <strong className="text-gray-800">{lead.consultant_name}</strong></span>}
             </div>
           </div>
 
-          <button onClick={onClose} className="p-1.5 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white transition-colors">
-            <X className="w-6 h-6" />
+          <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded transition-colors shrink-0 ml-3">
+            <X className="w-5 h-5 text-gray-400" />
           </button>
         </div>
 
         {error && (
-          <div className="m-4 flex items-center gap-2 text-red-600 text-sm bg-red-50 border border-red-200 rounded-xl px-3 py-2">
+          <div className="mx-5 mt-4 flex items-center gap-2 text-red-600 text-sm bg-red-50 border border-red-200 rounded-xl px-3 py-2">
             <AlertCircle className="w-4 h-4 shrink-0" />
             {error}
           </div>
@@ -256,37 +268,37 @@ export default function SalesLeadDetailModal({ leadId, isOpen, onClose, user, on
 
         {loading ? (
           <div className="p-12 text-center text-gray-500">
-            <div className="w-8 h-8 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+            <div className="w-8 h-8 border-2 border-amber-600 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
             Loading lead details...
           </div>
         ) : (
           <>
-            {/* Tabs Bar */}
-            <div className="flex border-b border-gray-200 bg-slate-50 px-5 gap-2 overflow-x-auto">
+            {/* Clean Tabs Navigation Bar (Matching TaskDetailModal) */}
+            <div className="flex border-b border-gray-100 bg-white px-5 gap-1 overflow-x-auto">
               <button
                 onClick={() => setActiveTab('pipeline')}
-                className={`py-3 px-4 text-xs font-semibold border-b-2 transition-colors flex items-center gap-1.5 whitespace-nowrap ${activeTab === 'pipeline' ? 'border-emerald-600 text-emerald-700 bg-white' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+                className={`py-3 px-4 text-xs font-semibold border-b-2 transition-colors flex items-center gap-1.5 whitespace-nowrap ${activeTab === 'pipeline' ? 'border-amber-600 text-amber-700' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
               >
                 <TrendingUp className="w-4 h-4" />
                 Pipeline Progress
               </button>
               <button
                 onClick={() => setActiveTab('contacts')}
-                className={`py-3 px-4 text-xs font-semibold border-b-2 transition-colors flex items-center gap-1.5 whitespace-nowrap ${activeTab === 'contacts' ? 'border-emerald-600 text-emerald-700 bg-white' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+                className={`py-3 px-4 text-xs font-semibold border-b-2 transition-colors flex items-center gap-1.5 whitespace-nowrap ${activeTab === 'contacts' ? 'border-amber-600 text-amber-700' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
               >
                 <Users className="w-4 h-4" />
-                Contacts ({lead.contacts?.length || 0})
+                Client Contacts ({lead.contacts?.length || 0})
               </button>
               <button
                 onClick={() => setActiveTab('daily-logs')}
-                className={`py-3 px-4 text-xs font-semibold border-b-2 transition-colors flex items-center gap-1.5 whitespace-nowrap ${activeTab === 'daily-logs' ? 'border-emerald-600 text-emerald-700 bg-white' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+                className={`py-3 px-4 text-xs font-semibold border-b-2 transition-colors flex items-center gap-1.5 whitespace-nowrap ${activeTab === 'daily-logs' ? 'border-amber-600 text-amber-700' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
               >
                 <MessageSquare className="w-4 h-4" />
                 Daily Achievements ({dailyLogs.length})
               </button>
               <button
                 onClick={() => setActiveTab('timeline')}
-                className={`py-3 px-4 text-xs font-semibold border-b-2 transition-colors flex items-center gap-1.5 whitespace-nowrap ${activeTab === 'timeline' ? 'border-emerald-600 text-emerald-700 bg-white' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+                className={`py-3 px-4 text-xs font-semibold border-b-2 transition-colors flex items-center gap-1.5 whitespace-nowrap ${activeTab === 'timeline' ? 'border-amber-600 text-amber-700' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
               >
                 <Activity className="w-4 h-4" />
                 Timeline / Activities ({lead.activities?.length || 0})
@@ -294,23 +306,24 @@ export default function SalesLeadDetailModal({ leadId, isOpen, onClose, user, on
             </div>
 
             {/* Tab Body */}
-            <div className="p-6 overflow-y-auto flex-1">
+            <div className="p-6 overflow-y-auto flex-1 space-y-6">
+
               {/* ── TAB 1: PIPELINE PROGRESS ── */}
               {activeTab === 'pipeline' && (
                 <div className="space-y-6">
-                  {/* 10-Stage Funnel Progress Bar */}
+                  {/* Clean 10-Stage Funnel Progress Grid */}
                   <div>
-                    <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">10-Stage Funnel Status</h3>
-                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                    <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">10-Stage Funnel Status</h3>
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
                       {STAGE_ORDER.map((stageKey, idx) => {
                         const isCurrent = stageKey === lead.current_stage;
                         const isCompleted = idx < currentIdx;
                         const isSkipped = skippedList.includes(stageKey);
 
                         let bgClass = 'bg-gray-50 text-gray-400 border-gray-200';
-                        if (isCurrent) bgClass = 'bg-emerald-500 text-white font-bold border-emerald-600 shadow-md ring-2 ring-emerald-300';
-                        else if (isSkipped) bgClass = 'bg-red-100 text-red-700 border-red-300 font-semibold';
-                        else if (isCompleted) bgClass = 'bg-emerald-100 text-emerald-800 border-emerald-300';
+                        if (isCurrent) bgClass = 'bg-amber-600 text-white font-bold border-amber-700 shadow-xs';
+                        else if (isSkipped) bgClass = 'bg-red-50 text-red-700 border-red-200 font-semibold';
+                        else if (isCompleted) bgClass = 'bg-gray-100 text-gray-800 border-gray-200 font-medium';
 
                         return (
                           <div
@@ -330,12 +343,12 @@ export default function SalesLeadDetailModal({ leadId, isOpen, onClose, user, on
                     </div>
                   </div>
 
-                  {/* Move Stage Box */}
-                  <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
-                    <h4 className="text-xs font-semibold text-slate-800 uppercase tracking-wider">Update Pipeline Stage</h4>
+                  {/* Clean Update Stage Box */}
+                  <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+                    <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Update Pipeline Stage</h4>
                     <div className="flex flex-col sm:flex-row gap-3 items-end">
                       <div className="flex-1 w-full">
-                        <label className="text-[11px] text-slate-600 block mb-1">New Pipeline Stage</label>
+                        <label className="text-[11px] text-slate-600 font-medium block mb-1">New Pipeline Stage</label>
                         <select
                           value={targetStage}
                           onChange={(e) => setTargetStage(e.target.value)}
@@ -347,7 +360,7 @@ export default function SalesLeadDetailModal({ leadId, isOpen, onClose, user, on
                         </select>
                       </div>
                       <div className="flex-[2] w-full">
-                        <label className="text-[11px] text-slate-600 block mb-1">Stage Move Notes (Optional)</label>
+                        <label className="text-[11px] text-slate-600 font-medium block mb-1">Stage Move Notes (Optional)</label>
                         <input
                           type="text"
                           value={stageNotes}
@@ -366,17 +379,17 @@ export default function SalesLeadDetailModal({ leadId, isOpen, onClose, user, on
                     </div>
                   </div>
 
-                  {/* Stage Transition History */}
+                  {/* Audit History of Stage Transitions */}
                   <div>
-                    <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Audit History of Stage Transitions</h3>
+                    <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Audit History of Stage Transitions</h3>
                     {lead.history?.length === 0 ? (
                       <p className="text-xs text-gray-400 italic">No transition history recorded yet.</p>
                     ) : (
-                      <div className="relative border-l-2 border-slate-200 ml-3 space-y-4 pl-4">
+                      <div className="relative border-l-2 border-gray-200 ml-3 space-y-4 pl-4">
                         {lead.history?.map((h, i) => (
                           <div key={h.id || i} className="relative text-xs">
-                            <div className="absolute -left-[23px] top-0.5 w-3 h-3 rounded-full bg-emerald-500 border-2 border-white" />
-                            <div className="font-semibold text-slate-800">
+                            <div className="absolute -left-[23px] top-0.5 w-3 h-3 rounded-full bg-amber-500 border-2 border-white" />
+                            <div className="font-semibold text-gray-900">
                               {h.from_stage ? `${STAGE_LABELS[h.from_stage]} ➔ ` : ''}{STAGE_LABELS[h.to_stage]}
                               {h.was_skipped && (
                                 <span className="ml-2 text-[10px] text-red-600 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded font-bold">
@@ -384,10 +397,10 @@ export default function SalesLeadDetailModal({ leadId, isOpen, onClose, user, on
                                 </span>
                               )}
                             </div>
-                            <div className="text-[11px] text-slate-500 mt-0.5">
+                            <div className="text-[11px] text-gray-500 mt-0.5">
                               By <strong>{h.changed_by_name || 'System'}</strong> on {new Date(h.created_at).toLocaleString()}
                             </div>
-                            {h.notes && <p className="text-slate-600 bg-slate-50 p-2 rounded-lg mt-1 italic">{h.notes}</p>}
+                            {h.notes && <p className="text-gray-700 bg-gray-50 p-2 rounded-lg mt-1 italic border border-gray-100">{h.notes}</p>}
                           </div>
                         ))}
                       </div>
@@ -400,7 +413,7 @@ export default function SalesLeadDetailModal({ leadId, isOpen, onClose, user, on
               {activeTab === 'contacts' && (
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
-                    <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Client / Suspect Side Contacts</h3>
+                    <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider">Client / Suspect Side Contacts</h3>
                     <button
                       onClick={() => { setShowContactForm(!showContactForm); setEditingContact(null); }}
                       className="btn-amber text-xs px-3 py-1.5 flex items-center gap-1"
@@ -412,8 +425,8 @@ export default function SalesLeadDetailModal({ leadId, isOpen, onClose, user, on
 
                   {/* Add / Edit Contact Form */}
                   {showContactForm && (
-                    <form onSubmit={handleSaveContact} className="p-4 bg-emerald-50/60 border border-emerald-200 rounded-2xl space-y-3 animate-in fade-in">
-                      <h4 className="text-xs font-semibold text-emerald-900">{editingContact ? 'Edit Contact' : 'New Contact Person'}</h4>
+                    <form onSubmit={handleSaveContact} className="p-4 bg-gray-50 border border-gray-200 rounded-xl space-y-3 animate-in fade-in">
+                      <h4 className="text-xs font-semibold text-gray-900">{editingContact ? 'Edit Contact' : 'New Contact Person'}</h4>
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                         <div>
                           <label className="text-[11px] text-gray-600 block mb-1">Contact Name *</label>
@@ -497,7 +510,7 @@ export default function SalesLeadDetailModal({ leadId, isOpen, onClose, user, on
                   ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       {lead.contacts?.map(c => (
-                        <div key={c.id} className="p-3.5 border border-gray-200 rounded-xl bg-white space-y-2 relative group hover:border-emerald-300">
+                        <div key={c.id} className="p-3.5 border border-gray-200 rounded-xl bg-white space-y-2 relative group hover:border-amber-400">
                           <div className="flex items-start justify-between">
                             <div>
                               <h4 className="font-semibold text-sm text-gray-900 flex items-center gap-1.5">
@@ -509,7 +522,7 @@ export default function SalesLeadDetailModal({ leadId, isOpen, onClose, user, on
                                 )}
                               </h4>
                               {c.contact_role && (
-                                <span className="text-xs text-emerald-700 font-medium">{CONTACT_ROLES.find(r => r.value === c.contact_role)?.label || c.contact_role}</span>
+                                <span className="text-xs text-amber-800 font-medium">{CONTACT_ROLES.find(r => r.value === c.contact_role)?.label || c.contact_role}</span>
                               )}
                             </div>
 
@@ -537,11 +550,11 @@ export default function SalesLeadDetailModal({ leadId, isOpen, onClose, user, on
               {activeTab === 'daily-logs' && (
                 <div className="space-y-6">
                   {/* Daily Log Entry Form */}
-                  <form onSubmit={handleSaveDailyLog} className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
-                    <h4 className="text-xs font-semibold text-slate-800 uppercase tracking-wider">Log Today's Progress / Activity</h4>
+                  <form onSubmit={handleSaveDailyLog} className="p-4 bg-gray-50 border border-gray-200 rounded-xl space-y-3">
+                    <h4 className="text-xs font-bold text-gray-800 uppercase tracking-wider">Log Today's Progress / Activity</h4>
                     <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                       <div>
-                        <label className="text-[11px] text-slate-600 block mb-1">Date</label>
+                        <label className="text-[11px] text-gray-600 block mb-1">Date</label>
                         <input
                           type="date"
                           value={logDate}
@@ -550,7 +563,7 @@ export default function SalesLeadDetailModal({ leadId, isOpen, onClose, user, on
                         />
                       </div>
                       <div className="sm:col-span-3">
-                        <label className="text-[11px] text-slate-600 block mb-1">Progress Details</label>
+                        <label className="text-[11px] text-gray-600 block mb-1">Progress Details</label>
                         <input
                           type="text"
                           value={logContent}
@@ -571,9 +584,9 @@ export default function SalesLeadDetailModal({ leadId, isOpen, onClose, user, on
                       <p className="text-xs text-gray-400 italic text-center p-4">No daily logs submitted yet.</p>
                     ) : (
                       dailyLogs.map(log => (
-                        <div key={log.id} className="p-4 border border-gray-200 rounded-2xl bg-white space-y-3">
+                        <div key={log.id} className="p-4 border border-gray-200 rounded-xl bg-white space-y-3">
                           <div className="flex items-center justify-between text-xs text-gray-500 border-b border-gray-100 pb-2">
-                            <span className="font-semibold text-slate-800">{log.user_name}</span>
+                            <span className="font-semibold text-gray-900">{log.user_name}</span>
                             <span>{new Date(log.log_date).toLocaleDateString('en-IN', { weekday: 'short', month: 'short', day: 'numeric' })}</span>
                           </div>
                           <p className="text-xs text-gray-800">{log.content}</p>
@@ -581,9 +594,9 @@ export default function SalesLeadDetailModal({ leadId, isOpen, onClose, user, on
                           {/* Comments section */}
                           <div className="pt-2 border-t border-gray-100 space-y-2">
                             {log.comments?.map(cmt => (
-                              <div key={cmt.id} className="text-[11px] bg-slate-50 p-2 rounded-lg">
-                                <span className="font-semibold text-slate-700">{cmt.user_name}: </span>
-                                <span className="text-slate-600">{cmt.comment_text}</span>
+                              <div key={cmt.id} className="text-[11px] bg-gray-50 p-2 rounded-lg border border-gray-100">
+                                <span className="font-semibold text-gray-800">{cmt.user_name}: </span>
+                                <span className="text-gray-700">{cmt.comment_text}</span>
                               </div>
                             ))}
 
@@ -609,7 +622,7 @@ export default function SalesLeadDetailModal({ leadId, isOpen, onClose, user, on
               {activeTab === 'timeline' && (
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
-                    <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Activities & Event Timeline</h3>
+                    <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider">Activities & Event Timeline</h3>
                     <button
                       onClick={() => setShowActivityForm(!showActivityForm)}
                       className="btn-amber text-xs px-3 py-1.5 flex items-center gap-1"
@@ -621,8 +634,8 @@ export default function SalesLeadDetailModal({ leadId, isOpen, onClose, user, on
 
                   {/* Log Activity Form */}
                   {showActivityForm && (
-                    <form onSubmit={handleSaveActivity} className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3 animate-in fade-in">
-                      <h4 className="text-xs font-semibold text-slate-800">Log Activity or Probability Event</h4>
+                    <form onSubmit={handleSaveActivity} className="p-4 bg-gray-50 border border-gray-200 rounded-xl space-y-3 animate-in fade-in">
+                      <h4 className="text-xs font-semibold text-gray-900">Log Activity or Probability Event</h4>
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                         <div>
                           <label className="text-[11px] text-gray-600 block mb-1">Activity Type *</label>
@@ -692,12 +705,12 @@ export default function SalesLeadDetailModal({ leadId, isOpen, onClose, user, on
                   {lead.activities?.length === 0 ? (
                     <p className="text-xs text-gray-400 italic p-4 text-center border border-dashed rounded-xl">No activities logged yet.</p>
                   ) : (
-                    <div className="relative border-l-2 border-slate-200 ml-3 space-y-4 pl-4">
+                    <div className="relative border-l-2 border-gray-200 ml-3 space-y-4 pl-4">
                       {lead.activities?.map(act => (
                         <div key={act.id} className="relative text-xs space-y-1">
-                          <div className={`absolute -left-[23px] top-0.5 w-3 h-3 rounded-full border-2 border-white ${act.activity_type === 'negative_event' ? 'bg-red-500' : 'bg-emerald-500'}`} />
+                          <div className={`absolute -left-[23px] top-0.5 w-3 h-3 rounded-full border-2 border-white ${act.activity_type === 'negative_event' ? 'bg-red-500' : 'bg-amber-500'}`} />
                           <div className="flex items-center gap-2">
-                            <span className="font-semibold text-slate-800">
+                            <span className="font-semibold text-gray-900">
                               {ACTIVITY_TYPES.find(a => a.value === act.activity_type)?.label || act.activity_type}
                             </span>
                             {act.negative_reason && (
@@ -711,8 +724,8 @@ export default function SalesLeadDetailModal({ leadId, isOpen, onClose, user, on
                               </span>
                             )}
                           </div>
-                          <p className="text-slate-700">{act.description}</p>
-                          <div className="text-[10px] text-slate-400">
+                          <p className="text-gray-700">{act.description}</p>
+                          <div className="text-[10px] text-gray-400">
                             Logged by {act.logged_by_name || 'System'} on {act.activity_date || new Date(act.created_at).toLocaleDateString()}
                           </div>
                         </div>

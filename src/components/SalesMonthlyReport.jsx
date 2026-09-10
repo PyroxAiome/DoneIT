@@ -46,7 +46,7 @@ export default function SalesMonthlyReport() {
   if (loading) {
     return (
       <div className="p-12 text-center text-gray-500">
-        <div className="w-8 h-8 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+        <div className="w-8 h-8 border-2 border-amber-600 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
         Loading sales monthly report...
       </div>
     );
@@ -64,7 +64,7 @@ export default function SalesMonthlyReport() {
       <div className="flex items-center justify-between bg-white p-4 rounded-2xl border border-gray-200/80 shadow-xs">
         <div>
           <h2 className="text-base font-bold text-gray-900 flex items-center gap-2">
-            <Calendar className="w-5 h-5 text-emerald-600" />
+            <Calendar className="w-5 h-5 text-amber-600" />
             Monthly Sales Performance Report
           </h2>
           <p className="text-xs text-gray-500">Pipeline health, conversion metrics, and team performance overview</p>
@@ -86,32 +86,32 @@ export default function SalesMonthlyReport() {
         <div className="card p-4 bg-white border border-gray-200/80 rounded-2xl">
           <div className="text-xs font-medium text-gray-500 uppercase tracking-wider">Total Active Leads</div>
           <div className="text-2xl font-bold text-gray-900 mt-1">{summary.total_leads || 0}</div>
-          <div className="text-xs text-emerald-600 font-medium mt-1">Avg Probability: {summary.avg_probability || 0}%</div>
+          <div className="text-xs text-amber-700 font-medium mt-1">Avg Probability: {summary.avg_probability || 0}%</div>
         </div>
 
         <div className="card p-4 bg-white border border-gray-200/80 rounded-2xl">
           <div className="text-xs font-medium text-gray-500 uppercase tracking-wider">Total Pipeline Value</div>
-          <div className="text-2xl font-bold text-emerald-700 mt-1">{formatCurrency(summary.total_pipeline_value)}</div>
+          <div className="text-2xl font-bold text-amber-700 mt-1">{formatCurrency(summary.total_pipeline_value)}</div>
           <div className="text-xs text-gray-500 mt-1">Across all 10 stages</div>
         </div>
 
         <div className="card p-4 bg-white border border-gray-200/80 rounded-2xl">
           <div className="text-xs font-medium text-gray-500 uppercase tracking-wider">New Enquiries ({selectedMonth})</div>
-          <div className="text-2xl font-bold text-blue-700 mt-1">{monthlyNew.new_leads_count || 0}</div>
-          <div className="text-xs text-blue-600 mt-1">{formatCurrency(monthlyNew.new_leads_value)} added</div>
+          <div className="text-2xl font-bold text-gray-900 mt-1">{monthlyNew.new_leads_count || 0}</div>
+          <div className="text-xs text-amber-700 font-medium mt-1">{formatCurrency(monthlyNew.new_leads_value)} added</div>
         </div>
 
         <div className="card p-4 bg-white border border-gray-200/80 rounded-2xl">
           <div className="text-xs font-medium text-gray-500 uppercase tracking-wider">Won Deals (Order/Billing)</div>
-          <div className="text-2xl font-bold text-green-700 mt-1">{summary.won_leads || 0}</div>
-          <div className="text-xs text-green-600 font-medium mt-1">{formatCurrency(summary.won_value)} closed</div>
+          <div className="text-2xl font-bold text-amber-800 mt-1">{summary.won_leads || 0}</div>
+          <div className="text-xs text-amber-700 font-medium mt-1">{formatCurrency(summary.won_value)} closed</div>
         </div>
       </div>
 
       {/* Funnel Stage Breakdown */}
       <div className="card p-5 bg-white border border-gray-200/80 rounded-2xl space-y-4">
         <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
-          <TrendingUp className="w-4 h-4 text-emerald-600" />
+          <TrendingUp className="w-4 h-4 text-amber-600" />
           Pipeline Funnel Stage Breakdown
         </h3>
 
@@ -122,7 +122,7 @@ export default function SalesMonthlyReport() {
               <div key={stageKey} className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-center">
                 <div className="text-[11px] font-semibold text-slate-600 uppercase truncate">{STAGE_LABELS[stageKey]}</div>
                 <div className="text-lg font-bold text-slate-900 mt-0.5">{item.count}</div>
-                <div className="text-xs font-medium text-emerald-700 mt-0.5">{formatCurrency(item.total_value)}</div>
+                <div className="text-xs font-medium text-amber-700 mt-0.5">{formatCurrency(item.total_value)}</div>
               </div>
             );
           })}
@@ -132,7 +132,7 @@ export default function SalesMonthlyReport() {
       {/* Sales Team Performance Table */}
       <div className="card p-5 bg-white border border-gray-200/80 rounded-2xl space-y-4">
         <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
-          <Users className="w-4 h-4 text-emerald-600" />
+          <Users className="w-4 h-4 text-amber-600" />
           Salesperson Performance Table
         </h3>
 
