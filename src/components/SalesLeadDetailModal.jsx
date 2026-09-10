@@ -125,11 +125,14 @@ export default function SalesLeadDetailModal({ leadId, isOpen, onClose, user, on
   // ── Stage Transition Handler ──
   const handleStageMove = async () => {
     if (!targetStage) return;
-    if (targetStage === lead.current_stage && !stageNotes.trim()) return;
+    if (!stageNotes.trim()) {
+      setError('Stage move notes are required to change stage');
+      return;
+    }
     setMovingStage(true);
     setError('');
     try {
-      await api.updateSalesLeadStage(lead.id, targetStage, stageNotes);
+      await api.updateSalesLeadStage(lead.id, targetStage, stageNotes.trim());
       setStageNotes('');
       fetchLeadDetails();
       window.dispatchEvent(new CustomEvent('sales-updated'));
@@ -333,7 +336,7 @@ export default function SalesLeadDetailModal({ leadId, isOpen, onClose, user, on
                         let bgClass = 'bg-gray-50 text-gray-400 border-gray-200';
                         if (isCurrent) bgClass = 'bg-amber-600 text-white font-bold border-amber-700 shadow-xs';
                         else if (isSkipped) bgClass = 'bg-red-50 text-red-700 border-red-200 font-semibold';
-                        else if (isCompleted) bgClass = 'bg-gray-100 text-gray-800 border-gray-200 font-medium';
+                        else if (isCompleted) bgClass = 'bg-emerald-50 text-emerald-800 border-emerald-300 font-semibold shadow-2xs';
 
                         return (
                           <div
@@ -343,11 +346,15 @@ export default function SalesLeadDetailModal({ leadId, isOpen, onClose, user, on
                           >
                             <div className="text-[10px] opacity-75 uppercase font-medium">{idx + 1}. Stage</div>
                             <div className="font-semibold truncate">{STAGE_LABELS[stageKey]}</div>
-                            {isSkipped && (
+                            {isSkipped ? (
                               <div className="text-[9px] font-bold text-red-600 uppercase mt-0.5 flex items-center justify-center gap-0.5">
                                 <ShieldAlert className="w-2.5 h-2.5" /> Skipped
                               </div>
-                            )}
+                            ) : isCompleted ? (
+                              <div className="text-[9px] font-bold text-emerald-700 uppercase mt-0.5 flex items-center justify-center gap-0.5">
+                                <Check className="w-2.5 h-2.5 text-emerald-700" /> Confirmed
+                              </div>
+                            ) : null}
                           </div>
                         );
                       })}
@@ -371,19 +378,22 @@ export default function SalesLeadDetailModal({ leadId, isOpen, onClose, user, on
                         </select>
                       </div>
                       <div className="flex-[2] w-full">
-                        <label className="text-[11px] text-slate-600 font-medium block mb-1">Stage Move Notes (Optional)</label>
+                        <label className="text-[11px] text-slate-700 font-semibold block mb-1">
+                          Stage Move Notes <span className="text-red-500">*</span>
+                        </label>
                         <input
                           type="text"
                           value={stageNotes}
                           onChange={(e) => setStageNotes(e.target.value)}
-                          placeholder="e.g. Client agreed to presentation date..."
+                          placeholder="e.g. Client agreed to presentation date... (Required)"
                           className="input-field bg-white"
+                          required
                         />
                       </div>
                       <button
                         onClick={handleStageMove}
-                        disabled={movingStage || (targetStage === lead.current_stage && !stageNotes.trim())}
-                        className="btn-amber text-xs py-2 px-4 whitespace-nowrap disabled:opacity-50"
+                        disabled={movingStage || !stageNotes.trim()}
+                        className="btn-amber text-xs py-2 px-4 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         {movingStage ? 'Updating...' : 'Change Stage'}
                       </button>
