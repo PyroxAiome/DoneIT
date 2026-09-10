@@ -376,12 +376,13 @@ export default function SalesDashboard({ user, initialAssigneeId = '' }) {
               ) : (
                 <select value={assigneeFilter} onChange={(e) => setAssigneeFilter(e.target.value)} className="input-field text-xs bg-gray-50">
                   <option value="">All Sales People</option>
-                  {(employees.filter(e => e.role === 'sales_manager' || e.role === 'sales_executive' || e.can_access_sales).length > 0
-                    ? employees.filter(e => e.role === 'sales_manager' || e.role === 'sales_executive' || e.can_access_sales)
-                    : employees
-                  ).map(emp => (
-                    <option key={emp.id} value={emp.id}>{emp.name}</option>
-                  ))}
+                  {(() => {
+                    const salesPeople = employees.filter(e => e.role === 'sales_manager' || e.role === 'sales_executive' || (e.can_access_sales && e.role !== 'admin'));
+                    const displayList = salesPeople.length > 0 ? salesPeople : employees.filter(e => e.role !== 'admin');
+                    return displayList.map(emp => (
+                      <option key={emp.id} value={emp.id}>{emp.name}</option>
+                    ));
+                  })()}
                 </select>
               )}
             </div>

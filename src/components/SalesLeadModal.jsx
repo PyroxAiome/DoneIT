@@ -190,7 +190,7 @@ export default function SalesLeadModal({
     }
   };
 
-  const salesTeamMembers = employees.filter(e => e.role === 'sales_manager' || e.role === 'sales_executive' || e.can_access_sales);
+  const salesTeamMembers = employees.filter(e => e.role === 'sales_manager' || e.role === 'sales_executive' || (e.can_access_sales && e.role !== 'admin'));
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm" onClick={onClose}>
@@ -346,7 +346,7 @@ export default function SalesLeadModal({
               <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider block mb-1">Assigned Sales Person *</label>
               <select value={form.assignee_id} onChange={handleChange('assignee_id')} disabled={user?.role === 'sales_executive'} className="input-field disabled:bg-gray-100">
                 <option value="">-- Select Sales Person --</option>
-                {(salesTeamMembers.length > 0 ? salesTeamMembers : employees).map(emp => (
+                {(salesTeamMembers.length > 0 ? salesTeamMembers : employees.filter(e => e.role !== 'admin')).map(emp => (
                   <option key={emp.id} value={emp.id}>{emp.name} ({emp.role.replace('_', ' ')})</option>
                 ))}
               </select>
