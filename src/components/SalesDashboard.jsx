@@ -6,8 +6,8 @@ import SalesLeadDetailModal from './SalesLeadDetailModal';
 import SalesGoalModal from './SalesGoalModal';
 import SalesMonthlyReport from './SalesMonthlyReport';
 import {
-  Briefcase, Target, Plus, Search, Filter, RefreshCw, TrendingUp,
-  Award, ShieldAlert, CheckCircle2, UserCheck, Layers, ChevronRight, X, Sparkles
+  TrendingUp, Target, Plus, Search, Filter, Briefcase,
+  CheckCircle2, Award, Tag, Calendar, UserCheck
 } from 'lucide-react';
 
 const STAGES = [
@@ -44,7 +44,7 @@ const REGIONS = [
 ];
 
 export default function SalesDashboard({ user }) {
-  // Main view tabs: 'board' | 'list' | 'report'
+  // Main view tabs: 'board' | 'report'
   const [activeTab, setActiveTab] = useState('board');
 
   // Sub-filter: 'general' | 'lakshya'
@@ -121,46 +121,48 @@ export default function SalesDashboard({ user }) {
   const avgProb = leads.length > 0 ? Math.round(leads.reduce((sum, l) => sum + (l.probability_pct || 0), 0) / leads.length) : 0;
 
   return (
-    <div className="space-y-6 pb-12 max-w-7xl mx-auto px-4 sm:px-6">
-      {/* ── Sub-Category Header Bar (General vs Lakshya) ── */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 bg-white rounded-2xl border border-gray-200/80 shadow-xs">
-        <div>
-          <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-            <Briefcase className="w-6 h-6 text-emerald-600" />
-            Sales Pipeline Command Center
-          </h1>
-          <p className="text-xs text-gray-500">Track company sales leads, 10-stage funnel progress, and Lakshya target goals</p>
+    <div className="space-y-6">
+      {/* Top Title & Category Filter Bar */}
+      <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-600 shrink-0">
+            <TrendingUp className="w-5 h-5" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold text-gray-900">Sales Pipeline Command Center</h1>
+            <p className="text-xs text-gray-500">Track company sales leads, 10-stage funnel progress, and Lakshya target goals</p>
+          </div>
         </div>
 
         {/* Sub-filters Toggle */}
-        <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200">
+        <div className="flex items-center bg-gray-100 p-1 rounded-lg border border-gray-200">
           <button
             onClick={() => { setSubCategory('general'); setSelectedGoalId(null); }}
-            className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 ${subCategory === 'general' ? 'bg-white text-emerald-800 shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
+            className={`px-3.5 py-1.5 text-xs font-semibold rounded-md transition-all ${subCategory === 'general' ? 'bg-white text-gray-900 shadow-xs' : 'text-gray-600 hover:text-gray-900'}`}
           >
             📋 General Leads
           </button>
           <button
             onClick={() => { setSubCategory('lakshya'); setSelectedGoalId(null); }}
-            className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 ${subCategory === 'lakshya' ? 'bg-white text-emerald-800 shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
+            className={`px-3.5 py-1.5 text-xs font-semibold rounded-md transition-all ${subCategory === 'lakshya' ? 'bg-white text-amber-700 font-bold shadow-xs' : 'text-gray-600 hover:text-gray-900'}`}
           >
             🎯 Lakshya (Goal Leads)
           </button>
         </div>
       </div>
 
-      {/* ── Lakshya Goal Cards Banner (Shown when subCategory is lakshya) ── */}
+      {/* Lakshya Target Goal Containers Section */}
       {subCategory === 'lakshya' && (
-        <div className="card p-5 bg-gradient-to-r from-emerald-900 via-slate-900 to-emerald-950 text-white rounded-2xl space-y-4 shadow-lg animate-in fade-in">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 space-y-4 animate-in fade-in">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Target className="w-5 h-5 text-emerald-400" />
+            <div className="flex items-center gap-2 text-gray-900">
+              <Target className="w-5 h-5 text-amber-600" />
               <h3 className="font-bold text-sm">Lakshya Target Goal Containers</h3>
             </div>
             {['admin', 'sales_manager'].includes(user?.role) && (
               <button
                 onClick={() => { setEditingGoal(null); setShowGoalModal(true); }}
-                className="btn-amber text-xs px-3 py-1.5 flex items-center gap-1"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors shadow-xs text-xs font-medium"
               >
                 <Plus className="w-3.5 h-3.5" />
                 Create Lakshya Goal
@@ -169,7 +171,7 @@ export default function SalesDashboard({ user }) {
           </div>
 
           {goals.length === 0 ? (
-            <p className="text-xs text-slate-400 italic">No Lakshya goals created yet. Click above to define your first revenue goal target.</p>
+            <p className="text-xs text-gray-500 italic py-2">No Lakshya goals created yet. Click above to define your first revenue goal target.</p>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               {goals.map(g => {
@@ -182,29 +184,29 @@ export default function SalesDashboard({ user }) {
                   <div
                     key={g.id}
                     onClick={() => setSelectedGoalId(isSelected ? null : g.id)}
-                    className={`p-3.5 rounded-xl border cursor-pointer transition-all ${isSelected ? 'bg-emerald-500/20 border-emerald-400 ring-2 ring-emerald-400' : 'bg-slate-800/80 border-slate-700/80 hover:bg-slate-800'}`}
+                    className={`p-3.5 rounded-xl border cursor-pointer transition-all ${isSelected ? 'bg-amber-50/70 border-amber-400 ring-2 ring-amber-400/30' : 'bg-gray-50 border-gray-200 hover:bg-white hover:shadow-xs'}`}
                   >
                     <div className="flex items-center justify-between mb-1">
-                      <h4 className="font-semibold text-xs text-white truncate">{g.name}</h4>
-                      <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-emerald-400/20 text-emerald-300">
+                      <h4 className="font-semibold text-xs text-gray-900 truncate">{g.name}</h4>
+                      <span className="text-[10px] uppercase font-semibold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-200">
                         {g.period_type}
                       </span>
                     </div>
 
-                    <div className="space-y-1.5 text-xs text-slate-300 mt-2">
+                    <div className="space-y-1.5 text-xs text-gray-600 mt-2">
                       <div className="flex items-center justify-between">
                         <span>Revenue Progress:</span>
-                        <strong className="text-emerald-400">{formatCurrency(currentVal)} / {formatCurrency(targetVal)}</strong>
+                        <strong className="text-amber-700 font-bold">{formatCurrency(currentVal)} / {formatCurrency(targetVal)}</strong>
                       </div>
 
                       {/* Progress Bar */}
-                      <div className="w-full bg-slate-700 h-1.5 rounded-full overflow-hidden">
-                        <div className="bg-emerald-400 h-full transition-all" style={{ width: `${pct}%` }} />
+                      <div className="w-full bg-gray-200 h-1.5 rounded-full overflow-hidden">
+                        <div className="bg-amber-500 h-full transition-all" style={{ width: `${pct}%` }} />
                       </div>
 
-                      <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1">
+                      <div className="flex items-center justify-between text-[11px] text-gray-500 pt-1">
                         <span>{g.total_leads || 0} Leads • {g.won_leads || 0} Won</span>
-                        <span className="font-bold text-emerald-300">{pct}% Achieved</span>
+                        <span className="font-bold text-amber-700">{pct}% Achieved</span>
                       </div>
                     </div>
                   </div>
@@ -215,81 +217,77 @@ export default function SalesDashboard({ user }) {
         </div>
       )}
 
-      {/* ── Stats Summary Bar ── */}
+      {/* Summary Metric Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <div className="card p-3.5 bg-white border border-gray-200/80 rounded-2xl flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-700 shrink-0">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center text-gray-600 shrink-0">
             <Briefcase className="w-5 h-5" />
           </div>
           <div>
-            <div className="text-[11px] font-semibold text-gray-500 uppercase">Active Leads</div>
+            <div className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Active Leads</div>
             <div className="text-xl font-bold text-gray-900">{leads.length}</div>
           </div>
         </div>
 
-        <div className="card p-3.5 bg-white border border-gray-200/80 rounded-2xl flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600 shrink-0">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-amber-50 flex items-center justify-center text-amber-600 shrink-0">
             <TrendingUp className="w-5 h-5" />
           </div>
           <div>
-            <div className="text-[11px] font-semibold text-gray-500 uppercase">Pipeline Value</div>
-            <div className="text-xl font-bold text-emerald-700">{formatCurrency(totalValue)}</div>
+            <div className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Pipeline Value</div>
+            <div className="text-xl font-bold text-amber-700">{formatCurrency(totalValue)}</div>
           </div>
         </div>
 
-        <div className="card p-3.5 bg-white border border-gray-200/80 rounded-2xl flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-green-50 flex items-center justify-center text-green-600 shrink-0">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600 shrink-0">
             <CheckCircle2 className="w-5 h-5" />
           </div>
           <div>
-            <div className="text-[11px] font-semibold text-gray-500 uppercase">Won Leads</div>
-            <div className="text-xl font-bold text-green-700">{wonLeads.length}</div>
+            <div className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Won Leads</div>
+            <div className="text-xl font-bold text-emerald-700">{wonLeads.length}</div>
           </div>
         </div>
 
-        <div className="card p-3.5 bg-white border border-gray-200/80 rounded-2xl flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-purple-50 flex items-center justify-center text-purple-600 shrink-0">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-purple-50 flex items-center justify-center text-purple-600 shrink-0">
             <Award className="w-5 h-5" />
           </div>
           <div>
-            <div className="text-[11px] font-semibold text-gray-500 uppercase">Avg Probability</div>
+            <div className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Avg Probability</div>
             <div className="text-xl font-bold text-purple-700">{avgProb}%</div>
           </div>
         </div>
       </div>
 
-      {/* ── Main View Tabs & Filter Toolbar ── */}
-      <div className="bg-white p-4 rounded-2xl border border-gray-200/80 shadow-xs space-y-4">
+      {/* Navigation & Toolbar */}
+      <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm space-y-4">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-gray-100 pb-3">
-          {/* Main Navigation Sub-tabs */}
           <div className="flex gap-2">
             <button
               onClick={() => setActiveTab('board')}
-              className={`px-4 py-2 text-xs font-bold rounded-xl transition-all ${activeTab === 'board' ? 'bg-slate-900 text-white shadow-xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
+              className={`px-4 py-2 text-xs font-semibold rounded-lg transition-all ${activeTab === 'board' ? 'bg-amber-600 text-white shadow-xs' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
             >
               10-Stage Pipeline Board
             </button>
             <button
               onClick={() => setActiveTab('report')}
-              className={`px-4 py-2 text-xs font-bold rounded-xl transition-all ${activeTab === 'report' ? 'bg-slate-900 text-white shadow-xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
+              className={`px-4 py-2 text-xs font-semibold rounded-lg transition-all ${activeTab === 'report' ? 'bg-amber-600 text-white shadow-xs' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
             >
               Monthly Cycle Report
             </button>
           </div>
 
-          {/* Action Buttons */}
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => { setEditingLead(null); setShowLeadModal(true); }}
-              className="btn-amber text-xs px-3.5 py-2 flex items-center gap-1.5"
-            >
-              <Plus className="w-4 h-4" />
-              New Lead
-            </button>
-          </div>
+          <button
+            onClick={() => { setEditingLead(null); setShowLeadModal(true); }}
+            className="flex items-center gap-1.5 px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors shadow-xs text-xs font-semibold"
+          >
+            <Plus className="w-4 h-4" />
+            New Lead
+          </button>
         </div>
 
-        {/* Filters Toolbar */}
+        {/* Filters */}
         {activeTab !== 'report' && (
           <div className="grid grid-cols-1 sm:grid-cols-6 gap-2">
             <div className="sm:col-span-2">
@@ -299,35 +297,35 @@ export default function SalesDashboard({ user }) {
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="Search leads by title, city, consultant..."
-                  className="input-field text-xs pl-8 bg-slate-50"
+                  className="input-field text-xs pl-8 bg-gray-50"
                 />
                 <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-3" />
               </form>
             </div>
 
             <div>
-              <select value={stageFilter} onChange={(e) => setStageFilter(e.target.value)} className="input-field text-xs bg-slate-50">
+              <select value={stageFilter} onChange={(e) => setStageFilter(e.target.value)} className="input-field text-xs bg-gray-50">
                 <option value="">All Stages</option>
                 {STAGES.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
               </select>
             </div>
 
             <div>
-              <select value={sourceFilter} onChange={(e) => setSourceFilter(e.target.value)} className="input-field text-xs bg-slate-50">
+              <select value={sourceFilter} onChange={(e) => setSourceFilter(e.target.value)} className="input-field text-xs bg-gray-50">
                 <option value="">All Sources</option>
                 {SOURCES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
               </select>
             </div>
 
             <div>
-              <select value={regionFilter} onChange={(e) => setRegionFilter(e.target.value)} className="input-field text-xs bg-slate-50">
+              <select value={regionFilter} onChange={(e) => setRegionFilter(e.target.value)} className="input-field text-xs bg-gray-50">
                 <option value="">All Regions</option>
                 {REGIONS.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
               </select>
             </div>
 
             <div>
-              <select value={priorityFilter} onChange={(e) => setPriorityFilter(e.target.value)} className="input-field text-xs bg-slate-50">
+              <select value={priorityFilter} onChange={(e) => setPriorityFilter(e.target.value)} className="input-field text-xs bg-gray-50">
                 <option value="">All Priorities</option>
                 <option value="low">Low</option>
                 <option value="medium">Medium</option>
@@ -339,10 +337,10 @@ export default function SalesDashboard({ user }) {
         )}
       </div>
 
-      {/* ── Content View ── */}
+      {/* Main Content Area */}
       {loading ? (
         <div className="p-12 text-center text-gray-500">
-          <div className="w-8 h-8 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+          <div className="w-8 h-8 border-2 border-amber-600 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
           Loading sales data...
         </div>
       ) : activeTab === 'board' ? (
@@ -362,7 +360,7 @@ export default function SalesDashboard({ user }) {
         <SalesMonthlyReport />
       )}
 
-      {/* ── Modals ── */}
+      {/* Modals */}
       <SalesLeadModal
         isOpen={showLeadModal}
         onClose={() => setShowLeadModal(false)}

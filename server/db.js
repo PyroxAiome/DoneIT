@@ -575,14 +575,87 @@ const initDatabase = async () => {
   }
 
   // ── Seed Admin User ────────────────────────────────────────────
+  let adminId = null;
   const { rows } = await pool.query("SELECT id FROM users WHERE email = 'admin@admin.com'");
   if (rows.length === 0) {
     const hash = bcrypt.hashSync('admin', 10);
-    await pool.query(
-      'INSERT INTO users (name, email, password_hash, role, department) VALUES ($1, $2, $3, $4, $5)',
+    const { rows: seededAdmin } = await pool.query(
+      'INSERT INTO users (name, email, password_hash, role, department) VALUES ($1, $2, $3, $4, $5) RETURNING id',
       ['Admin', 'admin@admin.com', hash, 'admin', 'Executive']
     );
+    adminId = seededAdmin[0].id;
     console.log('Admin user seeded.');
+  } else {
+    adminId = rows[0].id;
+  }
+
+  // ── Seed Sample Sales Lakshya Goal & Leads ─────────────────────
+  try {
+    const { rows: existingGoals } = await pool.query("SELECT id FROM sales_goals WHERE name = 'Q3 2026 — ₹5 Cr Revenue Target'");
+    let goalId = null;
+    if (existingGoals.length === 0) {
+      const { rows: newGoal } = await pool.query(`
+        INSERT INTO sales_goals (name, description, target_value, target_leads, period_type, period_start, period_end, status, creator_id)
+        VALUES ('Q3 2026 — ₹5 Cr Revenue Target', 'Q3 Strategic enterprise building automation target for West & North regions', 50000000, 10, 'quarterly', '2026-07-01', '2026-09-30', 'active', $1)
+        RETURNING id
+      `, [adminId]);
+      goalId = newGoal[0].id;
+      console.log('Sample Lakshya Goal seeded.');
+    } else {
+      goalId = existingGoals[0].id;
+    }
+
+    // Seed General Lead 1
+    const { rows: genLeads } = await pool.query("SELECT id FROM sales_leads WHERE title = 'HDFC Bank - Mumbai HQ Automation'");
+    if (genLeads.length === 0) {
+      const { rows: newGenLead } = await pool.query(`
+        INSERT INTO sales_leads (
+          title, description, category, current_stage, lead_value, probability_pct,
+          lead_source, industry, product_category, priority, region, city, consultant_name,
+          consultant_firm, assignee_id, creator_id, enquiry_month
+        ) VALUES (
+          'HDFC Bank - Mumbai HQ Automation',
+          'Complete addressable fire alarm, PA system, and building management integration for 15-story corporate office.',
+          'general', 'enquiry', 12000000, 20,
+          'referral', 'banking', 'building_automation', 'high', 'west_india', 'Mumbai',
+          'Ramesh Kulkarni', 'Mechart Engineering Consultants', $1, $1, '2026-09'
+        ) RETURNING id
+      `, [adminId]);
+
+      // Add contact for General lead
+      await pool.query(`
+        INSERT INTO sales_lead_contacts (lead_id, contact_name, contact_role, contact_email, contact_phone, company_name, is_leverage, notes)
+        VALUES ($1, 'Vikram Sharma', 'technical_head', 'vikram.sharma@hdfc.com', '+91-9876543210', 'HDFC Bank', true, 'Key technical decision maker and internal champion')
+      `, [newGenLead[0].id]);
+      console.log('Sample General Lead seeded.');
+    }
+
+    // Seed Lakshya Lead 1
+    const { rows: lakLeads } = await pool.query("SELECT id FROM sales_leads WHERE title = 'DLF Cyber City - Gurgaon HVAC Solution'");
+    if (lakLeads.length === 0) {
+      const { rows: newLakLead } = await pool.query(`
+        INSERT INTO sales_leads (
+          title, description, category, goal_id, current_stage, lead_value, probability_pct,
+          lead_source, industry, product_category, priority, region, city, consultant_name,
+          consultant_firm, assignee_id, creator_id, enquiry_month
+        ) VALUES (
+          'DLF Cyber City - Gurgaon HVAC Solution',
+          'Integrated smart HVAC and temperature control system for commercial tower 4B.',
+          'lakshya', $2, 'demo', 25000000, 40,
+          'tender_portal', 'real_estate', 'hvac', 'critical', 'north_india', 'Gurgaon',
+          'Anil Mehta', 'Spectra MEP Consultants', $1, $1, '2026-09'
+        ) RETURNING id
+      `, [adminId, goalId]);
+
+      // Add contact for Lakshya lead
+      await pool.query(`
+        INSERT INTO sales_lead_contacts (lead_id, contact_name, contact_role, contact_email, contact_phone, company_name, is_leverage, notes)
+        VALUES ($1, 'Priya Desai', 'procurement', 'priya.desai@dlf.in', '+91-9811223344', 'DLF Infra', true, 'Lead procurement officer')
+      `, [newLakLead[0].id]);
+      console.log('Sample Lakshya Lead seeded.');
+    }
+  } catch (e) {
+    console.log('Sales seed note:', e.message);
   }
 
   console.log('PostgreSQL database initialized successfully.');

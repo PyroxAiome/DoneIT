@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import {
-  Building2, MapPin, User, DollarSign, AlertTriangle, Calendar,
-  MoreVertical, Edit3, Trash2, Tag, Star, Clock, ShieldAlert
+  Building2, MapPin, User, MoreVertical, Edit3, Trash2, Tag, Star, Clock, ShieldAlert
 } from 'lucide-react';
 
 const PRIORITY_STYLES = {
@@ -22,19 +21,6 @@ const STAGE_LABELS = {
   dfp: 'DFP',
   order: 'Order',
   billing: 'Billing'
-};
-
-const STAGE_COLORS = {
-  suspect: 'bg-slate-100 text-slate-700 border-slate-200',
-  prospect: 'bg-blue-50 text-blue-700 border-blue-200',
-  enquiry: 'bg-indigo-50 text-indigo-700 border-indigo-200',
-  presentation: 'bg-cyan-50 text-cyan-700 border-cyan-200',
-  demo: 'bg-purple-50 text-purple-700 border-purple-200',
-  spec_tender: 'bg-violet-50 text-violet-700 border-violet-200',
-  design_negotiation: 'bg-amber-50 text-amber-700 border-amber-200',
-  dfp: 'bg-orange-50 text-orange-700 border-orange-200',
-  order: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-  billing: 'bg-green-100 text-green-800 border-green-300'
 };
 
 export default function SalesLeadCard({ lead, onClick, onEdit, onDelete, onStageChange, userRole }) {
@@ -67,25 +53,25 @@ export default function SalesLeadCard({ lead, onClick, onEdit, onDelete, onStage
   return (
     <div
       onClick={onClick}
-      className={`card relative p-3.5 bg-white rounded-xl border border-gray-200/80 hover:border-emerald-300 hover:shadow-md transition-all cursor-pointer group ${PRIORITY_STYLES[lead.priority] || PRIORITY_STYLES.medium}`}
+      className={`card relative p-3.5 bg-white rounded-xl border border-gray-200 hover:border-amber-400 hover:shadow-md transition-all cursor-pointer group ${PRIORITY_STYLES[lead.priority] || PRIORITY_STYLES.medium}`}
     >
       {/* Top Header Row */}
       <div className="flex items-start justify-between gap-2 mb-2">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 flex-wrap mb-1">
-            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${STAGE_COLORS[lead.current_stage] || STAGE_COLORS.suspect}`}>
+            <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-gray-100 text-gray-700 border border-gray-200">
               {STAGE_LABELS[lead.current_stage] || lead.current_stage} ({lead.probability_pct || 0}%)
             </span>
 
             {lead.category === 'lakshya' && (
-              <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-0.5">
+              <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200 flex items-center gap-0.5">
                 <Tag className="w-2.5 h-2.5" />
                 Lakshya
               </span>
             )}
           </div>
 
-          <h4 className="font-semibold text-gray-900 text-sm truncate group-hover:text-emerald-700 transition-colors">
+          <h4 className="font-semibold text-gray-900 text-sm truncate group-hover:text-amber-700 transition-colors">
             {lead.title}
           </h4>
         </div>
@@ -123,13 +109,13 @@ export default function SalesLeadCard({ lead, onClick, onEdit, onDelete, onStage
       </div>
 
       {/* Value & Location Banner */}
-      <div className="flex items-center justify-between gap-2 py-1.5 px-2 bg-slate-50/80 rounded-lg mb-2 text-xs">
-        <div className="font-bold text-emerald-800 flex items-center gap-1">
+      <div className="flex items-center justify-between gap-2 py-1.5 px-2 bg-gray-50 rounded-lg mb-2 text-xs">
+        <div className="font-bold text-gray-900 flex items-center gap-1">
           {formatCurrency(lead.lead_value)}
         </div>
         {(lead.city || lead.region) && (
-          <div className="text-[11px] text-slate-500 flex items-center gap-1 truncate">
-            <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
+          <div className="text-[11px] text-gray-500 flex items-center gap-1 truncate">
+            <MapPin className="w-3 h-3 text-gray-400 shrink-0" />
             <span className="truncate">{lead.city ? `${lead.city}, ` : ''}{lead.region ? lead.region.replace('_', ' ') : ''}</span>
           </div>
         )}
@@ -155,8 +141,8 @@ export default function SalesLeadCard({ lead, onClick, onEdit, onDelete, onStage
         )}
 
         {lead.goal_name && (
-          <div className="flex items-center gap-1 text-emerald-700 font-medium truncate">
-            <Tag className="w-3 h-3 text-emerald-500 shrink-0" />
+          <div className="flex items-center gap-1 text-amber-800 font-medium truncate">
+            <Tag className="w-3 h-3 text-amber-600 shrink-0" />
             <span className="truncate">Goal: {lead.goal_name}</span>
           </div>
         )}
