@@ -89,6 +89,11 @@ export default function SalesLeadDetailModal({ leadId, isOpen, onClose, user, on
     if (isOpen && leadId) {
       fetchLeadDetails();
     }
+    const handleSalesUpdate = () => {
+      if (isOpen && leadId) fetchLeadDetails();
+    };
+    window.addEventListener('sales-updated', handleSalesUpdate);
+    return () => window.removeEventListener('sales-updated', handleSalesUpdate);
   }, [isOpen, leadId]);
 
   const fetchLeadDetails = async () => {
@@ -119,7 +124,8 @@ export default function SalesLeadDetailModal({ leadId, isOpen, onClose, user, on
 
   // ── Stage Transition Handler ──
   const handleStageMove = async () => {
-    if (!targetStage || targetStage === lead.current_stage) return;
+    if (!targetStage) return;
+    if (targetStage === lead.current_stage && !stageNotes.trim()) return;
     setMovingStage(true);
     setError('');
     try {
@@ -332,7 +338,8 @@ export default function SalesLeadDetailModal({ leadId, isOpen, onClose, user, on
                         return (
                           <div
                             key={stageKey}
-                            className={`p-2.5 rounded-xl border text-center text-xs transition-all ${bgClass}`}
+                            onClick={() => setTargetStage(stageKey)}
+                            className={`p-2.5 rounded-xl border text-center text-xs transition-all cursor-pointer hover:border-amber-400 ${bgClass} ${targetStage === stageKey && !isCurrent ? 'ring-2 ring-amber-400' : ''}`}
                           >
                             <div className="text-[10px] opacity-75 uppercase font-medium">{idx + 1}. Stage</div>
                             <div className="font-semibold truncate">{STAGE_LABELS[stageKey]}</div>
@@ -375,7 +382,7 @@ export default function SalesLeadDetailModal({ leadId, isOpen, onClose, user, on
                       </div>
                       <button
                         onClick={handleStageMove}
-                        disabled={movingStage || targetStage === lead.current_stage}
+                        disabled={movingStage || (targetStage === lead.current_stage && !stageNotes.trim())}
                         className="btn-amber text-xs py-2 px-4 whitespace-nowrap disabled:opacity-50"
                       >
                         {movingStage ? 'Updating...' : 'Change Stage'}

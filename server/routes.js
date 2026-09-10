@@ -3373,7 +3373,7 @@ router.get('/sales/leads/:id', auth, salesAccessOnly, async (req, res) => {
       FROM sales_stage_history h
       LEFT JOIN users u ON h.changed_by = u.id
       WHERE h.lead_id = $1
-      ORDER BY h.created_at ASC
+      ORDER BY h.created_at DESC
     `, [id]);
 
     // Fetch activities
@@ -3560,7 +3560,7 @@ router.put('/sales/leads/:id/stage', auth, salesAccessOnly, async (req, res) => 
     const lead = currentRows[0];
 
     const oldStage = lead.current_stage;
-    if (oldStage === new_stage) {
+    if (oldStage === new_stage && !notes?.trim()) {
       return res.json(lead);
     }
 
