@@ -73,7 +73,13 @@ export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated, 
    const [replyTexts, setReplyTexts] = useState({});
 
    useEffect(() => {
-     if (isOpen && task) {
+     if (isOpen && task?.id) {
+       setTaskData(null);
+       setComments([]);
+       setDailyLogs([]);
+       setExplanationsList([]);
+       setDependencies([]);
+       setNewLogContent('');
        setTab(task.defaultTab || 'reviews');
        api.getTask(task.id).then(t => {
          setTaskData(t);
@@ -84,7 +90,7 @@ export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated, 
        api.getDependencies(task.id).then(setDependencies).catch(() => {});
        api.getEmployees(true).then(setUsers).catch(() => {});
      }
-   }, [isOpen, task]);
+   }, [isOpen, task?.id]);
 
   if (!isOpen || !task) return null;
 

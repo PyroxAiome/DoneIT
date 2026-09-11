@@ -1378,9 +1378,10 @@ router.get('/dashboard/stats', auth, adminOrManager, async (req, res) => {
 router.get('/tasks/:id/daily-logs', auth, async (req, res) => {
   try {
     const { id } = req.params;
-    const { rows: taskRows } = await db.query('SELECT parent_id FROM tasks WHERE id = $1', [id]);
+    const { rows: taskRows } = await db.query('SELECT id, parent_id FROM tasks WHERE id = $1', [id]);
     const task = taskRows[0];
-    const rootId = task && task.parent_id ? task.parent_id : id;
+    if (!task) return res.json([]);
+    const rootId = task.parent_id ? Number(task.parent_id) : Number(task.id);
     
     const { rows: logs } = await db.query(`
       SELECT dl.*, u.name as user_name, u.role as user_role,
@@ -1388,9 +1389,9 @@ router.get('/tasks/:id/daily-logs', auth, async (req, res) => {
         (SELECT reaction_type FROM task_daily_log_reactions WHERE log_id = dl.id AND user_id = $1) as user_reaction
       FROM task_daily_logs dl
       LEFT JOIN users u ON dl.user_id = u.id
-      WHERE dl.task_id = $2
+      WHERE dl.task_id = $2 OR dl.task_id IN (SELECT id FROM tasks WHERE parent_id = $2 OR id = $2)
       ORDER BY dl.log_date DESC, dl.created_at DESC
-    `, [req.user.id, id]);
+    `, [req.user.id, rootId]);
 
     const logsWithLikesAndComments = [];
     for (const log of logs) {
@@ -1425,11 +1426,16 @@ router.post('/tasks/:id/daily-logs', auth, async (req, res) => {
     if (!content) return res.status(400).json({ error: 'Content required' });
     if (!log_date) return res.status(400).json({ error: 'Log date required' });
 
-    const { rows: taskRows } = await db.query('SELECT id, title FROM tasks WHERE id = $1', [id]);
+    const { rows: taskRows } = await db.query('SELECT id, parent_id, title FROM tasks WHERE id = $1', [id]);
     const task = taskRows[0];
     if (!task) return res.status(404).json({ error: 'Task not found' });
+    const rootId = task.parent_id ? Number(task.parent_id) : Number(task.id);
 
-    const { rows: existingRows } = await db.query('SELECT id FROM task_daily_logs WHERE task_id = $1 AND user_id = $2 AND log_date = $3', [id, req.user.id, log_date]);
+    const { rows: existingRows } = await db.query(`
+      SELECT id FROM task_daily_logs 
+      WHERE (task_id = $1 OR task_id IN (SELECT id FROM tasks WHERE parent_id = $1 OR id = $1)) 
+        AND user_id = $2 AND log_date = $3
+    `, [rootId, req.user.id, log_date]);
     const existing = existingRows[0];
 
     let logId;
@@ -1437,7 +1443,7 @@ router.post('/tasks/:id/daily-logs', auth, async (req, res) => {
       await db.query('UPDATE task_daily_logs SET content = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [content, existing.id]);
       logId = existing.id;
     } else {
-      const result = await db.query('INSERT INTO task_daily_logs (task_id, user_id, log_date, content) VALUES ($1, $2, $3, $4) RETURNING id', [id, req.user.id, log_date, content]);
+      const result = await db.query('INSERT INTO task_daily_logs (task_id, user_id, log_date, content) VALUES ($1, $2, $3, $4) RETURNING id', [rootId, req.user.id, log_date, content]);
       logId = result.rows[0].id;
     }
 
