@@ -722,6 +722,48 @@ export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated, 
           </div>
         )}
 
+        {/* Task Ownership & History Details Box */}
+        <div className="px-5 py-3 bg-slate-50/80 border-b border-gray-100 grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+          <div className="bg-white p-2 rounded-lg border border-gray-200/70 shadow-2xs">
+            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Created By</span>
+            <span className="font-semibold text-gray-900 truncate block">
+              {taskData?.creator_name || task.creator_name || 'System'}
+              {(taskData?.creator_role || task.creator_role) && (
+                <span className="text-[10px] text-gray-500 font-normal ml-1">({taskData?.creator_role || task.creator_role})</span>
+              )}
+            </span>
+            {(taskData?.created_at || task.created_at) && (
+              <span className="text-[10px] text-gray-400 block">{new Date(taskData?.created_at || task.created_at).toLocaleDateString()}</span>
+            )}
+          </div>
+
+          <div className="bg-white p-2 rounded-lg border border-gray-200/70 shadow-2xs">
+            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Assigned To</span>
+            <span className="font-semibold text-gray-900 truncate block" title={taskData?.group_assignees ? taskData.group_assignees.join(', ') : (taskData?.assignee_name || task.assignee_name)}>
+              {taskData?.group_assignees && taskData.group_assignees.length > 0
+                ? taskData.group_assignees.join(', ')
+                : (taskData?.assignee_name || task.assignee_name || 'Unassigned')}
+            </span>
+          </div>
+
+          <div className="bg-white p-2 rounded-lg border border-gray-200/70 shadow-2xs">
+            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Verifier</span>
+            <span className="font-semibold text-purple-900 truncate block">
+              {taskData?.verifier_name || task.verifier_name || 'Admin'}
+            </span>
+          </div>
+
+          <div className="bg-white p-2 rounded-lg border border-gray-200/70 shadow-2xs">
+            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Last Updated By</span>
+            <span className="font-semibold text-gray-900 truncate block">
+              {taskData?.last_edited_by_name || taskData?.creator_name || task.creator_name || 'System'}
+            </span>
+            {(taskData?.updated_at || task.updated_at) && (
+              <span className="text-[10px] text-gray-400 block">{new Date(taskData?.updated_at || task.updated_at).toLocaleDateString()}</span>
+            )}
+          </div>
+        </div>
+
         {/* Tab buttons */}
         <div className="flex border-b border-gray-100 overflow-x-auto scrollbar-none shrink-0">
           <button onClick={() => setTab('reviews')}

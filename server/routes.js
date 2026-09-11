@@ -267,13 +267,13 @@ router.get('/employees', auth, async (req, res) => {
         (
           SELECT COUNT(DISTINCT t.id)
           FROM tasks t
-          WHERE t.assignee_id = u.id AND (t.parent_id IS NULL OR t.id = t.parent_id)
+          WHERE t.assignee_id = u.id
         ) as task_count,
         COALESCE(
           (
             SELECT ROUND(AVG(t.progress_percent), 0)
             FROM tasks t
-            WHERE t.assignee_id = u.id AND (t.parent_id IS NULL OR t.id = t.parent_id)
+            WHERE t.assignee_id = u.id
           ), 0
         ) as avg_progress,
         (
@@ -559,13 +559,19 @@ router.get('/tasks', auth, async (req, res) => {
       params.push(req.user.id);
       paramIdx++;
     } else if (req.user.role !== 'admin' && req.user.role !== 'manager') {
-      // Regular employees cannot view tasks of Admins or Managers
+      // Regular employees see tasks where they are primary assignee, creator, verifier, completer, or assigned in a group task copy
       if (req.query.assignee_id) {
-        sql += ` AND t.assignee_id IN (SELECT id FROM users WHERE id = $${paramIdx} AND role NOT IN ('admin', 'manager'))`;
+        sql += ` AND (t.assignee_id = $${paramIdx} OR EXISTS (SELECT 1 FROM tasks child WHERE child.parent_id = t.id AND child.assignee_id = $${paramIdx}))`;
         params.push(req.query.assignee_id);
         paramIdx++;
       } else if (!req.query.project_id) {
-        sql += ` AND (t.assignee_id = $${paramIdx} OR t.creator_id = $${paramIdx} OR t.verifier_id = $${paramIdx} OR t.completed_by = $${paramIdx})`;
+        sql += ` AND (
+          t.assignee_id = $${paramIdx} 
+          OR t.creator_id = $${paramIdx} 
+          OR t.verifier_id = $${paramIdx} 
+          OR t.completed_by = $${paramIdx}
+          OR EXISTS (SELECT 1 FROM tasks child WHERE child.parent_id = t.id AND child.assignee_id = $${paramIdx})
+        )`;
         params.push(req.user.id);
         paramIdx++;
       }

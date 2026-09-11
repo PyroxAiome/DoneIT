@@ -223,21 +223,20 @@ export default function EmployeeDashboard({ user }) {
     // Main workspace views strictly exclude project tasks
     if (t.project_id) return false;
 
+    const isMine = isAssignedToEmp(t, user?.id) || Number(t.creator_id) === Number(user?.id) || Number(t.verifier_id) === Number(user?.id);
+
     if (activeTab === 'completed') {
-      const isMine = Number(t.assignee_id) === Number(user.id) || Number(t.creator_id) === Number(user.id);
       if (!isMine) return false;
       if (t.status !== 'completed') return false;
       if (statusFilter && statusFilter !== 'completed') return false;
       return true;
     } else if (activeTab === 'work') {
-      const isMine = Number(t.assignee_id) === Number(user.id) || Number(t.creator_id) === Number(user.id);
       if (!isMine) return false;
       if (t.status === 'completed') return false;
       if (statusFilter && t.status !== statusFilter) return false;
       return true;
     } else {
       // activeTab === 'all' or others
-      const isMine = Number(t.assignee_id) === Number(user.id) || Number(t.creator_id) === Number(user.id) || Number(t.verifier_id) === Number(user.id);
       if (!isMine) return false;
       if (statusFilter && t.status !== statusFilter) return false;
       return true;

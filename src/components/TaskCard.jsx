@@ -325,10 +325,12 @@ export default function TaskCard({ task, compact, onEdit, onDelete, onSelect, on
       <div className="mt-2 sm:mt-2.5 pt-1 sm:pt-1.5 border-t border-dashed border-gray-100 flex items-center justify-between gap-1.5 text-[9px] sm:text-[10px] text-gray-400 flex-wrap">
         <div>
           {task.creator_id === task.assignee_id ? (
-            <span className="bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded font-medium">Self Assigned</span>
+            <span className="bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded font-medium">
+              Created by <span className="font-bold text-gray-800">{task.creator_name || 'Self'}</span> (Self Assigned)
+            </span>
           ) : (
             <span>
-              Assigned by <span className="font-bold text-gray-900">{task.creator_name || 'System'}</span>
+              Created by <span className="font-bold text-gray-900">{task.creator_name || 'System'}</span>
               {task.creator_role && (
                 <span className={`text-[8px] sm:text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded font-semibold ml-1.5 ${
                   task.creator_role === 'admin' 

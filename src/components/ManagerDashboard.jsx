@@ -274,7 +274,7 @@ export default function ManagerDashboard({ user }) {
     // Main workspace views strictly exclude project tasks
     if (t.project_id) return false;
 
-    if (myTasksOnly && t.creator_id !== user.id && t.assignee_id !== user.id) {
+    if (myTasksOnly && t.creator_id !== user.id && !isAssignedToEmp(t, user.id)) {
       return false;
     }
     if (activeTab === 'completed') {
