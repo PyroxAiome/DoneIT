@@ -1383,30 +1383,18 @@ router.get('/tasks/:id/daily-logs', auth, async (req, res) => {
     const task = taskRows[0];
     if (!task) return res.json([]);
     
-    let logQuery = `
+    const rootId = task.parent_id ? Number(task.parent_id) : taskId;
+
+    const logQuery = `
       SELECT dl.*, u.name as user_name, u.role as user_role,
         (SELECT COUNT(*) FROM task_daily_log_reactions WHERE log_id = dl.id AND reaction_type = 'like') as likes_count,
         (SELECT reaction_type FROM task_daily_log_reactions WHERE log_id = dl.id AND user_id = $1) as user_reaction
       FROM task_daily_logs dl
       LEFT JOIN users u ON dl.user_id = u.id
-      WHERE dl.task_id = $2
+      WHERE dl.task_id = $2 OR dl.task_id = $3 OR dl.task_id IN (SELECT id FROM tasks WHERE parent_id = $3)
+      ORDER BY dl.log_date DESC, dl.created_at DESC
     `;
-    let queryParams = [req.user.id, taskId];
-
-    if (task.parent_id) {
-      const parentId = Number(task.parent_id);
-      logQuery = `
-        SELECT dl.*, u.name as user_name, u.role as user_role,
-          (SELECT COUNT(*) FROM task_daily_log_reactions WHERE log_id = dl.id AND reaction_type = 'like') as likes_count,
-          (SELECT reaction_type FROM task_daily_log_reactions WHERE log_id = dl.id AND user_id = $1) as user_reaction
-        FROM task_daily_logs dl
-        LEFT JOIN users u ON dl.user_id = u.id
-        WHERE dl.task_id = $2 OR dl.task_id = $3 OR dl.task_id IN (SELECT id FROM tasks WHERE parent_id = $3)
-      `;
-      queryParams = [req.user.id, taskId, parentId];
-    }
-
-    logQuery += ' ORDER BY dl.log_date DESC, dl.created_at DESC';
+    const queryParams = [req.user.id, taskId, rootId];
 
     const { rows: logs } = await db.query(logQuery, queryParams);
 
@@ -1677,13 +1665,20 @@ router.delete('/notifications', auth, async (req, res) => {
 router.get('/tasks/:id/explanations', auth, async (req, res) => {
   try {
     const { id } = req.params;
+    const taskId = Number(id);
+    const { rows: taskRows } = await db.query('SELECT id, parent_id FROM tasks WHERE id = $1', [taskId]);
+    const task = taskRows[0];
+    if (!task) return res.json([]);
+
+    const rootId = task.parent_id ? Number(task.parent_id) : taskId;
+
     const { rows: explanations } = await db.query(`
       SELECT te.*, u.name as user_name, u.role as user_role
       FROM task_explanations te
       LEFT JOIN users u ON te.user_id = u.id
-      WHERE te.task_id = $1
+      WHERE te.task_id = $1 OR te.task_id = $2 OR te.task_id IN (SELECT id FROM tasks WHERE parent_id = $2)
       ORDER BY te.created_at DESC
-    `, [id]);
+    `, [taskId, rootId]);
     res.json(explanations);
   } catch (err) {
     res.status(500).json({ error: err.message });
