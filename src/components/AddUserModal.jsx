@@ -49,6 +49,13 @@ export default function AddUserModal({ isOpen, onClose, onCreated, onUpdated, ed
       setError('Name, email, and password are required');
       return;
     }
+    if (editingUser && (editingUser.role === 'sales_manager' || editingUser.role === 'sales_executive' || editingUser.department === 'Sales & Marketing')) {
+      const isNewRoleSales = form.role === 'sales_manager' || form.role === 'sales_executive';
+      if (!isNewRoleSales) {
+        setError('Moving a user from the Sales department to a non-sales role/department is not allowed in the system. Sales profiles must remain in the Sales department.');
+        return;
+      }
+    }
     setBusy(true);
     try {
       const payload = {

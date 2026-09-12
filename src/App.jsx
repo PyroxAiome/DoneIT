@@ -57,7 +57,7 @@ export default function App() {
     return <LoginPage onLogin={handleLogin} />;
   }
 
-  const isSalesOnly = (user.role === 'sales_manager' || user.role === 'sales_executive' || (user.can_access_sales && !['admin', 'manager', 'site_manager'].includes(user.role)));
+  const isSalesOnly = user.role === 'sales_manager' || user.role === 'sales_executive';
 
   return (
     <AuthContext.Provider value={user}>
@@ -67,7 +67,7 @@ export default function App() {
           {user.role === 'admin' && <AdminDashboard user={user} />}
           {isSalesOnly && user.role !== 'admin' && <SalesDashboard user={user} />}
           {user.role === 'manager' && !isSalesOnly && <ManagerDashboard user={user} />}
-          {!['admin', 'manager', 'sales_manager', 'sales_executive'].includes(user.role) && !isSalesOnly && <EmployeeDashboard user={user} />}
+          {!['admin', 'manager', 'sales_manager', 'sales_executive'].includes(user.role) && <EmployeeDashboard user={user} />}
         </main>
       </div>
       <ChangePasswordModal isOpen={showChangePassword} onClose={() => setShowChangePassword(false)} />
