@@ -33,8 +33,8 @@ export default function AddUserModal({ isOpen, onClose, onCreated, onUpdated, ed
       setForm({
         ...form,
         role: val,
-        department: isSalesRole ? 'Sales & Marketing' : form.department,
-        can_access_sales: isSalesRole ? true : form.can_access_sales
+        department: isSalesRole ? 'Sales & Marketing' : (form.department === 'Sales & Marketing' ? 'General' : form.department),
+        can_access_sales: isSalesRole
       });
     } else {
       setForm({ ...form, [field]: val });

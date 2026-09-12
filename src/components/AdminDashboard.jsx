@@ -254,7 +254,7 @@ export default function AdminDashboard({ user }) {
   };
 
   const handleViewEmployeeTasks = (emp) => {
-    const isSalesUser = emp.role === 'sales_manager' || emp.role === 'sales_executive' || emp.can_access_sales;
+    const isSalesUser = (emp.role === 'sales_manager' || emp.role === 'sales_executive') && emp.role !== 'admin';
     if (isSalesUser) {
       setSalesPersonFilter(String(emp.id));
       setActiveTab('sales');
@@ -269,7 +269,7 @@ export default function AdminDashboard({ user }) {
   };
 
   const handleViewEmployeeTasksByStatus = (emp, status) => {
-    const isSalesUser = emp.role === 'sales_manager' || emp.role === 'sales_executive' || emp.can_access_sales;
+    const isSalesUser = (emp.role === 'sales_manager' || emp.role === 'sales_executive') && emp.role !== 'admin';
     if (isSalesUser) {
       setSalesPersonFilter(String(emp.id));
       setActiveTab('sales');
