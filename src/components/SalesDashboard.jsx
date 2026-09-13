@@ -5,6 +5,8 @@ import SalesLeadModal from './SalesLeadModal';
 import SalesLeadDetailModal from './SalesLeadDetailModal';
 import SalesGoalModal from './SalesGoalModal';
 import SalesMonthlyReport from './SalesMonthlyReport';
+import SalesTargetModal from './SalesTargetModal';
+import SalesTargetDashboard from './SalesTargetDashboard';
 import {
   TrendingUp, Target, Plus, Search, Filter, Briefcase,
   CheckCircle2, Award, Tag, Calendar, UserCheck, Edit2, Trash2
@@ -17,10 +19,7 @@ const STAGES = [
   { key: 'presentation', label: 'Presentation' },
   { key: 'demo', label: 'Demo' },
   { key: 'spec_tender', label: 'Spec of Tender' },
-  { key: 'design_negotiation', label: 'Design Negotiation' },
-  { key: 'dfp', label: 'DFP' },
-  { key: 'order', label: 'Order' },
-  { key: 'billing', label: 'Billing' }
+  { key: 'design_negotiation', label: 'Design Negotiation' }
 ];
 
 const SOURCES = [
@@ -44,10 +43,10 @@ const REGIONS = [
 ];
 
 export default function SalesDashboard({ user, initialAssigneeId = '' }) {
-  // Main view tabs: 'board' | 'report'
+  // Main view tabs: 'board' | 'report' | 'targets'
   const [activeTab, setActiveTab] = useState('board');
 
-  // Sub-filter: 'general' | 'lakshya'
+  // Sub-filter: 'general' | 'order_lakshya' | 'billing_lakshya' | 'collection_lakshya'
   const [subCategory, setSubCategory] = useState('general');
   const [selectedGoalId, setSelectedGoalId] = useState(null);
 
@@ -70,6 +69,7 @@ export default function SalesDashboard({ user, initialAssigneeId = '' }) {
   const [editingLead, setEditingLead] = useState(null);
   const [showGoalModal, setShowGoalModal] = useState(false);
   const [editingGoal, setEditingGoal] = useState(null);
+  const [showTargetModal, setShowTargetModal] = useState(false);
   const [selectedLeadId, setSelectedLeadId] = useState(null);
 
   useEffect(() => {
@@ -79,20 +79,25 @@ export default function SalesDashboard({ user, initialAssigneeId = '' }) {
   }, [initialAssigneeId]);
 
   useEffect(() => {
+    if ((subCategory === 'billing_lakshya' || subCategory === 'collection_lakshya') && activeTab === 'targets') {
+      setActiveTab('board');
+    }
+  }, [subCategory, activeTab]);
+
+  useEffect(() => {
     fetchAllData();
 
     const handleUpdate = () => fetchAllData();
     window.addEventListener('sales-updated', handleUpdate);
-    window.addEventListener('focus', handleUpdate);
     return () => {
       window.removeEventListener('sales-updated', handleUpdate);
-      window.removeEventListener('focus', handleUpdate);
     };
   }, [subCategory, selectedGoalId, stageFilter, sourceFilter, regionFilter, priorityFilter, assigneeFilter]);
 
   const fetchAllData = async () => {
     setLoading(true);
     try {
+      const lakshyaTypeParam = subCategory.includes('lakshya') ? subCategory.replace('_lakshya', '') : '';
       const [leadsRes, goalsRes, empRes] = await Promise.all([
         api.getSalesLeads({
           category: subCategory,
@@ -104,7 +109,7 @@ export default function SalesDashboard({ user, initialAssigneeId = '' }) {
           assignee_id: assigneeFilter,
           search: search
         }),
-        api.getSalesGoals(),
+        api.getSalesGoals(lakshyaTypeParam),
         api.getEmployees(true)
       ]);
       setLeads(leadsRes);
@@ -164,49 +169,99 @@ export default function SalesDashboard({ user, initialAssigneeId = '' }) {
             <p className="text-xs text-gray-500 mt-0.5">
               {user?.role === 'sales_executive'
                 ? 'Managing your assigned client leads, stage progress, and personal activity logs'
-                : 'Track company sales leads, 10-stage funnel progress, and Lakshya target goals'}
+                : subCategory === 'general'
+                ? 'Track raw sales inquiries, general lead assignments, and initial contact progress'
+                : subCategory === 'order_lakshya'
+                ? 'Pre-order 7-stage target process linked directly to Order Target Goals & Sales Achievements'
+                : subCategory === 'billing_lakshya'
+                ? 'Post-order invoicing funnel and Billing Lakshya target progress'
+                : 'Post-invoicing payment recovery and Collection Lakshya target progress'}
             </p>
           </div>
         </div>
 
         {/* Sub-filters Toggle */}
-        <div className="flex items-center bg-gray-100 p-1 rounded-lg border border-gray-200">
-          <button
-            onClick={() => { setSubCategory('general'); setSelectedGoalId(null); }}
-            className={`px-3.5 py-1.5 text-xs font-semibold rounded-md transition-all ${subCategory === 'general' ? 'bg-white text-gray-900 shadow-xs font-bold' : 'text-gray-600 hover:text-gray-900'}`}
-          >
-            📋 General Leads
-          </button>
-          <button
-            onClick={() => { setSubCategory('lakshya'); setSelectedGoalId(null); }}
-            className={`px-3.5 py-1.5 text-xs font-semibold rounded-md transition-all ${subCategory === 'lakshya' ? 'bg-white text-amber-700 font-bold shadow-xs' : 'text-gray-600 hover:text-gray-900'}`}
-          >
-            🎯 Lakshya (Goal Leads)
-          </button>
+        <div className="flex items-center bg-gray-100 p-1 rounded-lg border border-gray-200 flex-wrap gap-0.5">
+          {(user?.role === 'admin' || user?.can_access_general_leads !== false) && (
+            <button
+              onClick={() => { setSubCategory('general'); setSelectedGoalId(null); }}
+              className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${subCategory === 'general' ? 'bg-white text-gray-900 shadow-xs font-bold' : 'text-gray-600 hover:text-gray-900'}`}
+            >
+              📋 General Inquiries
+            </button>
+          )}
+          {(user?.role === 'admin' || user?.can_access_order_lakshya !== false) && (
+            <button
+              onClick={() => { setSubCategory('order_lakshya'); setSelectedGoalId(null); }}
+              className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${subCategory === 'order_lakshya' || subCategory === 'lakshya' ? 'bg-white text-amber-700 font-bold shadow-xs' : 'text-gray-600 hover:text-gray-900'}`}
+            >
+              🎯 Order Lakshya
+            </button>
+          )}
+          {(user?.role === 'admin' || user?.can_access_billing_lakshya !== false) && (
+            <button
+              onClick={() => { setSubCategory('billing_lakshya'); setSelectedGoalId(null); }}
+              className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${subCategory === 'billing_lakshya' ? 'bg-white text-blue-700 font-bold shadow-xs' : 'text-gray-600 hover:text-gray-900'}`}
+            >
+              📄 Billing Lakshya
+            </button>
+          )}
+          {(user?.role === 'admin' || user?.can_access_collection_lakshya !== false) && (
+            <button
+              onClick={() => { setSubCategory('collection_lakshya'); setSelectedGoalId(null); }}
+              className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${subCategory === 'collection_lakshya' ? 'bg-white text-emerald-700 font-bold shadow-xs' : 'text-gray-600 hover:text-gray-900'}`}
+            >
+              💰 Collection Lakshya
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Lakshya Target Goal Containers Section */}
-      {subCategory === 'lakshya' && (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 space-y-4 animate-in fade-in">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-gray-900">
-              <Target className="w-5 h-5 text-amber-600" />
-              <h3 className="font-bold text-sm">Lakshya Target Goal Containers</h3>
-            </div>
-            {['admin', 'sales_manager'].includes(user?.role) && (
+      {/* Target Goal Containers Section (Unified for ALL 4 sub-categories) */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 space-y-4 animate-in fade-in">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div className="flex items-center gap-2 text-gray-900">
+            <Target className="w-5 h-5 text-amber-600" />
+            <h3 className="font-bold text-sm">
+              {subCategory === 'general' ? 'General Inquiries Containers' :
+               subCategory === 'order_lakshya' || subCategory === 'lakshya' ? 'Order Lakshya Goal Containers' :
+               subCategory === 'billing_lakshya' ? 'Billing Lakshya Goal Containers' :
+               'Collection Lakshya Goal Containers'}
+            </h3>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            {user?.role === 'admin' && (subCategory === 'general' || subCategory === 'order_lakshya' || subCategory === 'lakshya') && (
               <button
-                onClick={() => { setEditingGoal(null); setShowGoalModal(true); }}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors shadow-xs text-xs font-medium"
+                onClick={() => setShowTargetModal(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 text-amber-800 border border-amber-300 rounded-lg hover:bg-amber-100 transition-colors text-xs font-semibold"
               >
-                <Plus className="w-3.5 h-3.5" />
-                Create Lakshya Goal
+                <Target className="w-3.5 h-3.5 text-amber-600" />
+                Define Targets
               </button>
             )}
+            {user?.role === 'admin' && (
+              <button
+                onClick={() => { setEditingGoal(null); setShowGoalModal(true); }}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors shadow-xs text-xs font-semibold"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Create {subCategory.replace('_lakshya', '').toUpperCase()} Goal
+              </button>
+            )}
+            <button
+              onClick={() => { setEditingLead(null); setShowLeadModal(true); }}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 bg-amber-700 text-white rounded-lg hover:bg-amber-800 transition-colors shadow-xs text-xs font-semibold"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              New Lead
+            </button>
           </div>
+        </div>
 
           {goals.length === 0 ? (
-            <p className="text-xs text-gray-500 italic py-2">No Lakshya goals created yet. Click above to define your first revenue goal target.</p>
+            <p className="text-xs text-gray-500 italic py-2">
+              No {subCategory.replace('_lakshya', '')} goals created yet. Click above to define your first goal.
+            </p>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               {goals.map(g => {
@@ -227,7 +282,7 @@ export default function SalesDashboard({ user, initialAssigneeId = '' }) {
                         <span className="text-[10px] uppercase font-semibold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-200">
                           {g.period_type}
                         </span>
-                        {['admin', 'sales_manager'].includes(user?.role) && (
+                        {user?.role === 'admin' && (
                           <div className="flex items-center gap-0.5 ml-1">
                             <button
                               onClick={() => { setEditingGoal(g); setShowGoalModal(true); }}
@@ -280,7 +335,6 @@ export default function SalesDashboard({ user, initialAssigneeId = '' }) {
             </div>
           )}
         </div>
-      )}
 
       {/* Summary Metric Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -328,12 +382,12 @@ export default function SalesDashboard({ user, initialAssigneeId = '' }) {
       {/* Navigation & Toolbar */}
       <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm space-y-4">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-gray-100 pb-3">
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             <button
               onClick={() => setActiveTab('board')}
               className={`px-4 py-2 text-xs font-semibold rounded-lg transition-all ${activeTab === 'board' ? 'bg-amber-600 text-white shadow-xs' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
             >
-              10-Stage Pipeline Board
+              {subCategory === 'billing_lakshya' ? 'Billing Funnel Board' : subCategory === 'collection_lakshya' ? 'Collection Funnel Board' : '7-Stage Pipeline Board'}
             </button>
             <button
               onClick={() => setActiveTab('report')}
@@ -341,19 +395,19 @@ export default function SalesDashboard({ user, initialAssigneeId = '' }) {
             >
               Monthly Cycle Report
             </button>
+            {(subCategory === 'order_lakshya' || subCategory === 'lakshya' || subCategory === 'general') && (
+              <button
+                onClick={() => setActiveTab('targets')}
+                className={`px-4 py-2 text-xs font-semibold rounded-lg transition-all ${activeTab === 'targets' ? 'bg-amber-600 text-white shadow-xs' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+              >
+                🎯 Target Performance
+              </button>
+            )}
           </div>
-
-          <button
-            onClick={() => { setEditingLead(null); setShowLeadModal(true); }}
-            className="flex items-center gap-1.5 px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors shadow-xs text-xs font-semibold"
-          >
-            <Plus className="w-4 h-4" />
-            New Lead
-          </button>
         </div>
 
         {/* Filters */}
-        {activeTab !== 'report' && (
+        {activeTab === 'board' && (
           <div className="grid grid-cols-1 sm:grid-cols-6 gap-2">
             <div className="sm:col-span-1">
               <form onSubmit={handleSearchSubmit} className="relative">
@@ -439,9 +493,16 @@ export default function SalesDashboard({ user, initialAssigneeId = '' }) {
             }
           }}
           userRole={user?.role}
+          subCategory={subCategory}
         />
-      ) : (
+      ) : activeTab === 'report' ? (
         <SalesMonthlyReport />
+      ) : (
+        <SalesTargetDashboard
+          user={user}
+          employees={employees}
+          lakshyaType={subCategory.includes('lakshya') ? subCategory.replace('_lakshya', '') : 'order'}
+        />
       )}
 
       {/* Modals */}
@@ -465,6 +526,15 @@ export default function SalesDashboard({ user, initialAssigneeId = '' }) {
         onClose={() => setShowGoalModal(false)}
         onSave={fetchAllData}
         editingGoal={editingGoal}
+        lakshyaType={subCategory.replace('_lakshya', '')}
+      />
+
+      <SalesTargetModal
+        isOpen={showTargetModal}
+        onClose={() => setShowTargetModal(false)}
+        onSave={fetchAllData}
+        employees={employees}
+        lakshyaType={subCategory.includes('lakshya') ? subCategory.replace('_lakshya', '') : 'order'}
       />
 
       <SalesLeadDetailModal

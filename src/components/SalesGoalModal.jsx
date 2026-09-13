@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { api } from '../lib/api';
 import { X, Target, Check, AlertCircle } from 'lucide-react';
 
-export default function SalesGoalModal({ isOpen, onClose, onSave, editingGoal }) {
+export default function SalesGoalModal({ isOpen, onClose, onSave, editingGoal, lakshyaType = 'order' }) {
   const [form, setForm] = useState({
     name: '',
     description: '',
@@ -11,7 +11,8 @@ export default function SalesGoalModal({ isOpen, onClose, onSave, editingGoal })
     period_type: 'monthly',
     period_start: '',
     period_end: '',
-    status: 'active'
+    status: 'active',
+    lakshya_type: lakshyaType
   });
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -26,7 +27,8 @@ export default function SalesGoalModal({ isOpen, onClose, onSave, editingGoal })
         period_type: editingGoal.period_type || 'monthly',
         period_start: editingGoal.period_start || '',
         period_end: editingGoal.period_end || '',
-        status: editingGoal.status || 'active'
+        status: editingGoal.status || 'active',
+        lakshya_type: editingGoal.lakshya_type || lakshyaType || 'order'
       });
     } else {
       setForm({
@@ -37,11 +39,12 @@ export default function SalesGoalModal({ isOpen, onClose, onSave, editingGoal })
         period_type: 'monthly',
         period_start: '',
         period_end: '',
-        status: 'active'
+        status: 'active',
+        lakshya_type: lakshyaType || 'order'
       });
     }
     setError('');
-  }, [editingGoal, isOpen]);
+  }, [editingGoal, isOpen, lakshyaType]);
 
   if (!isOpen) return null;
 

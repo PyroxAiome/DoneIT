@@ -1,6 +1,7 @@
 import { useState } from 'react';
+import { api } from '../lib/api';
 import {
-  Building2, MapPin, User, MoreVertical, Edit3, Trash2, Tag, Star, Clock, ShieldAlert
+  Building2, MapPin, User, MoreVertical, Edit3, Trash2, Tag, Star, Clock, ShieldAlert, CheckCircle2
 } from 'lucide-react';
 
 const PRIORITY_STYLES = {
@@ -18,9 +19,16 @@ const STAGE_LABELS = {
   demo: 'Demo',
   spec_tender: 'Spec of Tender',
   design_negotiation: 'Design Negotiation',
-  dfp: 'DFP',
-  order: 'Order',
-  billing: 'Billing'
+
+  proforma_invoice: 'Proforma Invoice',
+  tax_invoice: 'Tax Invoice',
+  billing_approved: 'Billing Approved',
+  payment_pending: 'Payment Pending',
+
+  payment_due: 'Payment Due',
+  followup: 'Collection Followup',
+  partially_collected: 'Partially Collected',
+  fully_collected: 'Fully Collected'
 };
 
 export default function SalesLeadCard({ lead, onClick, onEdit, onDelete, onStageChange, userRole }) {
@@ -133,9 +141,18 @@ export default function SalesLeadCard({ lead, onClick, onEdit, onDelete, onStage
 
       {/* Metadata Badges */}
       <div className="space-y-1 text-[11px] text-gray-600 mb-2">
+        {(lead.client_company || lead.client_name) && (
+          <div className="flex items-center gap-1 text-gray-700 font-medium truncate">
+            <Building2 className="w-3 h-3 text-gray-500 shrink-0" />
+            <span className="truncate">
+              Client: {lead.client_company || lead.client_name} {lead.client_name && lead.client_company ? `(${lead.client_name})` : ''}
+            </span>
+          </div>
+        )}
+
         {lead.consultant_name && (
           <div className="flex items-center gap-1 text-gray-500 truncate">
-            <Building2 className="w-3 h-3 text-gray-400 shrink-0" />
+            <User className="w-3 h-3 text-gray-400 shrink-0" />
             <span className="truncate">Consultant: {lead.consultant_name}</span>
           </div>
         )}
@@ -147,6 +164,48 @@ export default function SalesLeadCard({ lead, onClick, onEdit, onDelete, onStage
           </div>
         )}
       </div>
+
+      {/* Action Button: Confirm Order (for Admin on pre-order leads) */}
+      {userRole === 'admin' && lead?.category !== 'billing_lakshya' && lead?.category !== 'collection_lakshya' && (
+        <button
+          onClick={async (e) => {
+            e.stopPropagation();
+            if (window.confirm(`Confirm order for "${lead.title}" and move to Billing Lakshya?`)) {
+              try {
+                await api.confirmSalesOrder(lead.id);
+                window.dispatchEvent(new CustomEvent('sales-updated'));
+              } catch (err) {
+                alert(err.message || 'Failed to confirm order');
+              }
+            }
+          }}
+          className="w-full mb-2 py-1.5 px-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg shadow-xs flex items-center justify-center gap-1.5 transition-colors"
+        >
+          <CheckCircle2 className="w-3.5 h-3.5" />
+          Confirm Order
+        </button>
+      )}
+
+      {/* Action Button: Move to Collection (for Billing leads in payment_pending) */}
+      {lead.category === 'billing_lakshya' && lead.current_stage === 'payment_pending' && (
+        <button
+          onClick={async (e) => {
+            e.stopPropagation();
+            if (window.confirm(`Move lead "${lead.title}" to Collection Lakshya?`)) {
+              try {
+                await api.moveSalesLeadToCollection(lead.id);
+                window.dispatchEvent(new CustomEvent('sales-updated'));
+              } catch (err) {
+                alert(err.message || 'Failed to move to collection');
+              }
+            }
+          }}
+          className="w-full mb-2 py-1.5 px-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-lg shadow-xs flex items-center justify-center gap-1.5 transition-colors"
+        >
+          <CheckCircle2 className="w-3.5 h-3.5" />
+          Move to Collection
+        </button>
+      )}
 
       {/* Footer Info Row */}
       <div className="flex items-center justify-between pt-2 border-t border-gray-100 text-[11px] text-gray-500">

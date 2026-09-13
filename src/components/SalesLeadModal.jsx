@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { api } from '../lib/api';
-import { X, Briefcase, Check, AlertCircle, Info, Tag, MapPin } from 'lucide-react';
+import { X, Briefcase, Check, AlertCircle, Info, Tag, MapPin, Building2 } from 'lucide-react';
 
 const SOURCES = [
   { value: 'referral', label: '🤝 Referral' },
@@ -65,6 +65,11 @@ export default function SalesLeadModal({
     country: 'India',
     city: '',
     site_address: '',
+    client_name: '',
+    client_company: '',
+    client_email: '',
+    client_phone: '',
+    client_designation: '',
     consultant_name: '',
     consultant_firm: '',
     consultant_email: '',
@@ -97,6 +102,11 @@ export default function SalesLeadModal({
         country: editingLead.country || 'India',
         city: editingLead.city || '',
         site_address: editingLead.site_address || '',
+        client_name: editingLead.client_name || '',
+        client_company: editingLead.client_company || '',
+        client_email: editingLead.client_email || '',
+        client_phone: editingLead.client_phone || '',
+        client_designation: editingLead.client_designation || '',
         consultant_name: editingLead.consultant_name || '',
         consultant_firm: editingLead.consultant_firm || '',
         consultant_email: editingLead.consultant_email || '',
@@ -126,6 +136,11 @@ export default function SalesLeadModal({
         country: 'India',
         city: '',
         site_address: '',
+        client_name: '',
+        client_company: '',
+        client_email: '',
+        client_phone: '',
+        client_designation: '',
         consultant_name: '',
         consultant_firm: '',
         consultant_email: '',
@@ -241,21 +256,23 @@ export default function SalesLeadModal({
               <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider block mb-1">Category</label>
               <select value={form.category} onChange={handleCategoryChange} className="input-field">
                 <option value="general">📋 General Lead</option>
-                <option value="lakshya">🎯 Lakshya (Goal)</option>
+                <option value="order_lakshya">🎯 Order Lakshya</option>
+                <option value="billing_lakshya">📄 Billing Lakshya</option>
+                <option value="collection_lakshya">💰 Collection Lakshya</option>
               </select>
             </div>
           </div>
 
-          {form.category === 'lakshya' && (
+          {(form.category === 'lakshya' || form.category.includes('lakshya')) && (
             <div className="p-3.5 bg-amber-50/50 border border-amber-200 rounded-xl space-y-1 animate-in fade-in">
               <label className="text-xs font-semibold text-amber-900 flex items-center gap-1">
                 <Tag className="w-3.5 h-3.5 text-amber-600" />
-                Select Lakshya (Goal) Container *
+                Select Lakshya Goal Container *
               </label>
-              <select value={form.goal_id} onChange={handleChange('goal_id')} className="input-field bg-white" required={form.category === 'lakshya'}>
+              <select value={form.goal_id} onChange={handleChange('goal_id')} className="input-field bg-white" required={form.category.includes('lakshya')}>
                 <option value="">-- Select Target Goal --</option>
                 {goals.map(g => (
-                  <option key={g.id} value={g.id}>{g.name} ({g.period_type})</option>
+                  <option key={g.id} value={g.id}>{g.name} ({g.lakshya_type || 'order'})</option>
                 ))}
               </select>
             </div>
@@ -386,6 +403,35 @@ export default function SalesLeadModal({
             <div>
               <label className="text-[11px] text-slate-600 block mb-1">Site / Building Address</label>
               <input type="text" value={form.site_address} onChange={handleChange('site_address')} placeholder="Full site address" className="input-field bg-white" />
+            </div>
+          </div>
+
+          <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+            <h4 className="text-xs font-semibold text-slate-800 uppercase tracking-wider flex items-center gap-1">
+              <Building2 className="w-3.5 h-3.5 text-slate-500" />
+              Customer / Client Information
+            </h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="text-[11px] text-slate-600 block mb-1">Contact Person Name</label>
+                <input type="text" value={form.client_name} onChange={handleChange('client_name')} placeholder="e.g. Rajesh Kumar" className="input-field bg-white" />
+              </div>
+              <div>
+                <label className="text-[11px] text-slate-600 block mb-1">Company / Firm Name</label>
+                <input type="text" value={form.client_company} onChange={handleChange('client_company')} placeholder="e.g. Acme Corp Ltd" className="input-field bg-white" />
+              </div>
+              <div>
+                <label className="text-[11px] text-slate-600 block mb-1">Designation</label>
+                <input type="text" value={form.client_designation} onChange={handleChange('client_designation')} placeholder="e.g. VP Infrastructure" className="input-field bg-white" />
+              </div>
+              <div>
+                <label className="text-[11px] text-slate-600 block mb-1">Client Email</label>
+                <input type="email" value={form.client_email} onChange={handleChange('client_email')} placeholder="client@company.com" className="input-field bg-white" />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="text-[11px] text-slate-600 block mb-1">Client Phone</label>
+                <input type="text" value={form.client_phone} onChange={handleChange('client_phone')} placeholder="+91 98765 43210" className="input-field bg-white" />
+              </div>
             </div>
           </div>
 

@@ -341,6 +341,21 @@ export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated, 
                   💡 Avishkar (Innovation & Product Optimization)
                 </span>
               )}
+              {(taskData?.pillar || task.pillar) === 'upakaram' && (
+                <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-purple-50 text-purple-800 border border-purple-300">
+                  🚀 Upakaram (Internal Track)
+                </span>
+              )}
+              {(taskData?.duration_type || task.duration_type) === 'short_term' && (
+                <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-300">
+                  ⚡ Short-Term Task
+                </span>
+              )}
+              {(taskData?.duration_type || task.duration_type) === 'long_term' && (
+                <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-purple-50 text-purple-800 border border-purple-300">
+                  🏔️ Long-Term Task
+                </span>
+              )}
               {(taskData?.project_name || task.project_name) && (
                 <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-purple-50 text-purple-700 border border-purple-200">
                   📁 Project: {taskData?.project_name || task.project_name}
@@ -355,6 +370,18 @@ export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated, 
             <X className="w-4 h-4 text-gray-400" />
           </button>
         </div>
+
+        {/* Red Flag Warning Callout Banner */}
+        {(taskData?.is_red_flagged || task.is_red_flagged) && (
+          <div className="mx-5 mt-4 p-4 bg-red-50 border border-red-200 rounded-xl space-y-1 animate-in fade-in">
+            <div className="flex items-center gap-2 text-xs font-bold text-red-950 uppercase tracking-wide">
+              <span>🚩 Red Flagged Task (Proceeded under forced constraint)</span>
+            </div>
+            <p className="text-xs text-red-900 leading-normal">
+              <strong>Cause / Reason for Compromise:</strong> {taskData?.red_flag_reason || task.red_flag_reason || 'Proceeded under forced constraint'}
+            </p>
+          </div>
+        )}
 
         {/* Verifier Sign-off Banner (Only shown when task is under_review) */}
         {(taskData?.status || task.status) === 'under_review' && (

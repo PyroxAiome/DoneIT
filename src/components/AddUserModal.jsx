@@ -16,10 +16,23 @@ export default function AddUserModal({ isOpen, onClose, onCreated, onUpdated, ed
         role: editingUser.role || 'employee',
         department: editingUser.department || 'General',
         mentor_id: editingUser.mentor_id || '',
-        can_access_sales: !!editingUser.can_access_sales
+        can_access_upakaram: !!editingUser.can_access_upakaram,
+        can_access_sales: !!editingUser.can_access_sales,
+        can_access_general_leads: editingUser.can_access_general_leads !== false,
+        can_access_order_lakshya: editingUser.can_access_order_lakshya !== false,
+        can_access_billing_lakshya: editingUser.can_access_billing_lakshya !== false,
+        can_access_collection_lakshya: editingUser.can_access_collection_lakshya !== false
       });
     } else {
-      setForm({ name: '', email: '', password: '', role: 'employee', department: 'General', mentor_id: '', can_access_sales: false });
+      setForm({
+        name: '', email: '', password: '', role: 'employee', department: 'General', mentor_id: '',
+        can_access_upakaram: false,
+        can_access_sales: false,
+        can_access_general_leads: true,
+        can_access_order_lakshya: true,
+        can_access_billing_lakshya: true,
+        can_access_collection_lakshya: true
+      });
     }
     setError('');
   }, [editingUser, isOpen]);
@@ -40,7 +53,19 @@ export default function AddUserModal({ isOpen, onClose, onCreated, onUpdated, ed
       setForm({ ...form, [field]: val });
     }
   };
-  const reset = () => { setForm({ name: '', email: '', password: '', role: 'employee', department: 'General', mentor_id: '', can_access_sales: false }); setError(''); };
+
+  const reset = () => {
+    setForm({
+      name: '', email: '', password: '', role: 'employee', department: 'General', mentor_id: '',
+      can_access_upakaram: false,
+      can_access_sales: false,
+      can_access_general_leads: true,
+      can_access_order_lakshya: true,
+      can_access_billing_lakshya: true,
+      can_access_collection_lakshya: true
+    });
+    setError('');
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -67,18 +92,26 @@ export default function AddUserModal({ isOpen, onClose, onCreated, onUpdated, ed
         await api.updateUserPermissions(editingUser.id, {
           can_access_nirantar: editingUser.can_access_nirantar,
           can_access_saksham: editingUser.can_access_saksham,
-          can_access_sales: form.can_access_sales
+          can_access_upakaram: form.can_access_upakaram,
+          can_access_sales: form.can_access_sales,
+          can_access_general_leads: form.can_access_general_leads,
+          can_access_order_lakshya: form.can_access_order_lakshya,
+          can_access_billing_lakshya: form.can_access_billing_lakshya,
+          can_access_collection_lakshya: form.can_access_collection_lakshya
         });
         if (onUpdated) onUpdated(updated);
       } else {
         const user = await api.createUser(payload);
-        if (form.can_access_sales) {
-          await api.updateUserPermissions(user.id, {
-            can_access_nirantar: false,
-            can_access_saksham: false,
-            can_access_sales: true
-          });
-        }
+        await api.updateUserPermissions(user.id, {
+          can_access_nirantar: false,
+          can_access_saksham: false,
+          can_access_upakaram: form.can_access_upakaram,
+          can_access_sales: form.can_access_sales,
+          can_access_general_leads: form.can_access_general_leads,
+          can_access_order_lakshya: form.can_access_order_lakshya,
+          can_access_billing_lakshya: form.can_access_billing_lakshya,
+          can_access_collection_lakshya: form.can_access_collection_lakshya
+        });
         if (onCreated) onCreated(user);
       }
       reset();
@@ -152,12 +185,64 @@ export default function AddUserModal({ isOpen, onClose, onCreated, onUpdated, ed
             <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-700">
               <input
                 type="checkbox"
+                checked={form.can_access_upakaram}
+                onChange={(e) => setForm({ ...form, can_access_upakaram: e.target.checked })}
+                className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500"
+              />
+              <span className="font-semibold text-purple-900">🚀 Access Upakaram Track (Internal Confidential)</span>
+            </label>
+
+            <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-700">
+              <input
+                type="checkbox"
                 checked={form.can_access_sales}
                 onChange={(e) => setForm({ ...form, can_access_sales: e.target.checked })}
                 className="w-4 h-4 text-emerald-600 rounded focus:ring-emerald-500"
               />
-              <span>Enable Sales Pipeline Access</span>
+              <span className="font-semibold">Enable Sales Module Access</span>
             </label>
+
+            {form.can_access_sales && (
+              <div className="pl-6 pt-1 space-y-1.5 border-l-2 border-emerald-200 mt-2 animate-in fade-in">
+                <div className="text-[11px] font-semibold text-slate-500 mb-1">Allowed Sales Pipelines:</div>
+                <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={form.can_access_general_leads !== false}
+                    onChange={(e) => setForm({ ...form, can_access_general_leads: e.target.checked })}
+                    className="w-3.5 h-3.5 text-amber-600 rounded"
+                  />
+                  <span>📋 General Inquiries</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={form.can_access_order_lakshya !== false}
+                    onChange={(e) => setForm({ ...form, can_access_order_lakshya: e.target.checked })}
+                    className="w-3.5 h-3.5 text-amber-600 rounded"
+                  />
+                  <span>🎯 Order Lakshya</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={form.can_access_billing_lakshya !== false}
+                    onChange={(e) => setForm({ ...form, can_access_billing_lakshya: e.target.checked })}
+                    className="w-3.5 h-3.5 text-blue-600 rounded"
+                  />
+                  <span>📄 Billing Lakshya</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={form.can_access_collection_lakshya !== false}
+                    onChange={(e) => setForm({ ...form, can_access_collection_lakshya: e.target.checked })}
+                    className="w-3.5 h-3.5 text-emerald-600 rounded"
+                  />
+                  <span>💰 Collection Lakshya</span>
+                </label>
+              </div>
+            )}
           </div>
 
           {/* Intern Mentor Assignment */}

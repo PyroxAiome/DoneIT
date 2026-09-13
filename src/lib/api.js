@@ -386,7 +386,7 @@ export const api = {
     }),
 
   // Sales Pipeline APIs
-  getSalesGoals: () => request('/sales/goals'),
+  getSalesGoals: (lakshyaType = '') => request(`/sales/goals${lakshyaType ? '?lakshya_type=' + lakshyaType : ''}`),
 
   createSalesGoal: (data) =>
     request('/sales/goals', {
@@ -402,6 +402,39 @@ export const api = {
 
   deleteSalesGoal: (id) =>
     request(`/sales/goals/${id}`, { method: 'DELETE' }),
+
+  getSalesTargets: (params = {}) => {
+    const qs = new URLSearchParams();
+    if (params.assignee_id) qs.set('assignee_id', params.assignee_id);
+    if (params.product_line) qs.set('product_line', params.product_line);
+    if (params.period_type) qs.set('period_type', params.period_type);
+    if (params.period_start) qs.set('period_start', params.period_start);
+    if (params.lakshya_type) qs.set('lakshya_type', params.lakshya_type);
+    const q = qs.toString();
+    return request(`/sales/targets${q ? '?' + q : ''}`);
+  },
+
+  upsertSalesTargets: (targets = []) =>
+    request('/sales/targets/upsert', {
+      method: 'POST',
+      body: JSON.stringify({ targets }),
+    }),
+
+  getSalesTargetProgress: (params = {}) => {
+    const qs = new URLSearchParams();
+    if (params.period_type) qs.set('period_type', params.period_type);
+    if (params.period_start) qs.set('period_start', params.period_start);
+    if (params.assignee_id) qs.set('assignee_id', params.assignee_id);
+    if (params.lakshya_type) qs.set('lakshya_type', params.lakshya_type);
+    const q = qs.toString();
+    return request(`/sales/targets/progress${q ? '?' + q : ''}`);
+  },
+
+  updateSalesTargetActual: (id, actual_count) =>
+    request(`/sales/targets/${id}/actual`, {
+      method: 'PUT',
+      body: JSON.stringify({ actual_count }),
+    }),
 
   getSalesLeads: (params = {}) => {
     const qs = new URLSearchParams();
@@ -440,6 +473,16 @@ export const api = {
     request(`/sales/leads/${id}/stage`, {
       method: 'PUT',
       body: JSON.stringify({ new_stage, notes }),
+    }),
+
+  confirmSalesOrder: (id) =>
+    request(`/sales/leads/${id}/confirm-order`, {
+      method: 'POST',
+    }),
+
+  moveSalesLeadToCollection: (id) =>
+    request(`/sales/leads/${id}/move-to-collection`, {
+      method: 'POST',
     }),
 
   getSalesLeadHistory: (id) => request(`/sales/leads/${id}/history`),

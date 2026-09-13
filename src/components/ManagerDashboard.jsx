@@ -296,6 +296,7 @@ export default function ManagerDashboard({ user }) {
   const avishkarPillarCount = workBaseTasks.filter(t => t.pillar === 'avishkar').length;
   const nirantarPillarCount = workBaseTasks.filter(t => t.pillar === 'nirantar').length;
   const sakshamPillarCount = workBaseTasks.filter(t => t.pillar === 'saksham').length;
+  const upakaramPillarCount = workBaseTasks.filter(t => t.pillar === 'upakaram').length;
 
   const displayedTasks = workBaseTasks.filter(t => {
     if (pillarFilter === 'all' || !pillarFilter) return true;
@@ -304,6 +305,7 @@ export default function ManagerDashboard({ user }) {
     if (pillarFilter === 'avishkar' && t.pillar !== 'avishkar') return false;
     if (pillarFilter === 'nirantar' && t.pillar !== 'nirantar') return false;
     if (pillarFilter === 'saksham' && t.pillar !== 'saksham') return false;
+    if (pillarFilter === 'upakaram' && t.pillar !== 'upakaram') return false;
     return true;
   }).sort((a, b) => {
     if (activeTab === 'to_verify') {
@@ -667,6 +669,25 @@ export default function ManagerDashboard({ user }) {
                     : 'bg-gray-100 text-gray-600'
                 }`}>
                   {sakshamPillarCount}
+                </span>
+              </button>
+            )}
+            {(user?.role === 'admin' || user?.can_access_upakaram || selectedEmp?.can_access_upakaram || upakaramPillarCount > 0) && (
+              <button
+                onClick={() => setPillarFilter('upakaram')}
+                className={`px-3.5 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-all duration-150 flex items-center gap-2 cursor-pointer ${
+                  pillarFilter === 'upakaram'
+                    ? 'bg-purple-600 text-white shadow-xs'
+                    : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200/80 shadow-xs'
+                }`}
+              >
+                <span className="flex items-center gap-1.5">🚀 Upakaram (Internal Track)</span>
+                <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
+                  pillarFilter === 'upakaram'
+                    ? 'bg-purple-700 text-white'
+                    : 'bg-gray-100 text-gray-600'
+                }`}>
+                  {upakaramPillarCount}
                 </span>
               </button>
             )}

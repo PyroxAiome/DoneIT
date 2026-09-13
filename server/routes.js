@@ -199,7 +199,25 @@ router.post('/auth/login', async (req, res) => {
 
 router.get('/auth/me', auth, async (req, res) => {
   try {
-    const { rows } = await db.query('SELECT id, name, email, role, department, avatar_url, can_access_nirantar, can_access_saksham, COALESCE(can_access_sales, false) as can_access_sales, created_at FROM users WHERE id = $1', [req.user.id]);
+    const { rows } = await db.query(`
+      SELECT id, name, email, role, department, avatar_url,
+        can_access_nirantar, can_access_saksham,
+        COALESCE(can_access_upakaram, false) as can_access_upakaram,
+        COALESCE(can_access_sales, false) as can_access_sales,
+        COALESCE(can_access_general_leads, true) as can_access_general_leads,
+        COALESCE(can_access_order_lakshya, true) as can_access_order_lakshya,
+        COALESCE(can_access_billing_lakshya, true) as can_access_billing_lakshya,
+        COALESCE(can_access_collection_lakshya, true) as can_access_collection_lakshya,
+        COALESCE(is_super_admin, false) as is_super_admin,
+        COALESCE(can_create_tasks, true) as can_create_tasks,
+        COALESCE(can_edit_tasks, true) as can_edit_tasks,
+        COALESCE(can_delete_tasks, false) as can_delete_tasks,
+        COALESCE(can_verify_tasks, false) as can_verify_tasks,
+        COALESCE(can_manage_users, false) as can_manage_users,
+        COALESCE(can_manage_projects, false) as can_manage_projects,
+        created_at
+      FROM users WHERE id = $1
+    `, [req.user.id]);
     const user = rows[0];
     if (!user) return res.status(404).json({ error: 'User not found' });
     res.json(user);
@@ -236,12 +254,65 @@ router.put('/auth/change-password', auth, async (req, res) => {
 router.put('/users/:id/permissions', auth, adminOnly, async (req, res) => {
   try {
     const { id } = req.params;
-    const { can_access_nirantar, can_access_saksham, can_access_sales } = req.body;
-    await db.query(
-      'UPDATE users SET can_access_nirantar = $1, can_access_saksham = $2, can_access_sales = $3 WHERE id = $4',
-      [Boolean(can_access_nirantar), Boolean(can_access_saksham), Boolean(can_access_sales), id]
-    );
-    const { rows } = await db.query('SELECT id, name, email, role, department, can_access_nirantar, can_access_saksham, can_access_sales FROM users WHERE id = $1', [id]);
+    
+    // Target user check
+    const { rows: targetUserRows } = await db.query('SELECT is_super_admin FROM users WHERE id = $1', [id]);
+    const targetUser = targetUserRows[0];
+    if (!targetUser) return res.status(404).json({ error: 'User not found' });
+
+    // Requesting user check
+    const { rows: reqUserRows } = await db.query('SELECT is_super_admin FROM users WHERE id = $1', [req.user.id]);
+    const isReqSuperAdmin = !!(reqUserRows[0] && reqUserRows[0].is_super_admin);
+
+    if (targetUser.is_super_admin && !isReqSuperAdmin) {
+      return res.status(403).json({ error: 'Super Admin permissions can only be modified by Super Admin' });
+    }
+
+    const {
+      can_access_nirantar, can_access_saksham, can_access_upakaram, can_access_sales,
+      can_access_general_leads, can_access_order_lakshya, can_access_billing_lakshya, can_access_collection_lakshya,
+      can_create_tasks, can_edit_tasks, can_delete_tasks, can_verify_tasks, can_manage_users, can_manage_projects,
+      is_super_admin
+    } = req.body;
+
+    const newIsSuperAdmin = isReqSuperAdmin && is_super_admin !== undefined ? Boolean(is_super_admin) : targetUser.is_super_admin;
+
+    await db.query(`
+      UPDATE users
+      SET can_access_nirantar = $1,
+          can_access_saksham = $2,
+          can_access_upakaram = $3,
+          can_access_sales = $4,
+          can_access_general_leads = $5,
+          can_access_order_lakshya = $6,
+          can_access_billing_lakshya = $7,
+          can_access_collection_lakshya = $8,
+          can_create_tasks = $9,
+          can_edit_tasks = $10,
+          can_delete_tasks = $11,
+          can_verify_tasks = $12,
+          can_manage_users = $13,
+          can_manage_projects = $14,
+          is_super_admin = $15
+      WHERE id = $16
+    `, [
+      Boolean(can_access_nirantar), Boolean(can_access_saksham), Boolean(can_access_upakaram), Boolean(can_access_sales),
+      can_access_general_leads ?? true, can_access_order_lakshya ?? true,
+      can_access_billing_lakshya ?? true, can_access_collection_lakshya ?? true,
+      can_create_tasks ?? true, can_edit_tasks ?? true,
+      Boolean(can_delete_tasks), Boolean(can_verify_tasks),
+      Boolean(can_manage_users), Boolean(can_manage_projects),
+      Boolean(newIsSuperAdmin),
+      id
+    ]);
+
+    const { rows } = await db.query(`
+      SELECT id, name, email, role, department, 
+        can_access_nirantar, can_access_saksham, can_access_upakaram, can_access_sales, 
+        can_access_general_leads, can_access_order_lakshya, can_access_billing_lakshya, can_access_collection_lakshya,
+        is_super_admin, can_create_tasks, can_edit_tasks, can_delete_tasks, can_verify_tasks, can_manage_users, can_manage_projects
+      FROM users WHERE id = $1
+    `, [id]);
     res.json({ success: true, user: rows[0] });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -261,7 +332,19 @@ router.get('/employees', auth, async (req, res) => {
       SELECT u.id, u.name, u.email, u.role, u.department, u.avatar_url, u.mentor_id, m.name as mentor_name,
         COALESCE(u.can_access_nirantar, false) as can_access_nirantar,
         COALESCE(u.can_access_saksham, false) as can_access_saksham,
+        COALESCE(u.can_access_upakaram, false) as can_access_upakaram,
         COALESCE(u.can_access_sales, false) as can_access_sales,
+        COALESCE(u.can_access_general_leads, true) as can_access_general_leads,
+        COALESCE(u.can_access_order_lakshya, true) as can_access_order_lakshya,
+        COALESCE(u.can_access_billing_lakshya, true) as can_access_billing_lakshya,
+        COALESCE(u.can_access_collection_lakshya, true) as can_access_collection_lakshya,
+        COALESCE(u.is_super_admin, false) as is_super_admin,
+        COALESCE(u.can_create_tasks, true) as can_create_tasks,
+        COALESCE(u.can_edit_tasks, true) as can_edit_tasks,
+        COALESCE(u.can_delete_tasks, false) as can_delete_tasks,
+        COALESCE(u.can_verify_tasks, false) as can_verify_tasks,
+        COALESCE(u.can_manage_users, false) as can_manage_users,
+        COALESCE(u.can_manage_projects, false) as can_manage_projects,
         u.manual_training_level,
         u.created_at,
         (
@@ -412,6 +495,10 @@ router.delete('/users/:id', auth, adminOnly, async (req, res) => {
     if (parseInt(id) === req.user.id) {
       return res.status(400).json({ error: 'Cannot delete your own account' });
     }
+    const { rows: targetUserRows } = await db.query('SELECT is_super_admin FROM users WHERE id = $1', [id]);
+    if (targetUserRows[0] && targetUserRows[0].is_super_admin) {
+      return res.status(403).json({ error: 'Super Admin account cannot be deleted' });
+    }
     const result = await db.query('DELETE FROM users WHERE id = $1', [id]);
     if (result.rowCount === 0) return res.status(404).json({ error: 'User not found' });
     res.json({ success: true });
@@ -508,8 +595,20 @@ router.get('/tasks', auth, async (req, res) => {
         sql += ` AND LOWER(t.pillar) = 'nirantar'`;
       } else if (req.query.pillar === 'saksham') {
         sql += ` AND LOWER(t.pillar) = 'saksham'`;
+      } else if (req.query.pillar === 'upakaram') {
+        sql += ` AND LOWER(t.pillar) = 'upakaram'`;
       } else if (req.query.pillar === 'general') {
         sql += ` AND (t.pillar IS NULL OR LOWER(t.pillar) = 'general')`;
+      }
+    }
+
+    // Upakaram Confidentiality Check (restrict upakaram tasks to admin or authorized users)
+    if (req.user.role !== 'admin') {
+      const { rows: uRows } = await db.query('SELECT can_access_upakaram FROM users WHERE id = $1', [req.user.id]);
+      if (!uRows[0]?.can_access_upakaram) {
+        sql += ` AND (LOWER(COALESCE(t.pillar, '')) != 'upakaram' OR t.assignee_id = $${paramIdx} OR t.creator_id = $${paramIdx} OR t.verifier_id = $${paramIdx} OR t.completed_by = $${paramIdx})`;
+        params.push(req.user.id);
+        paramIdx++;
       }
     }
     if (req.query.priority) {
@@ -630,7 +729,7 @@ router.get('/tasks/:id', auth, async (req, res) => {
 
 router.post('/tasks', auth, async (req, res) => {
   try {
-    const { title, description, color, status, priority, category, pillar, assignee_id, assignee_ids,
+    const { title, description, color, status, priority, category, pillar, duration_type, is_red_flagged, red_flag_reason, assignee_id, assignee_ids,
       start_date, due_date, estimated_hours, project_id, verifier_id,
       vacancies_count, hiring_stage, hr_strategy_notes,
       hiring_department, hiring_lead_id, way_of_hiring,
@@ -695,14 +794,15 @@ router.post('/tasks', auth, async (req, res) => {
     for (let i = 0; i < assignees.length; i++) {
       const targetId = assignees[i];
       const result = await db.query(`
-        INSERT INTO tasks (title, description, color, status, priority, category, pillar,
+        INSERT INTO tasks (title, description, color, status, priority, category, pillar, duration_type, is_red_flagged, red_flag_reason,
           assignee_id, creator_id, start_date, due_date, estimated_hours, parent_id, project_id, verifier_id,
           vacancies_count, hiring_stage, hr_strategy_notes, hiring_department, hiring_lead_id, way_of_hiring,
           training_module, training_level, training_video_url, training_doc_url)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25) RETURNING id
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28) RETURNING id
       `, [
         title, description || '', color || 'slate', status || 'todo',
-        priority || 'medium', category || 'General', pillar || 'general',
+        priority || 'medium', category || 'General', pillar || 'general', duration_type || 'exact',
+        Boolean(is_red_flagged), red_flag_reason || '',
         targetId, req.user.id,
         start_date || null, due_date || null, estimated_hours || 0,
         i === 0 ? null : parentId,
@@ -962,7 +1062,8 @@ router.put('/tasks/:id', auth, async (req, res) => {
       req.body.hiring_stage_updated_at = new Date();
     }
 
-    const fields = ['title', 'description', 'color', 'status', 'priority', 'category', 'pillar',
+    const fields = ['title', 'description', 'color', 'status', 'priority', 'category', 'pillar', 'duration_type',
+      'is_red_flagged', 'red_flag_reason',
       'progress_percent', 'start_date', 'due_date', 'estimated_hours',
       'logical_explanation', 'project_id', 'verifier_id', 'verified_at', 'completed_by',
       'vacancies_count', 'hiring_stage', 'hiring_stage_updated_by', 'hiring_stage_updated_at', 'hr_strategy_notes',
@@ -3132,20 +3233,29 @@ router.post('/repeated-tasks/:id/reviews', auth, async (req, res) => {
 // ─── SALES PIPELINE MODULE ─────────────────────────────────────
 const STAGE_ORDER = [
   'suspect', 'prospect', 'enquiry', 'presentation', 'demo',
-  'spec_tender', 'design_negotiation', 'dfp', 'order', 'billing'
+  'spec_tender', 'design_negotiation',
+  'proforma_invoice', 'tax_invoice', 'billing_approved', 'payment_pending',
+  'payment_due', 'followup', 'partially_collected', 'fully_collected'
 ];
 
 const STAGE_PROBABILITIES = {
-  suspect: 5,
-  prospect: 10,
-  enquiry: 20,
-  presentation: 30,
-  demo: 40,
-  spec_tender: 50,
-  design_negotiation: 60,
-  dfp: 70,
-  order: 85,
-  billing: 95
+  suspect: 10,
+  prospect: 25,
+  enquiry: 40,
+  presentation: 55,
+  demo: 70,
+  spec_tender: 85,
+  design_negotiation: 95,
+
+  proforma_invoice: 25,
+  tax_invoice: 50,
+  billing_approved: 75,
+  payment_pending: 100,
+
+  payment_due: 25,
+  followup: 50,
+  partially_collected: 75,
+  fully_collected: 100
 };
 
 const salesAccessOnly = async (req, res, next) => {
@@ -3162,15 +3272,22 @@ const salesAccessOnly = async (req, res, next) => {
 // ── Lakshya (Sales Goals) Endpoints ──
 router.get('/sales/goals', auth, salesAccessOnly, async (req, res) => {
   try {
-    const { rows } = await db.query(`
+    const { lakshya_type } = req.query;
+    let queryText = `
       SELECT g.*, u.name as creator_name,
         (SELECT COUNT(*) FROM sales_leads WHERE goal_id = g.id) as total_leads,
         (SELECT COALESCE(SUM(lead_value), 0) FROM sales_leads WHERE goal_id = g.id) as current_value,
         (SELECT COUNT(*) FROM sales_leads WHERE goal_id = g.id AND current_stage IN ('order', 'billing')) as won_leads
       FROM sales_goals g
       LEFT JOIN users u ON g.creator_id = u.id
-      ORDER BY g.created_at DESC
-    `);
+    `;
+    const params = [];
+    if (lakshya_type) {
+      params.push(lakshya_type);
+      queryText += ` WHERE g.lakshya_type = $1 `;
+    }
+    queryText += ` ORDER BY g.created_at DESC `;
+    const { rows } = await db.query(queryText, params);
     res.json(rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -3182,14 +3299,14 @@ router.post('/sales/goals', auth, salesAccessOnly, async (req, res) => {
     if (!['admin', 'sales_manager'].includes(req.user.role)) {
       return res.status(403).json({ error: 'Only Admin or Sales Manager can create goals' });
     }
-    const { name, description, target_value, target_leads, period_type, period_start, period_end } = req.body;
+    const { name, description, target_value, target_leads, period_type, period_start, period_end, lakshya_type } = req.body;
     if (!name) return res.status(400).json({ error: 'Goal name is required' });
 
     const { rows } = await db.query(`
-      INSERT INTO sales_goals (name, description, target_value, target_leads, period_type, period_start, period_end, creator_id)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      INSERT INTO sales_goals (name, description, target_value, target_leads, period_type, period_start, period_end, creator_id, lakshya_type)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       RETURNING *
-    `, [name, description || '', target_value || 0, target_leads || 0, period_type || 'monthly', period_start || null, period_end || null, req.user.id]);
+    `, [name, description || '', target_value || 0, target_leads || 0, period_type || 'monthly', period_start || null, period_end || null, req.user.id, lakshya_type || 'order']);
 
     res.status(201).json(rows[0]);
   } catch (err) {
@@ -3203,7 +3320,7 @@ router.put('/sales/goals/:id', auth, salesAccessOnly, async (req, res) => {
       return res.status(403).json({ error: 'Only Admin or Sales Manager can edit goals' });
     }
     const { id } = req.params;
-    const { name, description, target_value, target_leads, period_type, period_start, period_end, status } = req.body;
+    const { name, description, target_value, target_leads, period_type, period_start, period_end, status, lakshya_type } = req.body;
 
     const { rows } = await db.query(`
       UPDATE sales_goals
@@ -3215,10 +3332,11 @@ router.put('/sales/goals/:id', auth, salesAccessOnly, async (req, res) => {
           period_start = COALESCE($6, period_start),
           period_end = COALESCE($7, period_end),
           status = COALESCE($8, status),
+          lakshya_type = COALESCE($9, lakshya_type),
           updated_at = CURRENT_TIMESTAMP
-      WHERE id = $9
+      WHERE id = $10
       RETURNING *
-    `, [name, description, target_value, target_leads, period_type, period_start, period_end, status, id]);
+    `, [name, description, target_value, target_leads, period_type, period_start, period_end, status, lakshya_type, id]);
 
     if (!rows[0]) return res.status(404).json({ error: 'Goal not found' });
     res.json(rows[0]);
@@ -3232,6 +3350,172 @@ router.delete('/sales/goals/:id', auth, adminOnly, async (req, res) => {
     const { id } = req.params;
     await db.query('DELETE FROM sales_goals WHERE id = $1', [id]);
     res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Sales Targets Endpoints ──
+router.get('/sales/targets', auth, salesAccessOnly, async (req, res) => {
+  try {
+    const { assignee_id, product_line, period_type, period_start, lakshya_type } = req.query;
+    let queryText = `
+      SELECT t.*, u.name as assignee_name, c.name as creator_name
+      FROM sales_targets t
+      LEFT JOIN users u ON t.assignee_id = u.id
+      LEFT JOIN users c ON t.created_by = c.id
+      WHERE 1=1
+    `;
+    const params = [];
+    if (lakshya_type) {
+      params.push(lakshya_type);
+      queryText += ` AND t.lakshya_type = $${params.length} `;
+    } else {
+      params.push('order');
+      queryText += ` AND t.lakshya_type = $${params.length} `;
+    }
+    if (assignee_id) {
+      params.push(assignee_id);
+      queryText += ` AND t.assignee_id = $${params.length} `;
+    }
+    if (product_line) {
+      params.push(product_line);
+      queryText += ` AND t.product_line = $${params.length} `;
+    }
+    if (period_type) {
+      params.push(period_type);
+      queryText += ` AND t.period_type = $${params.length} `;
+    }
+    if (period_start) {
+      params.push(period_start);
+      queryText += ` AND t.period_start = $${params.length} `;
+    }
+    queryText += ` ORDER BY t.period_start DESC, t.stage ASC `;
+
+    const { rows } = await db.query(queryText, params);
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/sales/targets/upsert', auth, salesAccessOnly, async (req, res) => {
+  try {
+    if (!['admin', 'sales_manager'].includes(req.user.role)) {
+      return res.status(403).json({ error: 'Only Admin or Sales Manager can set targets' });
+    }
+    const { targets } = req.body; // Array of target objects
+    if (!Array.isArray(targets) || targets.length === 0) {
+      return res.status(400).json({ error: 'Targets array is required' });
+    }
+
+    const saved = [];
+    for (const item of targets) {
+      const {
+        assignee_id, product_line, product_line_other, stage,
+        period_type, period_label, period_start, period_end,
+        target_count, target_value, lakshya_type
+      } = item;
+
+      if (!assignee_id || !product_line || !stage || !period_type || !period_start) {
+        continue;
+      }
+
+      const lType = lakshya_type || 'order';
+
+      const { rows } = await db.query(`
+        INSERT INTO sales_targets (
+          assignee_id, product_line, product_line_other, stage,
+          period_type, period_label, period_start, period_end,
+          target_count, target_value, created_by, lakshya_type
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        ON CONFLICT (assignee_id, product_line, stage, period_type, period_start, lakshya_type)
+        DO UPDATE SET
+          target_count = EXCLUDED.target_count,
+          target_value = EXCLUDED.target_value,
+          product_line_other = EXCLUDED.product_line_other,
+          period_label = EXCLUDED.period_label,
+          period_end = EXCLUDED.period_end,
+          updated_at = CURRENT_TIMESTAMP
+        RETURNING *
+      `, [
+        assignee_id, product_line, product_line_other || '', stage,
+        period_type, period_label || '', period_start, period_end || period_start,
+        target_count || 0, target_value || 0, req.user.id, lType
+      ]);
+
+      if (rows[0]) saved.push(rows[0]);
+    }
+
+    res.json({ success: true, count: saved.length, targets: saved });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/sales/targets/progress', auth, salesAccessOnly, async (req, res) => {
+  try {
+    const { period_type, period_start, assignee_id, lakshya_type } = req.query;
+    if (!period_type || !period_start) {
+      return res.status(400).json({ error: 'period_type and period_start are required' });
+    }
+
+    const lType = lakshya_type || 'order';
+    let whereClause = ` WHERE st.period_type = $1 AND st.period_start = $2 AND st.lakshya_type = $3 `;
+    const params = [period_type, period_start, lType];
+
+    if (assignee_id) {
+      params.push(assignee_id);
+      whereClause += ` AND st.assignee_id = $4 `;
+    }
+
+    const { rows } = await db.query(`
+      SELECT 
+        st.id, st.assignee_id, u.name as assignee_name, st.lakshya_type,
+        st.product_line, st.product_line_other, st.stage,
+        st.period_type, st.period_label, st.period_start, st.period_end,
+        st.target_count, st.target_value,
+        GREATEST(st.actual_count, COUNT(l.id)) as actual_count,
+        COALESCE(SUM(l.lead_value), 0) as actual_value
+      FROM sales_targets st
+      LEFT JOIN users u ON st.assignee_id = u.id
+      LEFT JOIN sales_leads l ON l.assignee_id = st.assignee_id
+        AND (
+          l.product_category = st.product_line 
+          OR (st.product_line = 'other' AND l.product_category = 'other')
+        )
+        AND l.current_stage = st.stage
+        AND l.created_at >= st.period_start::date
+        AND l.created_at <= (st.period_end::date + INTERVAL '1 day')
+      ${whereClause}
+      GROUP BY st.id, u.name
+      ORDER BY u.name ASC, st.product_line ASC, st.stage ASC
+    `, params);
+
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Update target actual count directly by salesperson
+router.put('/sales/targets/:id/actual', auth, salesAccessOnly, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { actual_count } = req.body;
+    const countVal = Math.max(0, parseInt(actual_count, 10) || 0);
+
+    const { rows } = await db.query(`
+      UPDATE sales_targets
+      SET actual_count = $1,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = $2
+      RETURNING *
+    `, [countVal, id]);
+
+    if (!rows[0]) return res.status(404).json({ error: 'Target not found' });
+    res.json(rows[0]);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -3296,9 +3580,13 @@ router.get('/sales/leads', auth, salesAccessOnly, async (req, res) => {
     }
 
     if (category) {
-      conditions.push(`l.category = $${paramIdx}`);
-      params.push(category);
-      paramIdx++;
+      if (category === 'order_lakshya' || category === 'lakshya') {
+        conditions.push(`(l.category = 'lakshya' OR l.category = 'order_lakshya')`);
+      } else {
+        conditions.push(`l.category = $${paramIdx}`);
+        params.push(category);
+        paramIdx++;
+      }
     }
 
     if (goal_id) {
@@ -3446,6 +3734,7 @@ router.post('/sales/leads', auth, salesAccessOnly, async (req, res) => {
       title, description, category, goal_id, lead_value, lead_source, industry,
       product_category, priority, region, country, city, site_address,
       consultant_name, consultant_firm, consultant_email, consultant_phone,
+      client_name, client_company, client_email, client_phone, client_designation,
       assignee_id, start_date, expected_close_date,
       lead_source_other, industry_other, product_category_other
     } = req.body;
@@ -3467,17 +3756,20 @@ router.post('/sales/leads', auth, salesAccessOnly, async (req, res) => {
         title, description, category, goal_id, current_stage, stage_updated_at, stage_updated_by,
         lead_value, probability_pct, lead_source, industry, product_category, priority,
         region, country, city, site_address, consultant_name, consultant_firm,
-        consultant_email, consultant_phone, assignee_id, creator_id, start_date, expected_close_date, enquiry_month,
+        consultant_email, consultant_phone,
+        client_name, client_company, client_email, client_phone, client_designation,
+        assignee_id, creator_id, start_date, expected_close_date, enquiry_month,
         lead_source_other, industry_other, product_category_other
       )
-      VALUES ($1, $2, $3, $4, 'suspect', CURRENT_TIMESTAMP, $5, $6, 5, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26)
+      VALUES ($1, $2, $3, $4, 'suspect', CURRENT_TIMESTAMP, $5, $6, 10, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31)
       RETURNING *
     `, [
       title.trim(), description || '', category || 'general', goal_id || null, req.user.id,
       lead_value || 0, lead_source || '', industry || '', product_category || '', priority || 'medium',
       region || '', country || 'India', city || '', site_address || '', consultant_name || '',
-      consultant_firm || '', consultant_email || '', consultant_phone || '', effectiveAssignee,
-      req.user.id, effectiveStartDate, expected_close_date || null, enquiryMonth,
+      consultant_firm || '', consultant_email || '', consultant_phone || '',
+      client_name || '', client_company || '', client_email || '', client_phone || '', client_designation || '',
+      effectiveAssignee, req.user.id, effectiveStartDate, expected_close_date || null, enquiryMonth,
       lead_source_other || '', industry_other || '', product_category_other || ''
     ]);
 
@@ -3486,7 +3778,7 @@ router.post('/sales/leads', auth, salesAccessOnly, async (req, res) => {
     // Log initial stage history
     await db.query(`
       INSERT INTO sales_stage_history (lead_id, from_stage, to_stage, was_skipped, skipped_list, probability_pct_at, lead_value_at, notes, changed_by)
-      VALUES ($1, NULL, 'suspect', false, '[]', 5, $2, 'Lead created', $3)
+      VALUES ($1, NULL, 'suspect', false, '[]', 10, $2, 'Lead created', $3)
     `, [lead.id, lead.lead_value, req.user.id]);
 
     // Send notifications to admins
@@ -3510,6 +3802,7 @@ router.put('/sales/leads/:id', auth, salesAccessOnly, async (req, res) => {
       title, description, category, goal_id, lead_value, lead_source, industry,
       product_category, priority, region, country, city, site_address,
       consultant_name, consultant_firm, consultant_email, consultant_phone,
+      client_name, client_company, client_email, client_phone, client_designation,
       assignee_id, start_date, expected_close_date, probability_pct,
       lead_source_other, industry_other, product_category_other
     } = req.body;
@@ -3533,20 +3826,26 @@ router.put('/sales/leads/:id', auth, salesAccessOnly, async (req, res) => {
           consultant_firm = COALESCE($15, consultant_firm),
           consultant_email = COALESCE($16, consultant_email),
           consultant_phone = COALESCE($17, consultant_phone),
-          assignee_id = COALESCE($18, assignee_id),
-          start_date = COALESCE($19, start_date),
-          expected_close_date = COALESCE($20, expected_close_date),
-          probability_pct = COALESCE($21, probability_pct),
-          lead_source_other = COALESCE($22, lead_source_other),
-          industry_other = COALESCE($23, industry_other),
-          product_category_other = COALESCE($24, product_category_other),
+          client_name = COALESCE($18, client_name),
+          client_company = COALESCE($19, client_company),
+          client_email = COALESCE($20, client_email),
+          client_phone = COALESCE($21, client_phone),
+          client_designation = COALESCE($22, client_designation),
+          assignee_id = COALESCE($23, assignee_id),
+          start_date = COALESCE($24, start_date),
+          expected_close_date = COALESCE($25, expected_close_date),
+          probability_pct = COALESCE($26, probability_pct),
+          lead_source_other = COALESCE($27, lead_source_other),
+          industry_other = COALESCE($28, industry_other),
+          product_category_other = COALESCE($29, product_category_other),
           updated_at = CURRENT_TIMESTAMP
-      WHERE id = $25
+      WHERE id = $30
       RETURNING *
     `, [
       title, description, category, goal_id || null, lead_value, lead_source, industry,
       product_category, priority, region, country, city, site_address,
       consultant_name, consultant_firm, consultant_email, consultant_phone,
+      client_name, client_company, client_email, client_phone, client_designation,
       assignee_id, start_date, expected_close_date, probability_pct,
       lead_source_other, industry_other, product_category_other, id
     ]);
@@ -3649,6 +3948,67 @@ router.put('/sales/leads/:id/stage', auth, salesAccessOnly, async (req, res) => 
     }
 
     res.json(updatedLead);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Admin Order Confirmation Endpoint ──
+router.post('/sales/leads/:id/confirm-order', auth, salesAccessOnly, async (req, res) => {
+  try {
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Only Admin can confirm orders' });
+    }
+    const { id } = req.params;
+    const { rows: currentRows } = await db.query('SELECT * FROM sales_leads WHERE id = $1', [id]);
+    if (!currentRows[0]) return res.status(404).json({ error: 'Lead not found' });
+    const lead = currentRows[0];
+
+    const { rows: updatedRows } = await db.query(`
+      UPDATE sales_leads
+      SET category = 'billing_lakshya',
+          current_stage = 'proforma_invoice',
+          probability_pct = 100,
+          stage_updated_at = CURRENT_TIMESTAMP,
+          stage_updated_by = $1,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = $2
+      RETURNING *
+    `, [req.user.id, id]);
+
+    // Log stage history
+    await db.query(`
+      INSERT INTO sales_stage_history (lead_id, from_stage, to_stage, was_skipped, skipped_list, probability_pct_at, lead_value_at, notes, changed_by)
+      VALUES ($1, $2, 'proforma_invoice', false, '[]', 100, $3, 'Order Confirmed by Admin - Moved to Billing Lakshya', $4)
+    `, [id, lead.current_stage, lead.lead_value, req.user.id]);
+
+    res.json(updatedRows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Move Billing Lead to Collection ──
+router.post('/sales/leads/:id/move-to-collection', auth, salesAccessOnly, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { rows: currentRows } = await db.query('SELECT * FROM sales_leads WHERE id = $1', [id]);
+    if (!currentRows[0]) return res.status(404).json({ error: 'Lead not found' });
+    const lead = currentRows[0];
+
+    const { rows: updatedRows } = await db.query(`
+      UPDATE sales_leads
+      SET category = 'collection_lakshya',
+          current_stage = 'payment_due',
+          probability_pct = 100,
+          stage_updated_at = CURRENT_TIMESTAMP,
+          stage_updated_by = $1,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = $2
+      RETURNING *
+    `, [req.user.id, id]);
+
+    res.json(updatedRows[0]);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

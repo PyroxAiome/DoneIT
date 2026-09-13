@@ -46,11 +46,9 @@ export default function TaskModal({ isOpen, onClose, onSaved, task, employees, o
   const sourceEmployees = (employees && employees.length > 0) ? employees : allUsersList;
 
   sourceEmployees.forEach(emp => {
-    if (emp.role !== 'admin' || (currentUser && emp.id === currentUser.id)) {
-      if (!seenIds.has(emp.id)) {
-        assigneeList.push(emp);
-        seenIds.add(emp.id);
-      }
+    if (!seenIds.has(emp.id)) {
+      assigneeList.push(emp);
+      seenIds.add(emp.id);
     }
   });
 
@@ -87,6 +85,9 @@ export default function TaskModal({ isOpen, onClose, onSaved, task, employees, o
         priority: task.priority || 'medium',
         pillar: task.pillar || 'general',
         category: task.category || 'General',
+        duration_type: task.duration_type || (task.due_date ? 'exact' : 'exact'),
+        is_red_flagged: !!task.is_red_flagged,
+        red_flag_reason: task.red_flag_reason || '',
         assignee_id: task.assignee_id ? String(task.assignee_id) : '',
         start_date: task.start_date || '',
         due_date: task.due_date || '',
@@ -114,7 +115,9 @@ export default function TaskModal({ isOpen, onClose, onSaved, task, employees, o
     } else {
       setForm({
         title: '', description: '', color: 'slate', status: 'todo', priority: 'medium',
-        pillar: initialPillar || 'general', category: 'General', assignee_id: currentUser ? String(currentUser.id) : '', start_date: '', due_date: '', estimated_hours: '',
+        pillar: initialPillar || 'general', category: 'General', duration_type: 'exact',
+        is_red_flagged: false, red_flag_reason: '',
+        assignee_id: currentUser ? String(currentUser.id) : '', start_date: '', due_date: '', estimated_hours: '',
         project_id: projectId ? String(projectId) : '',
         verifier_id: '',
         vacancies_count: 0,
@@ -156,6 +159,10 @@ export default function TaskModal({ isOpen, onClose, onSaved, task, employees, o
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.title.trim()) { setError('Title is required'); return; }
+    if (form.is_red_flagged && (!form.red_flag_reason || !form.red_flag_reason.trim())) {
+      setError('Please provide a reason / cause for marking this task as a Red Flag.');
+      return;
+    }
     if (currentUser && ['admin', 'manager'].includes(currentUser.role)) {
       if (selectedAssigneeIds.length === 0) { setError('At least one assignee must be selected'); return; }
     }
@@ -302,6 +309,9 @@ export default function TaskModal({ isOpen, onClose, onSaved, task, employees, o
                 {(currentUser?.role === 'admin' || currentUser?.can_access_saksham || form.pillar === 'saksham') && (
                   <option value="saksham">⚡ Saksham (Capability Enablement)</option>
                 )}
+                {(currentUser?.role === 'admin' || currentUser?.can_access_upakaram || form.pillar === 'upakaram') && (
+                  <option value="upakaram">🚀 Upakaram (Internal / Confidential Track)</option>
+                )}
               </select>
             </div>
             <div>
@@ -442,19 +452,80 @@ export default function TaskModal({ isOpen, onClose, onSaved, task, employees, o
             </div>
           )}
 
+          <div>
+            <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider block mb-1">Target Completion Option</label>
+            <div className="grid grid-cols-3 gap-1.5 p-1 bg-gray-100 rounded-xl border border-gray-200 text-xs font-semibold mb-2">
+              <button
+                type="button"
+                onClick={() => setForm(prev => ({ ...prev, duration_type: 'exact' }))}
+                className={`py-1.5 px-2 rounded-lg transition-all flex items-center justify-center gap-1 ${form.duration_type === 'exact' || !form.duration_type ? 'bg-white text-gray-900 shadow-xs font-bold' : 'text-gray-600 hover:text-gray-900'}`}
+              >
+                <span>📅 Exact Date</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setForm(prev => ({ ...prev, duration_type: 'short_term', due_date: '' }))}
+                className={`py-1.5 px-2 rounded-lg transition-all flex items-center justify-center gap-1 ${form.duration_type === 'short_term' ? 'bg-amber-50 text-amber-800 border border-amber-300 shadow-xs font-bold' : 'text-gray-600 hover:text-gray-900'}`}
+              >
+                <span>⚡ Short-Term</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setForm(prev => ({ ...prev, duration_type: 'long_term', due_date: '' }))}
+                className={`py-1.5 px-2 rounded-lg transition-all flex items-center justify-center gap-1 ${form.duration_type === 'long_term' ? 'bg-purple-50 text-purple-800 border border-purple-300 shadow-xs font-bold' : 'text-gray-600 hover:text-gray-900'}`}
+              >
+                <span>🏔️ Long-Term</span>
+              </button>
+            </div>
+          </div>
+
           <div className="grid grid-cols-3 gap-3">
             <div>
-              <label className="text-xs text-gray-500 uppercase tracking-wider block mb-1">Start</label>
+              <label className="text-xs text-gray-500 uppercase tracking-wider block mb-1">Start Date</label>
               <input type="date" value={form.start_date} onChange={handleChange('start_date')} className="input-field" />
             </div>
             <div>
-              <label className="text-xs text-gray-500 uppercase tracking-wider block mb-1">Due</label>
-              <input type="date" value={form.due_date} onChange={handleChange('due_date')} className="input-field" />
+              <label className="text-xs text-gray-500 uppercase tracking-wider block mb-1">Target Date</label>
+              <input
+                type="date"
+                value={form.due_date}
+                onChange={handleChange('due_date')}
+                disabled={form.duration_type === 'short_term' || form.duration_type === 'long_term'}
+                className="input-field disabled:bg-gray-100 disabled:text-gray-400"
+              />
             </div>
             <div>
               <label className="text-xs text-gray-500 uppercase tracking-wider block mb-1">Hours</label>
               <input type="number" value={form.estimated_hours} onChange={handleChange('estimated_hours')} className="input-field" placeholder="0" min="0" step="0.5" />
             </div>
+          </div>
+
+          {/* Red Flag Warning Box */}
+          <div className="p-3.5 bg-red-50/70 border border-red-200 rounded-xl space-y-2">
+            <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-red-900">
+              <input
+                type="checkbox"
+                checked={form.is_red_flagged}
+                onChange={(e) => setForm(prev => ({ ...prev, is_red_flagged: e.target.checked }))}
+                className="w-4 h-4 text-red-600 rounded focus:ring-red-500"
+              />
+              <span>🚩 Mark as Red Flagged Task (Forced Constraint / Compromise)</span>
+            </label>
+
+            {form.is_red_flagged && (
+              <div className="space-y-1 pt-1 animate-in fade-in">
+                <label className="text-[11px] font-semibold text-red-900 block">
+                  Cause / Reason for Forced Compromise <span className="text-red-600">*</span>
+                </label>
+                <textarea
+                  value={form.red_flag_reason}
+                  onChange={handleChange('red_flag_reason')}
+                  placeholder="e.g. Inadequate time given due to urgent release, forced to proceed without full testing..."
+                  className="input-field bg-white border-red-300 text-xs min-h-[60px]"
+                  required={form.is_red_flagged}
+                />
+              </div>
+            )}
           </div>
 
 

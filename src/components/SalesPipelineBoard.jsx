@@ -1,19 +1,36 @@
 import SalesLeadCard from './SalesLeadCard';
 
-const STAGES = [
-  { key: 'suspect', label: 'Suspect', prob: 5 },
-  { key: 'prospect', label: 'Prospect', prob: 10 },
-  { key: 'enquiry', label: 'Enquiry', prob: 20 },
-  { key: 'presentation', label: 'Presentation', prob: 30 },
-  { key: 'demo', label: 'Demo', prob: 40 },
-  { key: 'spec_tender', label: 'Spec of Tender', prob: 50 },
-  { key: 'design_negotiation', label: 'Design Negotiation', prob: 60 },
-  { key: 'dfp', label: 'DFP', prob: 70 },
-  { key: 'order', label: 'Order', prob: 85 },
-  { key: 'billing', label: 'Billing', prob: 95 }
+const ORDER_STAGES = [
+  { key: 'suspect', label: 'Suspect', prob: 10 },
+  { key: 'prospect', label: 'Prospect', prob: 25 },
+  { key: 'enquiry', label: 'Enquiry', prob: 40 },
+  { key: 'presentation', label: 'Presentation', prob: 55 },
+  { key: 'demo', label: 'Demo', prob: 70 },
+  { key: 'spec_tender', label: 'Spec of Tender', prob: 85 },
+  { key: 'design_negotiation', label: 'Design Negotiation', prob: 95 }
 ];
 
-export default function SalesPipelineBoard({ leads = [], onLeadClick, onEditLead, onDeleteLead, userRole }) {
+const BILLING_STAGES = [
+  { key: 'proforma_invoice', label: 'Proforma Invoice', prob: 25 },
+  { key: 'tax_invoice', label: 'Tax Invoice', prob: 50 },
+  { key: 'billing_approved', label: 'Billing Approved', prob: 75 },
+  { key: 'payment_pending', label: 'Payment Pending', prob: 100 }
+];
+
+const COLLECTION_STAGES = [
+  { key: 'payment_due', label: 'Payment Due', prob: 25 },
+  { key: 'followup', label: 'Collection Followup', prob: 50 },
+  { key: 'partially_collected', label: 'Partially Collected', prob: 75 },
+  { key: 'fully_collected', label: 'Fully Collected', prob: 100 }
+];
+
+export default function SalesPipelineBoard({ leads = [], onLeadClick, onEditLead, onDeleteLead, userRole, subCategory = 'general' }) {
+  const activeStages = subCategory === 'billing_lakshya'
+    ? BILLING_STAGES
+    : subCategory === 'collection_lakshya'
+    ? COLLECTION_STAGES
+    : ORDER_STAGES;
+
   const formatValue = (val) => {
     if (!val || isNaN(val)) return '₹0';
     if (val >= 10000000) return `₹${(val / 10000000).toFixed(1)}Cr`;
@@ -23,8 +40,8 @@ export default function SalesPipelineBoard({ leads = [], onLeadClick, onEditLead
 
   return (
     <div className="flex gap-3 overflow-x-auto pb-6 pt-1 min-h-[580px] scrollbar-thin">
-      {STAGES.map(stage => {
-        const stageLeads = leads.filter(l => l.current_stage === stage.key);
+      {activeStages.map(stage => {
+        const stageLeads = leads.filter(l => l.current_stage === stage.key || (!l.current_stage && stage.key === activeStages[0].key));
         const stageTotalValue = stageLeads.reduce((sum, l) => sum + (parseFloat(l.lead_value) || 0), 0);
 
         return (

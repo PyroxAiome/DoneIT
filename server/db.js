@@ -46,13 +46,38 @@ const initDatabase = async () => {
     await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS can_access_nirantar BOOLEAN DEFAULT FALSE');
     await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS can_access_saksham BOOLEAN DEFAULT FALSE');
     await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS can_access_sales BOOLEAN DEFAULT FALSE');
+    await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS can_access_general_leads BOOLEAN DEFAULT TRUE');
+    await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS can_access_order_lakshya BOOLEAN DEFAULT TRUE');
+    await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS can_access_billing_lakshya BOOLEAN DEFAULT TRUE');
+    await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS can_access_collection_lakshya BOOLEAN DEFAULT TRUE');
+    await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS can_access_upakaram BOOLEAN DEFAULT FALSE');
+    await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS is_super_admin BOOLEAN DEFAULT FALSE');
+    await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS can_create_tasks BOOLEAN DEFAULT TRUE');
+    await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS can_edit_tasks BOOLEAN DEFAULT TRUE');
+    await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS can_delete_tasks BOOLEAN DEFAULT FALSE');
+    await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS can_verify_tasks BOOLEAN DEFAULT FALSE');
+    await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS can_manage_users BOOLEAN DEFAULT FALSE');
+    await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS can_manage_projects BOOLEAN DEFAULT FALSE');
+
+    // Ensure the primary admin (ID 1 or first admin) is flagged as Super Admin
+    await pool.query(`
+      UPDATE users 
+      SET is_super_admin = TRUE, 
+          can_create_tasks = TRUE, can_edit_tasks = TRUE, can_delete_tasks = TRUE, 
+          can_verify_tasks = TRUE, can_manage_users = TRUE, can_manage_projects = TRUE,
+          can_access_upakaram = TRUE
+      WHERE id = 1 OR (role = 'admin' AND id = (SELECT MIN(id) FROM users WHERE role = 'admin'))
+    `);
     await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS manual_training_level TEXT DEFAULT NULL');
   } catch (e) {
     console.log('users mentor_id & track permissions column migration note:', e.message);
   }
 
-  // ── Add Nirantar custom columns to tasks ────────────────────────────────
+  // ── Add task duration_type & Nirantar custom columns to tasks ────────────
   try {
+    await pool.query('ALTER TABLE tasks ADD COLUMN IF NOT EXISTS duration_type TEXT DEFAULT \'exact\'');
+    await pool.query('ALTER TABLE tasks ADD COLUMN IF NOT EXISTS is_red_flagged BOOLEAN DEFAULT FALSE');
+    await pool.query('ALTER TABLE tasks ADD COLUMN IF NOT EXISTS red_flag_reason TEXT DEFAULT \'\'');
     await pool.query('ALTER TABLE tasks ADD COLUMN IF NOT EXISTS vacancies_count INTEGER DEFAULT 0');
     await pool.query('ALTER TABLE tasks ADD COLUMN IF NOT EXISTS hiring_stage TEXT DEFAULT \'\'');
     await pool.query('ALTER TABLE tasks ADD COLUMN IF NOT EXISTS hr_strategy_notes TEXT DEFAULT \'\'');
@@ -80,10 +105,22 @@ const initDatabase = async () => {
     await pool.query('ALTER TABLE sales_leads DROP CONSTRAINT IF EXISTS sales_leads_product_category_check');
     await pool.query('ALTER TABLE sales_leads DROP CONSTRAINT IF EXISTS sales_leads_lead_source_check');
     await pool.query('ALTER TABLE sales_leads DROP CONSTRAINT IF EXISTS sales_leads_industry_check');
+    await pool.query('ALTER TABLE sales_leads DROP CONSTRAINT IF EXISTS sales_leads_category_check');
+    await pool.query('ALTER TABLE sales_leads DROP CONSTRAINT IF EXISTS sales_leads_current_stage_check');
+    await pool.query('ALTER TABLE sales_stage_history DROP CONSTRAINT IF EXISTS sales_stage_history_from_stage_check');
+    await pool.query('ALTER TABLE sales_stage_history DROP CONSTRAINT IF EXISTS sales_stage_history_to_stage_check');
     await pool.query('ALTER TABLE sales_leads ADD COLUMN IF NOT EXISTS start_date TEXT');
     await pool.query('ALTER TABLE sales_leads ADD COLUMN IF NOT EXISTS lead_source_other TEXT DEFAULT \'\'');
     await pool.query('ALTER TABLE sales_leads ADD COLUMN IF NOT EXISTS industry_other TEXT DEFAULT \'\'');
     await pool.query('ALTER TABLE sales_leads ADD COLUMN IF NOT EXISTS product_category_other TEXT DEFAULT \'\'');
+    await pool.query('ALTER TABLE sales_leads ADD COLUMN IF NOT EXISTS client_name TEXT DEFAULT \'\'');
+    await pool.query('ALTER TABLE sales_leads ADD COLUMN IF NOT EXISTS client_company TEXT DEFAULT \'\'');
+    await pool.query('ALTER TABLE sales_leads ADD COLUMN IF NOT EXISTS client_email TEXT DEFAULT \'\'');
+    await pool.query('ALTER TABLE sales_leads ADD COLUMN IF NOT EXISTS client_phone TEXT DEFAULT \'\'');
+    await pool.query('ALTER TABLE sales_leads ADD COLUMN IF NOT EXISTS client_designation TEXT DEFAULT \'\'');
+    await pool.query('ALTER TABLE sales_goals ADD COLUMN IF NOT EXISTS lakshya_type TEXT DEFAULT \'order\'');
+    await pool.query('ALTER TABLE sales_targets ADD COLUMN IF NOT EXISTS lakshya_type TEXT DEFAULT \'order\'');
+    await pool.query('ALTER TABLE sales_targets ADD COLUMN IF NOT EXISTS actual_count INTEGER DEFAULT 0');
   } catch (e) {
     console.log('sales_leads migration note:', e.message);
   }
@@ -530,10 +567,32 @@ const initDatabase = async () => {
       activity_date TEXT,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
+
+    CREATE TABLE IF NOT EXISTS sales_targets (
+      id SERIAL PRIMARY KEY,
+      assignee_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      lakshya_type TEXT DEFAULT 'order' CHECK(lakshya_type IN ('order', 'billing', 'collection')),
+      product_line TEXT NOT NULL CHECK(product_line IN ('home_automation', 'fire_ready', 'firesafety', 'other')),
+      product_line_other TEXT DEFAULT '',
+      stage TEXT NOT NULL,
+      period_type TEXT NOT NULL CHECK(period_type IN ('monthly', 'quarterly', 'half_yearly', 'annual')),
+      period_label TEXT NOT NULL,
+      period_start TEXT NOT NULL,
+      period_end TEXT NOT NULL,
+      target_count INTEGER DEFAULT 0,
+      actual_count INTEGER DEFAULT 0,
+      target_value REAL DEFAULT 0,
+      created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(assignee_id, product_line, stage, period_type, period_start, lakshya_type)
+    );
   `);
 
   // ── Create Indexes ─────────────────────────────────────────────
   await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_sales_targets_assignee ON sales_targets(assignee_id);
+    CREATE INDEX IF NOT EXISTS idx_sales_targets_period ON sales_targets(period_type, period_start);
     CREATE INDEX IF NOT EXISTS idx_tasks_assignee_id ON tasks(assignee_id);
     CREATE INDEX IF NOT EXISTS idx_tasks_parent_id ON tasks(parent_id);
     CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);

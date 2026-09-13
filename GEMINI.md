@@ -36,6 +36,61 @@ These rules exist because a database corruption incident occurred on Aug 7, 2026
 - The `.gitignore` MUST always exclude: `*.db`, `*.db-wal`, `*.db-shm`, `.env`, `node_modules/`, `dist/`
 - If any of these files are already tracked, run `git rm --cached <file>` to untrack them BEFORE committing.
 
+### 8. Always Verify Schema Before Writing ANY SQL
+These rules exist because on Sept 12, 2026, wrong column names were given 4 times in a row (target_completion_date, pillar, verifier_id, author_id) causing repeated errors on the production server.
+
+- Before writing ANY SQL command (INSERT, UPDATE, SELECT, ALTER), **MUST read `server/db.js`** to verify exact column names and data types.
+- NEVER assume column names from memory, context summaries, or previous conversations.
+- When working with backup/temporary schemas, **MUST query the schema's column list first**:
+  ```sql
+  SELECT column_name FROM information_schema.columns
+  WHERE table_schema = '<schema_name>' AND table_name = '<table_name>';
+  ```
+- Cross-check that every column in the SQL statement exists in BOTH the source and target tables.
+
+### 9. Test SQL on a Single Record First
+- Before running any bulk INSERT, UPDATE, or DELETE, **always run a SELECT with LIMIT 1 first** to verify the query structure works.
+- Example workflow:
+  1. First: `SELECT id, title FROM backup_schema.tasks LIMIT 1;`
+  2. Then: Full INSERT statement
+- This catches column name errors before they affect production.
+
+### 10. Schema Comparison Before Cross-Schema Operations
+- When copying data between schemas (backup → live, live → backup), **MUST first compare column lists** between source and target tables.
+- Run this comparison query before any cross-schema INSERT:
+  ```sql
+  SELECT column_name, data_type FROM information_schema.columns
+  WHERE table_schema = 'public' AND table_name = '<table>'
+  INTERSECT
+  SELECT column_name, data_type FROM information_schema.columns
+  WHERE table_schema = '<backup_schema>' AND table_name = '<table>';
+  ```
+- Only include columns that exist in BOTH schemas in the INSERT statement.
+
+### 11. Protect Existing Data During Feature Development
+- Any new feature that modifies how data is queried (e.g., changing WHERE clauses, adding JOINs, modifying API endpoints) **MUST be tested against existing completed tasks** before deployment.
+- Specifically test against: completed tasks, group tasks with child tasks, tasks with daily logs, tasks with explanations, tasks from different employees.
+- Write a verification query that counts records before and after the change.
+- If any existing feature breaks or data disappears, **STOP and fix before deploying**.
+
+### 12. Mandatory Post-Deployment Verification
+- After deploying ANY database or API change to production, run this verification check:
+  ```sql
+  SELECT 'tasks' AS tbl, COUNT(*) FROM tasks
+  UNION ALL SELECT 'daily_logs', COUNT(*) FROM task_daily_logs
+  UNION ALL SELECT 'explanations', COUNT(*) FROM task_explanations
+  UNION ALL SELECT 'users', COUNT(*) FROM users;
+  ```
+- Compare counts with pre-deployment numbers. If any count decreased, **STOP and investigate immediately**.
+- Present the before/after comparison to the user for confirmation.
+
+### 13. Ask User Before ANY Action — No Assumptions
+- NEVER assume anything — always verify from source code, database schema, or ask the user.
+- Before providing ANY command, SQL query, or code change, explicitly state what you checked and confirm the approach with the user.
+- If there is ANY uncertainty about column names, table structure, data relationships, or business logic, ASK the user first rather than guessing.
+- Present commands in clear, numbered steps so the user can review each one individually.
+- After any error, STOP and re-verify from the source files before attempting a fix.
+
 ## Database Configuration
 - **Engine**: PostgreSQL 17
 - **Connection**: `DATABASE_URL` from `.env` file

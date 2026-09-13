@@ -6,9 +6,16 @@ import {
   Clock, Calendar, Activity, TrendingUp, TrendingDown, Phone, Mail, Building, Tag, MapPin, User
 } from 'lucide-react';
 
-const STAGE_ORDER = [
-  'suspect', 'prospect', 'enquiry', 'presentation', 'demo',
-  'spec_tender', 'design_negotiation', 'dfp', 'order', 'billing'
+const ORDER_STAGES = [
+  'suspect', 'prospect', 'enquiry', 'presentation', 'demo', 'spec_tender', 'design_negotiation'
+];
+
+const BILLING_STAGES = [
+  'proforma_invoice', 'tax_invoice', 'billing_approved', 'payment_pending'
+];
+
+const COLLECTION_STAGES = [
+  'payment_due', 'followup', 'partially_collected', 'fully_collected'
 ];
 
 const STAGE_LABELS = {
@@ -19,9 +26,16 @@ const STAGE_LABELS = {
   demo: 'Demo',
   spec_tender: 'Spec of Tender',
   design_negotiation: 'Design Negotiation',
-  dfp: 'DFP',
-  order: 'Order',
-  billing: 'Billing'
+
+  proforma_invoice: 'Proforma Invoice',
+  tax_invoice: 'Tax Invoice',
+  billing_approved: 'Billing Approved',
+  payment_pending: 'Payment Pending',
+
+  payment_due: 'Payment Due',
+  followup: 'Collection Followup',
+  partially_collected: 'Partially Collected',
+  fully_collected: 'Fully Collected'
 };
 
 const CONTACT_ROLES = [
@@ -224,7 +238,13 @@ export default function SalesLeadDetailModal({ leadId, isOpen, onClose, user, on
     skippedList = [];
   }
 
-  const currentIdx = STAGE_ORDER.indexOf(lead?.current_stage || 'suspect');
+  const activeStages = lead?.category === 'billing_lakshya'
+    ? BILLING_STAGES
+    : lead?.category === 'collection_lakshya'
+    ? COLLECTION_STAGES
+    : ORDER_STAGES;
+
+  const currentIdx = activeStages.indexOf(lead?.current_stage || activeStages[0]);
 
   const formatCurrency = (val) => {
     if (!val || isNaN(val)) return '₹0';
@@ -263,6 +283,9 @@ export default function SalesLeadDetailModal({ leadId, isOpen, onClose, user, on
             <div className="text-xs text-gray-500 mt-1 flex items-center gap-3 flex-wrap">
               <span>Assigned Sales Person: <strong className="text-gray-900 font-semibold">{lead?.assignee_name || 'Unassigned'}</strong></span>
               <span>Lead Value: <strong className="text-amber-700 font-bold">{formatCurrency(lead?.lead_value)}</strong></span>
+              {(lead?.client_company || lead?.client_name) && (
+                <span>Customer: <strong className="text-gray-900 font-semibold">{lead.client_company || lead.client_name}{lead.client_name && lead.client_company ? ` (${lead.client_name})` : ''}</strong></span>
+              )}
               {lead?.consultant_name && <span>Consultant: <strong className="text-gray-800">{lead.consultant_name}</strong></span>}
             </div>
           </div>
@@ -324,11 +347,78 @@ export default function SalesLeadDetailModal({ leadId, isOpen, onClose, user, on
               {/* ── TAB 1: PIPELINE PROGRESS ── */}
               {activeTab === 'pipeline' && (
                 <div className="space-y-6">
-                  {/* Clean 10-Stage Funnel Progress Grid */}
+                  {/* Admin Order Confirmation Box */}
+                  {user?.role === 'admin' && lead?.category !== 'billing_lakshya' && lead?.category !== 'collection_lakshya' && (
+                    <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between gap-4">
+                      <div>
+                        <h4 className="text-xs font-bold text-emerald-900 uppercase tracking-wider">Admin Order Confirmation</h4>
+                        <p className="text-xs text-emerald-700 mt-0.5">Confirming this order will mark the deal won and automatically move the lead to Billing Lakshya.</p>
+                      </div>
+                      <button
+                        onClick={async () => {
+                          if (window.confirm(`Confirm order for "${lead.title}" and move to Billing Lakshya?`)) {
+                            try {
+                              await api.confirmSalesOrder(lead.id);
+                              fetchLeadDetails();
+                              window.dispatchEvent(new CustomEvent('sales-updated'));
+                              if (onUpdated) onUpdated();
+                            } catch (err) {
+                              setError(err.message || 'Failed to confirm order');
+                            }
+                          }
+                        }}
+                        className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg shadow-xs flex items-center gap-1.5 transition-colors shrink-0"
+                      >
+                        <Check className="w-4 h-4" />
+                        Confirm Order
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Customer / Client Overview Card */}
+                  {(lead.client_name || lead.client_company || lead.consultant_name) && (
+                    <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                          <Building className="w-4 h-4 text-slate-600" />
+                          Key Client & Consultant Overview
+                        </h4>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                        {(lead.client_name || lead.client_company) && (
+                          <div className="space-y-1 bg-white p-3 rounded-lg border border-slate-200">
+                            <div className="font-semibold text-slate-900 text-xs flex items-center gap-1">
+                              <span>🏢 Customer Information</span>
+                            </div>
+                            {lead.client_company && <div className="text-slate-800 font-medium">Firm: {lead.client_company}</div>}
+                            {lead.client_name && <div className="text-slate-700">Contact: {lead.client_name} {lead.client_designation ? `(${lead.client_designation})` : ''}</div>}
+                            {lead.client_email && <div className="text-slate-600 flex items-center gap-1"><Mail className="w-3 h-3 text-slate-400" /> {lead.client_email}</div>}
+                            {lead.client_phone && <div className="text-slate-600 flex items-center gap-1"><Phone className="w-3 h-3 text-slate-400" /> {lead.client_phone}</div>}
+                          </div>
+                        )}
+
+                        {lead.consultant_name && (
+                          <div className="space-y-1 bg-white p-3 rounded-lg border border-slate-200">
+                            <div className="font-semibold text-slate-900 text-xs flex items-center gap-1">
+                              <span>👔 Consultant Information</span>
+                            </div>
+                            <div className="text-slate-800 font-medium">Name: {lead.consultant_name}</div>
+                            {lead.consultant_firm && <div className="text-slate-700">Firm: {lead.consultant_firm}</div>}
+                            {lead.consultant_email && <div className="text-slate-600 flex items-center gap-1"><Mail className="w-3 h-3 text-slate-400" /> {lead.consultant_email}</div>}
+                            {lead.consultant_phone && <div className="text-slate-600 flex items-center gap-1"><Phone className="w-3 h-3 text-slate-400" /> {lead.consultant_phone}</div>}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Clean Stage Funnel Progress Grid */}
                   <div>
-                    <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">10-Stage Funnel Status</h3>
-                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
-                      {STAGE_ORDER.map((stageKey, idx) => {
+                    <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">
+                      {lead.category === 'billing_lakshya' ? 'Billing Process Stages' : lead.category === 'collection_lakshya' ? 'Collection Process Stages' : '7-Stage Funnel Status'}
+                    </h3>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                      {activeStages.map((stageKey, idx) => {
                         const isCurrent = stageKey === lead.current_stage;
                         const isCompleted = idx < currentIdx;
                         const isSkipped = skippedList.includes(stageKey);
@@ -372,7 +462,7 @@ export default function SalesLeadDetailModal({ leadId, isOpen, onClose, user, on
                           onChange={(e) => setTargetStage(e.target.value)}
                           className="input-field bg-white"
                         >
-                          {STAGE_ORDER.map(s => (
+                          {activeStages.map(s => (
                             <option key={s} value={s}>{STAGE_LABELS[s]}</option>
                           ))}
                         </select>

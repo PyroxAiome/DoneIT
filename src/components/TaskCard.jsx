@@ -150,13 +150,23 @@ export default function TaskCard({ task, compact, onEdit, onDelete, onSelect, on
   }
 
   return (
-    <div className={`bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-md transition-shadow p-3 sm:p-4 border-l-4 ${colors.border.replace('border', 'border-l')} ${colors.bg} group relative cursor-pointer`} onClick={() => onViewDetail?.(task)}>
+    <div className={`bg-white border rounded-xl shadow-sm hover:shadow-md transition-shadow p-3 sm:p-4 border-l-4 ${colors.border.replace('border', 'border-l')} ${colors.bg} group relative cursor-pointer ${task.is_red_flagged ? 'ring-2 ring-red-500 border-red-500 bg-red-50/30' : 'border-gray-200'}`} onClick={() => onViewDetail?.(task)}>
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5">
             <div className={`w-2 h-2 rounded-full ${colors.dot} shrink-0`} />
             <h3 className="font-semibold text-gray-900 text-xs sm:text-sm whitespace-normal leading-snug">{task.title}</h3>
           </div>
+
+          {task.is_red_flagged && (
+            <div className="mt-2 p-2 bg-red-100/90 border border-red-300 rounded-lg flex items-start gap-1.5 text-[11px] text-red-950 font-medium animate-in fade-in">
+              <span className="shrink-0 text-xs">🚩</span>
+              <div className="min-w-0">
+                <span className="font-bold text-red-950 uppercase text-[9px] block tracking-wide">Red Flag (Forced Compromise):</span>
+                <p className="text-red-900 text-[11px] line-clamp-2">{task.red_flag_reason || 'Proceeded under forced constraint'}</p>
+              </div>
+            </div>
+          )}
           <div className="flex items-center gap-2 sm:gap-2.5 mt-2 text-[10px] sm:text-xs text-gray-500 flex-wrap">
             <span className={`text-[9px] sm:text-[10px] px-1.5 py-0.5 rounded border capitalize font-semibold ${statusStyles[task.status] || 'text-gray-500 border-gray-200 bg-gray-50'}`}>
               {statusLabels[task.status] || task.status}
@@ -206,6 +216,11 @@ export default function TaskCard({ task, compact, onEdit, onDelete, onSelect, on
                 )}
               </>
             )}
+            {task.pillar === 'upakaram' && (
+              <span className="text-[9px] sm:text-[10px] px-1.5 py-0.5 rounded border font-semibold bg-purple-50 text-purple-800 border-purple-300 flex items-center gap-1">
+                🚀 Upakaram
+              </span>
+            )}
             {task.category && task.category !== 'General' && (
               <span className="text-[9px] sm:text-[10px] px-1.5 py-0.5 rounded border font-medium bg-gray-50 text-gray-600 border-gray-200">
                 {task.category}
@@ -222,7 +237,15 @@ export default function TaskCard({ task, compact, onEdit, onDelete, onSelect, on
                 {task.assignee_name}
               </span>
             ) : null}
-            {(task.start_date || task.due_date) && (
+            {task.duration_type === 'short_term' ? (
+              <span className="text-[9px] sm:text-[10px] px-1.5 py-0.5 rounded border font-semibold bg-amber-50 text-amber-800 border-amber-300 flex items-center gap-1">
+                ⚡ Short-Term Task
+              </span>
+            ) : task.duration_type === 'long_term' ? (
+              <span className="text-[9px] sm:text-[10px] px-1.5 py-0.5 rounded border font-semibold bg-purple-50 text-purple-800 border-purple-300 flex items-center gap-1">
+                🏔️ Long-Term Task
+              </span>
+            ) : (task.start_date || task.due_date) && (
               <span className={`flex items-center gap-1 ${isOverdue ? 'text-red-500 font-semibold' : ''}`}>
                 <Clock className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
                 {task.start_date && task.due_date
