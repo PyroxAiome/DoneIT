@@ -914,9 +914,9 @@ export default function AdminDashboard({ user }) {
                         <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
                           <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${emp.avg_progress}%` }} />
                         </div>
-                        <span className="text-[11px] text-gray-500">{emp.avg_progress}%</span>
+                        <span className="text-[11px] font-bold text-emerald-700">{emp.avg_progress}%</span>
                       </div>
-                      <p className="text-xs text-gray-400 mt-1.5">{emp.task_count} task{emp.task_count !== 1 ? 's' : ''}</p>
+                      <p className="text-xs text-gray-500 font-medium mt-1.5">{emp.completed_task_count || 0} of {emp.task_count || 0} tasks completed</p>
                       <div className="flex gap-2 mt-4 pt-3 border-t border-gray-100">
                         <button
                           onClick={(e) => {
@@ -982,9 +982,9 @@ export default function AdminDashboard({ user }) {
                   <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
                     <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${emp.avg_progress}%` }} />
                   </div>
-                  <span className="text-[11px] text-gray-500">{emp.avg_progress}%</span>
+                  <span className="text-[11px] font-bold text-emerald-700">{emp.avg_progress}%</span>
                 </div>
-                <p className="text-xs text-gray-400 mt-1.5">{emp.task_count} task{emp.task_count !== 1 ? 's' : ''}</p>
+                <p className="text-xs text-gray-500 font-medium mt-1.5">{emp.completed_task_count || 0} of {emp.task_count || 0} tasks completed</p>
                 <div className="flex gap-2 mt-4 pt-3 border-t border-gray-100">
                   <button
                     onClick={(e) => {

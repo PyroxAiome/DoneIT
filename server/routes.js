@@ -352,9 +352,20 @@ router.get('/employees', auth, async (req, res) => {
           FROM tasks t
           WHERE t.assignee_id = u.id
         ) as task_count,
+        (
+          SELECT COUNT(DISTINCT t.id)
+          FROM tasks t
+          WHERE t.assignee_id = u.id AND t.status = 'completed'
+        ) as completed_task_count,
         COALESCE(
           (
-            SELECT ROUND(AVG(t.progress_percent), 0)
+            SELECT ROUND(AVG(
+              CASE 
+                WHEN t.status = 'completed' THEN 100
+                WHEN t.status = 'under_review' THEN 90
+                ELSE COALESCE(t.progress_percent, 0)
+              END
+            ), 0)
             FROM tasks t
             WHERE t.assignee_id = u.id
           ), 0
