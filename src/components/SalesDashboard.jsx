@@ -138,10 +138,32 @@ export default function SalesDashboard({ user, initialAssigneeId = '' }) {
   const totalValue = leads.reduce((sum, l) => sum + (parseFloat(l.lead_value) || 0), 0);
   const wonLeads = leads.filter(l => l.current_stage === 'order' || l.current_stage === 'billing');
   const avgProb = leads.length > 0 ? Math.round(leads.reduce((sum, l) => sum + (l.probability_pct || 0), 0) / leads.length) : 0;
+  const filteredSalesPerson = assigneeFilter
+    ? employees.find(e => String(e.id) === String(assigneeFilter))
+    : null;
+
+  const canViewGeneral = (user?.role === 'admin' || user?.can_access_general_leads !== false) && (!filteredSalesPerson || filteredSalesPerson.can_access_general_leads !== false);
+  const canViewOrder = (user?.role === 'admin' || user?.can_access_order_lakshya !== false) && (!filteredSalesPerson || filteredSalesPerson.can_access_order_lakshya !== false);
+  const canViewBilling = (user?.role === 'admin' || user?.can_access_billing_lakshya !== false) && (!filteredSalesPerson || filteredSalesPerson.can_access_billing_lakshya !== false);
+  const canViewCollection = (user?.role === 'admin' || user?.can_access_collection_lakshya !== false) && (!filteredSalesPerson || filteredSalesPerson.can_access_collection_lakshya !== false);
+
+  useEffect(() => {
+    if (filteredSalesPerson) {
+      if (subCategory === 'billing_lakshya' && !canViewBilling) {
+        setSubCategory(canViewGeneral ? 'general' : canViewOrder ? 'order_lakshya' : 'general');
+      } else if (subCategory === 'collection_lakshya' && !canViewCollection) {
+        setSubCategory(canViewGeneral ? 'general' : canViewOrder ? 'order_lakshya' : 'general');
+      } else if (subCategory === 'general' && !canViewGeneral) {
+        setSubCategory(canViewOrder ? 'order_lakshya' : 'general');
+      } else if ((subCategory === 'order_lakshya' || subCategory === 'lakshya') && !canViewOrder) {
+        setSubCategory(canViewGeneral ? 'general' : 'general');
+      }
+    }
+  }, [filteredSalesPerson, subCategory, canViewGeneral, canViewOrder, canViewBilling, canViewCollection]);
 
   return (
     <div className="space-y-6">
-      {/* Top Title & Category Filter Bar */}
+      {/* Header Banner */}
       <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-600 shrink-0">
@@ -151,9 +173,22 @@ export default function SalesDashboard({ user, initialAssigneeId = '' }) {
             <div className="flex items-center gap-2 flex-wrap">
               <h1 className="text-xl font-bold text-gray-900">Sales Pipeline Command Center</h1>
               {user?.role === 'admin' && (
-                <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200">
-                  Admin Master View
-                </span>
+                filteredSalesPerson ? (
+                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-300 flex items-center gap-1">
+                    👤 Sales View: {filteredSalesPerson.name}
+                    <button
+                      onClick={() => setAssigneeFilter('')}
+                      className="ml-1 text-amber-700 hover:text-red-700 font-bold text-xs"
+                      title="Clear employee filter (Return to Admin Master View)"
+                    >
+                      ✕
+                    </button>
+                  </span>
+                ) : (
+                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200">
+                    Admin Master View
+                  </span>
+                )
               )}
               {user?.role === 'sales_manager' && (
                 <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200">
@@ -182,7 +217,7 @@ export default function SalesDashboard({ user, initialAssigneeId = '' }) {
 
         {/* Sub-filters Toggle */}
         <div className="flex items-center bg-gray-100 p-1 rounded-lg border border-gray-200 flex-wrap gap-0.5">
-          {(user?.role === 'admin' || user?.can_access_general_leads !== false) && (
+          {canViewGeneral && (
             <button
               onClick={() => { setSubCategory('general'); setSelectedGoalId(null); }}
               className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${subCategory === 'general' ? 'bg-white text-gray-900 shadow-xs font-bold' : 'text-gray-600 hover:text-gray-900'}`}
@@ -190,7 +225,7 @@ export default function SalesDashboard({ user, initialAssigneeId = '' }) {
               📋 General Inquiries
             </button>
           )}
-          {(user?.role === 'admin' || user?.can_access_order_lakshya !== false) && (
+          {canViewOrder && (
             <button
               onClick={() => { setSubCategory('order_lakshya'); setSelectedGoalId(null); }}
               className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${subCategory === 'order_lakshya' || subCategory === 'lakshya' ? 'bg-white text-amber-700 font-bold shadow-xs' : 'text-gray-600 hover:text-gray-900'}`}
@@ -198,7 +233,7 @@ export default function SalesDashboard({ user, initialAssigneeId = '' }) {
               🎯 Order Lakshya
             </button>
           )}
-          {(user?.role === 'admin' || user?.can_access_billing_lakshya !== false) && (
+          {canViewBilling && (
             <button
               onClick={() => { setSubCategory('billing_lakshya'); setSelectedGoalId(null); }}
               className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${subCategory === 'billing_lakshya' ? 'bg-white text-blue-700 font-bold shadow-xs' : 'text-gray-600 hover:text-gray-900'}`}
@@ -206,7 +241,7 @@ export default function SalesDashboard({ user, initialAssigneeId = '' }) {
               📄 Billing Lakshya
             </button>
           )}
-          {(user?.role === 'admin' || user?.can_access_collection_lakshya !== false) && (
+          {canViewCollection && (
             <button
               onClick={() => { setSubCategory('collection_lakshya'); setSelectedGoalId(null); }}
               className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${subCategory === 'collection_lakshya' ? 'bg-white text-emerald-700 font-bold shadow-xs' : 'text-gray-600 hover:text-gray-900'}`}

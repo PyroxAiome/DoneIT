@@ -254,13 +254,6 @@ export default function AdminDashboard({ user }) {
   };
 
   const handleViewEmployeeTasks = (emp) => {
-    const isSalesUser = (emp.role === 'sales_manager' || emp.role === 'sales_executive') && emp.role !== 'admin';
-    if (isSalesUser) {
-      setSalesPersonFilter(String(emp.id));
-      setActiveTab('sales');
-      window.location.hash = 'sales';
-      return;
-    }
     setStatusFilter('');
     setEmployeeFilter(emp.id);
     setSelectedEmp(emp);
@@ -269,21 +262,13 @@ export default function AdminDashboard({ user }) {
   };
 
   const handleViewEmployeeTasksByStatus = (emp, status) => {
-    const isSalesUser = (emp.role === 'sales_manager' || emp.role === 'sales_executive') && emp.role !== 'admin';
-    if (isSalesUser) {
-      setSalesPersonFilter(String(emp.id));
-      setActiveTab('sales');
-      window.location.hash = 'sales';
-      return;
-    }
     setStatusFilter('');
     setPriorityFilter('');
     setCategoryFilter('');
     setPillarFilter('general');
-    setDateRangeFilter('');
-    setCustomFromDate('');
-    setCustomToDate('');
-    const targetTab = status === 'completed' ? 'completed' : (activeTab === 'admin' ? 'admin' : 'work');
+    setEmployeeFilter(emp.id);
+    setSelectedEmp(emp);
+    const targetTab = status === 'completed' ? 'completed' : 'work';
     window.location.hash = `${targetTab}/employee/${emp.id}`;
     if (status !== 'completed') {
       setStatusFilter(status);
@@ -404,14 +389,28 @@ export default function AdminDashboard({ user }) {
     <div className="space-y-6">
       {selectedEmp ? (
         <div className="space-y-4">
-          <div className="flex items-center justify-between bg-white border border-gray-200 rounded-xl p-3 sm:p-4 shadow-sm">
+          <div className="flex items-center justify-between bg-white border border-gray-200 rounded-xl p-3 sm:p-4 shadow-sm flex-wrap gap-2">
             <div>
               <h2 className="text-sm sm:text-base font-bold text-gray-900">{selectedEmp.name}'s Profile / Work</h2>
               <p className="text-[9px] sm:text-[11px] text-gray-400 mt-0.5 uppercase font-semibold">{selectedEmp.role} &middot; {selectedEmp.department} &middot; {selectedEmp.email}</p>
             </div>
-            <button onClick={clearEmployeeFilter} className="bg-gray-800 hover:bg-gray-700 text-white text-[10px] sm:text-xs font-semibold px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg transition-all shadow-sm">
-              Back to Team
-            </button>
+            <div className="flex items-center gap-2">
+              {(selectedEmp.role === 'sales_manager' || selectedEmp.role === 'sales_executive' || selectedEmp.can_access_sales) && (
+                <button
+                  onClick={() => {
+                    setSalesPersonFilter(String(selectedEmp.id));
+                    setActiveTab('sales');
+                    window.location.hash = 'sales';
+                  }}
+                  className="bg-amber-600 hover:bg-amber-700 text-white text-[10px] sm:text-xs font-semibold px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg transition-all shadow-sm flex items-center gap-1.5"
+                >
+                  💼 View {selectedEmp.name}'s Sales Pipeline
+                </button>
+              )}
+              <button onClick={clearEmployeeFilter} className="bg-gray-800 hover:bg-gray-700 text-white text-[10px] sm:text-xs font-semibold px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg transition-all shadow-sm">
+                Back to Team
+              </button>
+            </div>
           </div>
 
           <div className="flex gap-1 bg-gray-200 p-1 rounded-xl w-fit flex-wrap">
@@ -893,18 +892,29 @@ export default function AdminDashboard({ user }) {
 
                   {isSalesUser ? (
                     <>
-                      <div className="mt-3 flex items-center gap-1.5 text-xs text-amber-800 font-semibold bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200/60">
-                        💼 Sales Representative Profile
+                      <div className="mt-3 flex items-center justify-between text-xs text-amber-800 font-semibold bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200/60">
+                        <span>💼 Sales Representative</span>
                       </div>
-                      <div className="mt-4 pt-3 border-t border-gray-100">
+                      <div className="flex gap-2 mt-4 pt-3 border-t border-gray-100">
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
                             handleViewEmployeeTasks(emp);
                           }}
-                          className="w-full text-center py-1.5 px-3 bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold rounded-lg transition-colors shadow-xs"
+                          className="flex-1 text-center py-1.5 px-2 bg-gray-50 hover:bg-gray-100 text-gray-700 text-[10px] font-semibold rounded-lg transition-colors border border-gray-200"
                         >
-                          💼 Open Sales Pipeline
+                          👤 View Profile / Tasks
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSalesPersonFilter(String(emp.id));
+                            setActiveTab('sales');
+                            window.location.hash = 'sales';
+                          }}
+                          className="flex-1 text-center py-1.5 px-2 bg-amber-600 hover:bg-amber-700 text-white text-[10px] font-semibold rounded-lg transition-colors shadow-xs"
+                        >
+                          💼 Sales Pipeline
                         </button>
                       </div>
                     </>
