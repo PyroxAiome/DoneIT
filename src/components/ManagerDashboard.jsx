@@ -141,7 +141,18 @@ export default function ManagerDashboard({ user }) {
         setEmployeeFilter(empId);
         if (employees && employees.length > 0) {
           const emp = employees.find(e => e.id === empId);
-          if (emp) setSelectedEmp(emp);
+          if (emp) {
+            const isSales = emp.role === 'sales_manager' || emp.role === 'sales_executive' || emp.department === 'Sales & Marketing' || emp.can_access_sales;
+            const userHasSales = user?.role === 'admin' || user?.role === 'sales_manager' || user?.role === 'sales_executive' || !!user?.can_access_sales;
+            if (isSales && !userHasSales) {
+              alert("You don't have access to view Sales team member profiles.");
+              window.location.hash = 'team';
+              setEmployeeFilter(null);
+              setSelectedEmp(null);
+              return;
+            }
+            setSelectedEmp(emp);
+          }
         }
       } else {
         setEmployeeFilter(null);
@@ -152,7 +163,7 @@ export default function ManagerDashboard({ user }) {
     window.addEventListener('hashchange', handleHashChange);
     handleHashChange();
     return () => window.removeEventListener('hashchange', handleHashChange);
-  }, [employees]);
+  }, [employees, user]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -187,7 +198,19 @@ export default function ManagerDashboard({ user }) {
     setPillarFilter('general');
   };
 
+  const checkSalesProfileAccess = (emp) => {
+    if (!emp) return true;
+    const isSales = emp.role === 'sales_manager' || emp.role === 'sales_executive' || emp.department === 'Sales & Marketing' || emp.can_access_sales;
+    const userHasSales = user?.role === 'admin' || user?.role === 'sales_manager' || user?.role === 'sales_executive' || !!user?.can_access_sales;
+    if (isSales && !userHasSales) {
+      alert("You don't have access to view Sales team member profiles.");
+      return false;
+    }
+    return true;
+  };
+
   const handleViewEmployeeTasks = (emp) => {
+    if (!checkSalesProfileAccess(emp)) return;
     setStatusFilter('');
     setPriorityFilter('');
     setCategoryFilter('');
@@ -196,6 +219,7 @@ export default function ManagerDashboard({ user }) {
   };
 
   const handleViewEmployeeTasksByStatus = (emp, status) => {
+    if (!checkSalesProfileAccess(emp)) return;
     setStatusFilter('');
     setPriorityFilter('');
     setCategoryFilter('');
