@@ -280,7 +280,7 @@ export default function SalesDashboard({ user, initialAssigneeId = '' }) {
             </h3>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
-            {user?.role === 'admin' && (subCategory === 'general' || subCategory === 'order_lakshya' || subCategory === 'lakshya') && (
+            {user?.role === 'admin' && !assigneeFilter && (subCategory === 'general' || subCategory === 'order_lakshya' || subCategory === 'lakshya') && (
               <button
                 onClick={() => setShowTargetModal(true)}
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 text-amber-800 border border-amber-300 rounded-lg hover:bg-amber-100 transition-colors text-xs font-semibold"
@@ -289,7 +289,7 @@ export default function SalesDashboard({ user, initialAssigneeId = '' }) {
                 Define Targets
               </button>
             )}
-            {user?.role === 'admin' && (
+            {user?.role === 'admin' && !assigneeFilter && (
               <button
                 onClick={() => { setEditingGoal(null); setShowGoalModal(true); }}
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors shadow-xs text-xs font-semibold"
@@ -310,14 +310,23 @@ export default function SalesDashboard({ user, initialAssigneeId = '' }) {
 
           {goals.length === 0 ? (
             <p className="text-xs text-gray-500 italic py-2">
-              No {subCategory.replace('_lakshya', '')} goals created yet. Click above to define your first goal.
+              No {subCategory.replace('_lakshya', '')} goals created yet.
             </p>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               {goals.map(g => {
                 const isSelected = selectedGoalId === g.id;
                 const targetVal = parseFloat(g.target_value) || 0;
-                const currentVal = parseFloat(g.current_value) || 0;
+                
+                const goalLeads = leads.filter(l => l.goal_id === g.id);
+                const currentVal = assigneeFilter
+                  ? goalLeads.reduce((sum, l) => sum + (parseFloat(l.lead_value) || 0), 0)
+                  : (parseFloat(g.current_value) || 0);
+                const totalLeadsCount = assigneeFilter ? goalLeads.length : (g.total_leads || 0);
+                const wonLeadsCount = assigneeFilter
+                  ? goalLeads.filter(l => l.current_stage === 'order' || l.current_stage === 'billing').length
+                  : (g.won_leads || 0);
+
                 const pct = targetVal > 0 ? Math.min(100, Math.round((currentVal / targetVal) * 100)) : 0;
 
                 return (
@@ -332,7 +341,7 @@ export default function SalesDashboard({ user, initialAssigneeId = '' }) {
                         <span className="text-[10px] uppercase font-semibold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-200">
                           {g.period_type}
                         </span>
-                        {user?.role === 'admin' && (
+                        {user?.role === 'admin' && !assigneeFilter && (
                           <div className="flex items-center gap-0.5 ml-1">
                             <button
                               onClick={() => { setEditingGoal(g); setShowGoalModal(true); }}
@@ -375,7 +384,7 @@ export default function SalesDashboard({ user, initialAssigneeId = '' }) {
                       </div>
 
                       <div className="flex items-center justify-between text-[11px] text-gray-500 pt-1">
-                        <span>{g.total_leads || 0} Leads • {g.won_leads || 0} Won</span>
+                        <span>{totalLeadsCount} Leads • {wonLeadsCount} Won</span>
                         <span className="font-bold text-amber-700">{pct}% Achieved</span>
                       </div>
                     </div>
