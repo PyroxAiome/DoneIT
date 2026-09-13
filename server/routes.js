@@ -3767,7 +3767,8 @@ router.post('/sales/leads', auth, salesAccessOnly, async (req, res) => {
       consultant_name, consultant_firm, consultant_email, consultant_phone,
       client_name, client_company, client_email, client_phone, client_designation,
       assignee_id, start_date, expected_close_date,
-      lead_source_other, industry_other, product_category_other
+      lead_source_other, industry_other, product_category_other,
+      additional_customers, additional_consultants
     } = req.body;
 
     if (!title || !title.trim()) {
@@ -3782,6 +3783,9 @@ router.post('/sales/leads', auth, salesAccessOnly, async (req, res) => {
     const enquiryMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
     const effectiveStartDate = start_date || now.toISOString().split('T')[0];
 
+    const addCustStr = typeof additional_customers === 'string' ? additional_customers : JSON.stringify(additional_customers || []);
+    const addConsStr = typeof additional_consultants === 'string' ? additional_consultants : JSON.stringify(additional_consultants || []);
+
     const { rows } = await db.query(`
       INSERT INTO sales_leads (
         title, description, category, goal_id, current_stage, stage_updated_at, stage_updated_by,
@@ -3790,9 +3794,10 @@ router.post('/sales/leads', auth, salesAccessOnly, async (req, res) => {
         consultant_email, consultant_phone,
         client_name, client_company, client_email, client_phone, client_designation,
         assignee_id, creator_id, start_date, expected_close_date, enquiry_month,
-        lead_source_other, industry_other, product_category_other
+        lead_source_other, industry_other, product_category_other,
+        additional_customers, additional_consultants
       )
-      VALUES ($1, $2, $3, $4, 'suspect', CURRENT_TIMESTAMP, $5, $6, 10, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31)
+      VALUES ($1, $2, $3, $4, 'suspect', CURRENT_TIMESTAMP, $5, $6, 10, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33)
       RETURNING *
     `, [
       title.trim(), description || '', category || 'general', goal_id || null, req.user.id,
@@ -3801,7 +3806,8 @@ router.post('/sales/leads', auth, salesAccessOnly, async (req, res) => {
       consultant_firm || '', consultant_email || '', consultant_phone || '',
       client_name || '', client_company || '', client_email || '', client_phone || '', client_designation || '',
       effectiveAssignee, req.user.id, effectiveStartDate, expected_close_date || null, enquiryMonth,
-      lead_source_other || '', industry_other || '', product_category_other || ''
+      lead_source_other || '', industry_other || '', product_category_other || '',
+      addCustStr, addConsStr
     ]);
 
     const lead = rows[0];
@@ -3835,8 +3841,12 @@ router.put('/sales/leads/:id', auth, salesAccessOnly, async (req, res) => {
       consultant_name, consultant_firm, consultant_email, consultant_phone,
       client_name, client_company, client_email, client_phone, client_designation,
       assignee_id, start_date, expected_close_date, probability_pct,
-      lead_source_other, industry_other, product_category_other
+      lead_source_other, industry_other, product_category_other,
+      additional_customers, additional_consultants
     } = req.body;
+
+    const addCustStr = additional_customers !== undefined ? (typeof additional_customers === 'string' ? additional_customers : JSON.stringify(additional_customers)) : null;
+    const addConsStr = additional_consultants !== undefined ? (typeof additional_consultants === 'string' ? additional_consultants : JSON.stringify(additional_consultants)) : null;
 
     const { rows } = await db.query(`
       UPDATE sales_leads
@@ -3869,8 +3879,10 @@ router.put('/sales/leads/:id', auth, salesAccessOnly, async (req, res) => {
           lead_source_other = COALESCE($27, lead_source_other),
           industry_other = COALESCE($28, industry_other),
           product_category_other = COALESCE($29, product_category_other),
+          additional_customers = COALESCE($30, additional_customers),
+          additional_consultants = COALESCE($31, additional_consultants),
           updated_at = CURRENT_TIMESTAMP
-      WHERE id = $30
+      WHERE id = $32
       RETURNING *
     `, [
       title, description, category, goal_id || null, lead_value, lead_source, industry,
@@ -3878,7 +3890,8 @@ router.put('/sales/leads/:id', auth, salesAccessOnly, async (req, res) => {
       consultant_name, consultant_firm, consultant_email, consultant_phone,
       client_name, client_company, client_email, client_phone, client_designation,
       assignee_id, start_date, expected_close_date, probability_pct,
-      lead_source_other, industry_other, product_category_other, id
+      lead_source_other, industry_other, product_category_other,
+      addCustStr, addConsStr, id
     ]);
 
     if (!rows[0]) return res.status(404).json({ error: 'Lead not found' });

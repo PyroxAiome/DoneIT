@@ -376,7 +376,7 @@ export default function SalesLeadDetailModal({ leadId, isOpen, onClose, user, on
                   )}
 
                   {/* Customer / Client Overview Card */}
-                  {(lead.client_name || lead.client_company || lead.consultant_name) && (
+                  {(lead.client_name || lead.client_company || lead.consultant_name || lead.additional_customers || lead.additional_consultants) && (
                     <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
                       <div className="flex items-center justify-between">
                         <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
@@ -385,27 +385,65 @@ export default function SalesLeadDetailModal({ leadId, isOpen, onClose, user, on
                         </h4>
                       </div>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-                        {(lead.client_name || lead.client_company) && (
-                          <div className="space-y-1 bg-white p-3 rounded-lg border border-slate-200">
-                            <div className="font-semibold text-slate-900 text-xs flex items-center gap-1">
-                              <span>🏢 Customer Information</span>
+                        {(lead.client_name || lead.client_company || lead.additional_customers) && (
+                          <div className="space-y-2 bg-white p-3 rounded-lg border border-slate-200">
+                            <div className="font-semibold text-slate-900 text-xs flex items-center gap-1 border-b border-slate-100 pb-1">
+                              <span>🏢 Primary Customer Contact</span>
                             </div>
                             {lead.client_company && <div className="text-slate-800 font-medium">Firm: {lead.client_company}</div>}
                             {lead.client_name && <div className="text-slate-700">Contact: {lead.client_name} {lead.client_designation ? `(${lead.client_designation})` : ''}</div>}
                             {lead.client_email && <div className="text-slate-600 flex items-center gap-1"><Mail className="w-3 h-3 text-slate-400" /> {lead.client_email}</div>}
                             {lead.client_phone && <div className="text-slate-600 flex items-center gap-1"><Phone className="w-3 h-3 text-slate-400" /> {lead.client_phone}</div>}
+
+                            {/* Additional Customer Contacts */}
+                            {(() => {
+                              let extra = [];
+                              try { extra = typeof lead.additional_customers === 'string' ? JSON.parse(lead.additional_customers) : (lead.additional_customers || []); } catch (e) {}
+                              if (!extra.length) return null;
+                              return (
+                                <div className="pt-2 border-t border-slate-100 space-y-1.5 mt-2">
+                                  <div className="text-[10px] font-bold text-amber-800 uppercase">Additional Customer Contacts ({extra.length})</div>
+                                  {extra.map((c, i) => (
+                                    <div key={i} className="p-1.5 bg-slate-50 rounded text-[11px] space-y-0.5 border border-slate-100">
+                                      {c.client_name && <div className="font-semibold text-slate-800">{c.client_name} {c.client_designation ? `(${c.client_designation})` : ''}</div>}
+                                      {c.client_phone && <div className="text-slate-600 flex items-center gap-1"><Phone className="w-2.5 h-2.5 text-slate-400" /> {c.client_phone}</div>}
+                                      {c.client_email && <div className="text-slate-600 flex items-center gap-1"><Mail className="w-2.5 h-2.5 text-slate-400" /> {c.client_email}</div>}
+                                    </div>
+                                  ))}
+                                </div>
+                              );
+                            })()}
                           </div>
                         )}
 
-                        {lead.consultant_name && (
-                          <div className="space-y-1 bg-white p-3 rounded-lg border border-slate-200">
-                            <div className="font-semibold text-slate-900 text-xs flex items-center gap-1">
-                              <span>👔 Consultant Information</span>
+                        {(lead.consultant_name || lead.additional_consultants) && (
+                          <div className="space-y-2 bg-white p-3 rounded-lg border border-slate-200">
+                            <div className="font-semibold text-slate-900 text-xs flex items-center gap-1 border-b border-slate-100 pb-1">
+                              <span>👔 Primary Consultant Contact</span>
                             </div>
-                            <div className="text-slate-800 font-medium">Name: {lead.consultant_name}</div>
+                            {lead.consultant_name && <div className="text-slate-800 font-medium">Name: {lead.consultant_name}</div>}
                             {lead.consultant_firm && <div className="text-slate-700">Firm: {lead.consultant_firm}</div>}
                             {lead.consultant_email && <div className="text-slate-600 flex items-center gap-1"><Mail className="w-3 h-3 text-slate-400" /> {lead.consultant_email}</div>}
                             {lead.consultant_phone && <div className="text-slate-600 flex items-center gap-1"><Phone className="w-3 h-3 text-slate-400" /> {lead.consultant_phone}</div>}
+
+                            {/* Additional Consultant Contacts */}
+                            {(() => {
+                              let extra = [];
+                              try { extra = typeof lead.additional_consultants === 'string' ? JSON.parse(lead.additional_consultants) : (lead.additional_consultants || []); } catch (e) {}
+                              if (!extra.length) return null;
+                              return (
+                                <div className="pt-2 border-t border-slate-100 space-y-1.5 mt-2">
+                                  <div className="text-[10px] font-bold text-amber-800 uppercase">Additional Consultant Contacts ({extra.length})</div>
+                                  {extra.map((c, i) => (
+                                    <div key={i} className="p-1.5 bg-slate-50 rounded text-[11px] space-y-0.5 border border-slate-100">
+                                      {c.consultant_name && <div className="font-semibold text-slate-800">{c.consultant_name} {c.consultant_firm ? `(${c.consultant_firm})` : ''}</div>}
+                                      {c.consultant_phone && <div className="text-slate-600 flex items-center gap-1"><Phone className="w-2.5 h-2.5 text-slate-400" /> {c.consultant_phone}</div>}
+                                      {c.consultant_email && <div className="text-slate-600 flex items-center gap-1"><Mail className="w-2.5 h-2.5 text-slate-400" /> {c.consultant_email}</div>}
+                                    </div>
+                                  ))}
+                                </div>
+                              );
+                            })()}
                           </div>
                         )}
                       </div>

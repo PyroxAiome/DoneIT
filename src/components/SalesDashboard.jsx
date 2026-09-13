@@ -230,7 +230,7 @@ export default function SalesDashboard({ user, initialAssigneeId = '' }) {
               onClick={() => { setSubCategory('order_lakshya'); setSelectedGoalId(null); }}
               className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${subCategory === 'order_lakshya' || subCategory === 'lakshya' ? 'bg-white text-amber-700 font-bold shadow-xs' : 'text-gray-600 hover:text-gray-900'}`}
             >
-              🎯 Order Lakshya
+              🎯 Order Lakshya (Hot Prospects)
             </button>
           )}
           {canViewBilling && (
@@ -252,6 +252,21 @@ export default function SalesDashboard({ user, initialAssigneeId = '' }) {
         </div>
       </div>
 
+      {(subCategory === 'order_lakshya' || subCategory === 'lakshya') && (
+        <div className="bg-amber-50 border border-amber-300/80 rounded-xl p-3.5 flex items-center justify-between gap-3 text-xs text-amber-900 shadow-xs">
+          <div className="flex items-center gap-2.5">
+            <span className="text-xl">🔥</span>
+            <div>
+              <h4 className="font-bold text-sm text-amber-950">Order Lakshya — Hot Prospects Funnel</h4>
+              <p className="text-[11px] text-amber-800">Track all high-priority hot prospects, qualified inquiries, and key conversion stages targeting immediate order closure.</p>
+            </div>
+          </div>
+          <span className="text-[10px] font-bold uppercase tracking-wider bg-amber-200/80 text-amber-900 px-2.5 py-1 rounded-md border border-amber-300 shrink-0">
+            🔥 Hot Prospects Active
+          </span>
+        </div>
+      )}
+
       {/* Target Goal Containers Section (Unified for ALL 4 sub-categories) */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 space-y-4 animate-in fade-in">
         <div className="flex items-center justify-between flex-wrap gap-2">
@@ -259,7 +274,7 @@ export default function SalesDashboard({ user, initialAssigneeId = '' }) {
             <Target className="w-5 h-5 text-amber-600" />
             <h3 className="font-bold text-sm">
               {subCategory === 'general' ? 'General Inquiries Containers' :
-               subCategory === 'order_lakshya' || subCategory === 'lakshya' ? 'Order Lakshya Goal Containers' :
+               subCategory === 'order_lakshya' || subCategory === 'lakshya' ? 'Order Lakshya Goal Containers (Hot Prospects)' :
                subCategory === 'billing_lakshya' ? 'Billing Lakshya Goal Containers' :
                'Collection Lakshya Goal Containers'}
             </h3>

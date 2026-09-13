@@ -79,9 +79,17 @@ export default function SalesLeadModal({
     expected_close_date: ''
   });
 
+  const [additionalCustomers, setAdditionalCustomers] = useState([]);
+  const [additionalConsultants, setAdditionalConsultants] = useState([]);
   const [quota, setQuota] = useState(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+
+  const parseJsonArr = (val) => {
+    if (!val) return [];
+    if (Array.isArray(val)) return val;
+    try { return JSON.parse(val); } catch (e) { return []; }
+  };
 
   useEffect(() => {
     if (editingLead) {
@@ -115,6 +123,8 @@ export default function SalesLeadModal({
         start_date: editingLead.start_date || new Date().toISOString().split('T')[0],
         expected_close_date: editingLead.expected_close_date || ''
       });
+      setAdditionalCustomers(parseJsonArr(editingLead.additional_customers));
+      setAdditionalConsultants(parseJsonArr(editingLead.additional_consultants));
     } else {
       const selectedCat = initialCategory || (initialGoalId ? 'lakshya' : 'general');
       const selectedGoal = initialGoalId || (goals.length > 0 ? goals[0].id : '');
@@ -149,6 +159,8 @@ export default function SalesLeadModal({
         start_date: new Date().toISOString().split('T')[0],
         expected_close_date: ''
       });
+      setAdditionalCustomers([]);
+      setAdditionalConsultants([]);
     }
     setError('');
 
@@ -172,6 +184,34 @@ export default function SalesLeadModal({
     setForm({ ...form, category: newCat, goal_id: newCat === 'lakshya' ? newGoal : '' });
   };
 
+  const addCustomerField = () => {
+    setAdditionalCustomers([...additionalCustomers, { client_name: '', client_company: '', client_designation: '', client_email: '', client_phone: '' }]);
+  };
+
+  const removeCustomerField = (index) => {
+    setAdditionalCustomers(additionalCustomers.filter((_, i) => i !== index));
+  };
+
+  const handleAdditionalCustomerChange = (index, field, value) => {
+    const updated = [...additionalCustomers];
+    updated[index] = { ...updated[index], [field]: value };
+    setAdditionalCustomers(updated);
+  };
+
+  const addConsultantField = () => {
+    setAdditionalConsultants([...additionalConsultants, { consultant_name: '', consultant_firm: '', consultant_email: '', consultant_phone: '' }]);
+  };
+
+  const removeConsultantField = (index) => {
+    setAdditionalConsultants(additionalConsultants.filter((_, i) => i !== index));
+  };
+
+  const handleAdditionalConsultantChange = (index, field, value) => {
+    const updated = [...additionalConsultants];
+    updated[index] = { ...updated[index], [field]: value };
+    setAdditionalConsultants(updated);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -186,8 +226,10 @@ export default function SalesLeadModal({
         ...form,
         title: form.title.trim(),
         lead_value: parseFloat(form.lead_value) || 0,
-        goal_id: form.category === 'lakshya' && form.goal_id ? parseInt(form.goal_id, 10) : null,
-        assignee_id: form.assignee_id ? parseInt(form.assignee_id, 10) : null
+        goal_id: form.category.includes('lakshya') && form.goal_id ? parseInt(form.goal_id, 10) : null,
+        assignee_id: form.assignee_id ? parseInt(form.assignee_id, 10) : null,
+        additional_customers: additionalCustomers,
+        additional_consultants: additionalConsultants
       };
 
       if (editingLead) {
@@ -407,10 +449,19 @@ export default function SalesLeadModal({
           </div>
 
           <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
-            <h4 className="text-xs font-semibold text-slate-800 uppercase tracking-wider flex items-center gap-1">
-              <Building2 className="w-3.5 h-3.5 text-slate-500" />
-              Customer / Client Information
-            </h4>
+            <div className="flex items-center justify-between">
+              <h4 className="text-xs font-semibold text-slate-800 uppercase tracking-wider flex items-center gap-1">
+                <Building2 className="w-3.5 h-3.5 text-slate-500" />
+                Customer / Client Information
+              </h4>
+              <button
+                type="button"
+                onClick={addCustomerField}
+                className="text-xs text-amber-700 hover:text-amber-800 font-semibold bg-amber-50 hover:bg-amber-100 px-2.5 py-1 rounded-lg border border-amber-200/80 transition-colors flex items-center gap-1"
+              >
+                <X className="w-3 h-3 rotate-45" /> + Add More Customer
+              </button>
+            </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="text-[11px] text-slate-600 block mb-1">Contact Person Name</label>
@@ -433,10 +484,77 @@ export default function SalesLeadModal({
                 <input type="text" value={form.client_phone} onChange={handleChange('client_phone')} placeholder="+91 98765 43210" className="input-field bg-white" />
               </div>
             </div>
+
+            {/* Additional Customer Contacts */}
+            {additionalCustomers.map((cust, idx) => (
+              <div key={idx} className="p-3 bg-white border border-gray-200 rounded-lg space-y-2 relative mt-2 animate-in fade-in">
+                <div className="flex items-center justify-between border-b border-gray-100 pb-1.5">
+                  <span className="text-[11px] font-bold text-amber-800 uppercase">Additional Customer Contact #{idx + 1}</span>
+                  <button
+                    type="button"
+                    onClick={() => removeCustomerField(idx)}
+                    className="text-[10px] font-semibold text-red-600 hover:text-red-800 bg-red-50 px-2 py-0.5 rounded border border-red-200"
+                  >
+                    Remove ✕
+                  </button>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                  <div>
+                    <label className="text-[10px] text-gray-500 block mb-0.5">Contact Name</label>
+                    <input
+                      type="text"
+                      value={cust.client_name || ''}
+                      onChange={(e) => handleAdditionalCustomerChange(idx, 'client_name', e.target.value)}
+                      placeholder="Contact Name"
+                      className="input-field bg-gray-50 text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-gray-500 block mb-0.5">Designation</label>
+                    <input
+                      type="text"
+                      value={cust.client_designation || ''}
+                      onChange={(e) => handleAdditionalCustomerChange(idx, 'client_designation', e.target.value)}
+                      placeholder="Designation"
+                      className="input-field bg-gray-50 text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-gray-500 block mb-0.5">Phone Number</label>
+                    <input
+                      type="text"
+                      value={cust.client_phone || ''}
+                      onChange={(e) => handleAdditionalCustomerChange(idx, 'client_phone', e.target.value)}
+                      placeholder="+91 98765 00000"
+                      className="input-field bg-gray-50 text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-gray-500 block mb-0.5">Email Address</label>
+                    <input
+                      type="email"
+                      value={cust.client_email || ''}
+                      onChange={(e) => handleAdditionalCustomerChange(idx, 'client_email', e.target.value)}
+                      placeholder="email@company.com"
+                      className="input-field bg-gray-50 text-xs"
+                    />
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
 
           <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
-            <h4 className="text-xs font-semibold text-slate-800 uppercase tracking-wider">Consultant / Key Person Info</h4>
+            <div className="flex items-center justify-between">
+              <h4 className="text-xs font-semibold text-slate-800 uppercase tracking-wider">Consultant / Key Person Info</h4>
+              <button
+                type="button"
+                onClick={addConsultantField}
+                className="text-xs text-amber-700 hover:text-amber-800 font-semibold bg-amber-50 hover:bg-amber-100 px-2.5 py-1 rounded-lg border border-amber-200/80 transition-colors flex items-center gap-1"
+              >
+                <X className="w-3 h-3 rotate-45" /> + Add More Consultant
+              </button>
+            </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="text-[11px] text-slate-600 block mb-1">Consultant Name</label>
@@ -455,6 +573,64 @@ export default function SalesLeadModal({
                 <input type="text" value={form.consultant_phone} onChange={handleChange('consultant_phone')} className="input-field bg-white" />
               </div>
             </div>
+
+            {/* Additional Consultant Contacts */}
+            {additionalConsultants.map((cons, idx) => (
+              <div key={idx} className="p-3 bg-white border border-gray-200 rounded-lg space-y-2 relative mt-2 animate-in fade-in">
+                <div className="flex items-center justify-between border-b border-gray-100 pb-1.5">
+                  <span className="text-[11px] font-bold text-amber-800 uppercase">Additional Consultant Contact #{idx + 1}</span>
+                  <button
+                    type="button"
+                    onClick={() => removeConsultantField(idx)}
+                    className="text-[10px] font-semibold text-red-600 hover:text-red-800 bg-red-50 px-2 py-0.5 rounded border border-red-200"
+                  >
+                    Remove ✕
+                  </button>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                  <div>
+                    <label className="text-[10px] text-gray-500 block mb-0.5">Consultant Name</label>
+                    <input
+                      type="text"
+                      value={cons.consultant_name || ''}
+                      onChange={(e) => handleAdditionalConsultantChange(idx, 'consultant_name', e.target.value)}
+                      placeholder="Name"
+                      className="input-field bg-gray-50 text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-gray-500 block mb-0.5">Firm Name</label>
+                    <input
+                      type="text"
+                      value={cons.consultant_firm || ''}
+                      onChange={(e) => handleAdditionalConsultantChange(idx, 'consultant_firm', e.target.value)}
+                      placeholder="Firm"
+                      className="input-field bg-gray-50 text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-gray-500 block mb-0.5">Phone Number</label>
+                    <input
+                      type="text"
+                      value={cons.consultant_phone || ''}
+                      onChange={(e) => handleAdditionalConsultantChange(idx, 'consultant_phone', e.target.value)}
+                      placeholder="+91 98765 00000"
+                      className="input-field bg-gray-50 text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-gray-500 block mb-0.5">Email Address</label>
+                    <input
+                      type="email"
+                      value={cons.consultant_email || ''}
+                      onChange={(e) => handleAdditionalConsultantChange(idx, 'consultant_email', e.target.value)}
+                      placeholder="consultant@firm.com"
+                      className="input-field bg-gray-50 text-xs"
+                    />
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
 
           <div className="flex justify-end gap-2 pt-3 border-t border-gray-100">

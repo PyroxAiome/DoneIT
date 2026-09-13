@@ -118,6 +118,8 @@ const initDatabase = async () => {
     await pool.query('ALTER TABLE sales_leads ADD COLUMN IF NOT EXISTS client_email TEXT DEFAULT \'\'');
     await pool.query('ALTER TABLE sales_leads ADD COLUMN IF NOT EXISTS client_phone TEXT DEFAULT \'\'');
     await pool.query('ALTER TABLE sales_leads ADD COLUMN IF NOT EXISTS client_designation TEXT DEFAULT \'\'');
+    await pool.query('ALTER TABLE sales_leads ADD COLUMN IF NOT EXISTS additional_customers TEXT DEFAULT \'[]\'');
+    await pool.query('ALTER TABLE sales_leads ADD COLUMN IF NOT EXISTS additional_consultants TEXT DEFAULT \'[]\'');
     await pool.query('ALTER TABLE sales_goals ADD COLUMN IF NOT EXISTS lakshya_type TEXT DEFAULT \'order\'');
     await pool.query('ALTER TABLE sales_targets ADD COLUMN IF NOT EXISTS lakshya_type TEXT DEFAULT \'order\'');
     await pool.query('ALTER TABLE sales_targets ADD COLUMN IF NOT EXISTS actual_count INTEGER DEFAULT 0');
