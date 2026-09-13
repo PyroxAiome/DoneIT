@@ -527,8 +527,13 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
-  getSalesStats: (month = '') =>
-    request(`/sales/stats${month ? '?month=' + month : ''}`),
+  getSalesStats: (month = '', assigneeId = '') => {
+    const params = new URLSearchParams();
+    if (month) params.append('month', month);
+    if (assigneeId) params.append('assignee_id', assigneeId);
+    const queryString = params.toString();
+    return request(`/sales/stats${queryString ? '?' + queryString : ''}`);
+  },
 
   getSalesQuota: () => request('/sales/leads/quota'),
 };

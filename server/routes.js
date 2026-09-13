@@ -4278,57 +4278,105 @@ router.post('/sales/leads/:id/activities', auth, salesAccessOnly, async (req, re
 // ── Sales Stats & Monthly Report Endpoint ──
 router.get('/sales/stats', auth, salesAccessOnly, async (req, res) => {
   try {
-    const { month } = req.query; // YYYY-MM
+    const { month, assignee_id } = req.query; // YYYY-MM
     const currentMonth = month || new Date().toISOString().slice(0, 7);
+    const targetAssigneeId = assignee_id || (req.user.role !== 'admin' && req.user.role !== 'manager' ? req.user.id : null);
 
     // Total counts and values
-    const { rows: overall } = await db.query(`
-      SELECT
-        COUNT(*) as total_leads,
-        COALESCE(SUM(lead_value), 0) as total_pipeline_value,
-        COALESCE(ROUND(AVG(probability_pct), 1), 0) as avg_probability,
-        COUNT(CASE WHEN current_stage IN ('order', 'billing') THEN 1 END) as won_leads,
-        COALESCE(SUM(CASE WHEN current_stage IN ('order', 'billing') THEN lead_value ELSE 0 END), 0) as won_value
-      FROM sales_leads
-    `);
+    const { rows: overall } = targetAssigneeId
+      ? await db.query(`
+          SELECT
+            COUNT(*) as total_leads,
+            COALESCE(SUM(lead_value), 0) as total_pipeline_value,
+            COALESCE(ROUND(AVG(probability_pct), 1), 0) as avg_probability,
+            COUNT(CASE WHEN current_stage IN ('order', 'billing') THEN 1 END) as won_leads,
+            COALESCE(SUM(CASE WHEN current_stage IN ('order', 'billing') THEN lead_value ELSE 0 END), 0) as won_value
+          FROM sales_leads
+          WHERE assignee_id = $1
+        `, [targetAssigneeId])
+      : await db.query(`
+          SELECT
+            COUNT(*) as total_leads,
+            COALESCE(SUM(lead_value), 0) as total_pipeline_value,
+            COALESCE(ROUND(AVG(probability_pct), 1), 0) as avg_probability,
+            COUNT(CASE WHEN current_stage IN ('order', 'billing') THEN 1 END) as won_leads,
+            COALESCE(SUM(CASE WHEN current_stage IN ('order', 'billing') THEN lead_value ELSE 0 END), 0) as won_value
+          FROM sales_leads
+        `);
 
     // Counts per stage
-    const { rows: stageCounts } = await db.query(`
-      SELECT current_stage, COUNT(*) as count, COALESCE(SUM(lead_value), 0) as total_value
-      FROM sales_leads
-      GROUP BY current_stage
-    `);
+    const { rows: stageCounts } = targetAssigneeId
+      ? await db.query(`
+          SELECT current_stage, COUNT(*) as count, COALESCE(SUM(lead_value), 0) as total_value
+          FROM sales_leads
+          WHERE assignee_id = $1
+          GROUP BY current_stage
+        `, [targetAssigneeId])
+      : await db.query(`
+          SELECT current_stage, COUNT(*) as count, COALESCE(SUM(lead_value), 0) as total_value
+          FROM sales_leads
+          GROUP BY current_stage
+        `);
 
     // Monthly new leads vs carried over
-    const { rows: monthlyNew } = await db.query(`
-      SELECT COUNT(*) as new_leads_count, COALESCE(SUM(lead_value), 0) as new_leads_value
-      FROM sales_leads
-      WHERE enquiry_month = $1
-    `, [currentMonth]);
+    const { rows: monthlyNew } = targetAssigneeId
+      ? await db.query(`
+          SELECT COUNT(*) as new_leads_count, COALESCE(SUM(lead_value), 0) as new_leads_value
+          FROM sales_leads
+          WHERE enquiry_month = $1 AND assignee_id = $2
+        `, [currentMonth, targetAssigneeId])
+      : await db.query(`
+          SELECT COUNT(*) as new_leads_count, COALESCE(SUM(lead_value), 0) as new_leads_value
+          FROM sales_leads
+          WHERE enquiry_month = $1
+        `, [currentMonth]);
 
     // Salesperson performance table
-    const { rows: reps } = await db.query(`
-      SELECT u.id, u.name, u.role,
-        COUNT(l.id) as active_leads,
-        COALESCE(SUM(l.lead_value), 0) as total_value,
-        COUNT(CASE WHEN l.current_stage IN ('order', 'billing') THEN 1 END) as won_leads,
-        COALESCE(ROUND(AVG(l.probability_pct), 0), 0) as avg_prob
-      FROM users u
-      LEFT JOIN sales_leads l ON l.assignee_id = u.id
-      WHERE u.role IN ('sales_manager', 'sales_executive') OR u.can_access_sales = true
-      GROUP BY u.id, u.name, u.role
-      ORDER BY total_value DESC
-    `);
+    const { rows: reps } = targetAssigneeId
+      ? await db.query(`
+          SELECT u.id, u.name, u.role,
+            COUNT(l.id) as active_leads,
+            COALESCE(SUM(l.lead_value), 0) as total_value,
+            COUNT(CASE WHEN l.current_stage IN ('order', 'billing') THEN 1 END) as won_leads,
+            COALESCE(ROUND(AVG(l.probability_pct), 0), 0) as avg_prob
+          FROM users u
+          LEFT JOIN sales_leads l ON l.assignee_id = u.id
+          WHERE u.id = $1
+          GROUP BY u.id, u.name, u.role
+          ORDER BY total_value DESC
+        `, [targetAssigneeId])
+      : await db.query(`
+          SELECT u.id, u.name, u.role,
+            COUNT(l.id) as active_leads,
+            COALESCE(SUM(l.lead_value), 0) as total_value,
+            COUNT(CASE WHEN l.current_stage IN ('order', 'billing') THEN 1 END) as won_leads,
+            COALESCE(ROUND(AVG(l.probability_pct), 0), 0) as avg_prob
+          FROM users u
+          LEFT JOIN sales_leads l ON l.assignee_id = u.id
+          WHERE u.role IN ('sales_manager', 'sales_executive') OR u.can_access_sales = true
+          GROUP BY u.id, u.name, u.role
+          ORDER BY total_value DESC
+        `);
 
     // Stale leads (>30 days without stage update)
-    const { rows: staleLeads } = await db.query(`
-      SELECT l.id, l.title, l.current_stage, l.stage_updated_at, l.lead_value, u.name as assignee_name
-      FROM sales_leads l
-      LEFT JOIN users u ON l.assignee_id = u.id
-      WHERE l.current_stage NOT IN ('order', 'billing')
-        AND l.stage_updated_at < CURRENT_TIMESTAMP - INTERVAL '30 days'
-      ORDER BY l.stage_updated_at ASC
-    `);
+    const { rows: staleLeads } = targetAssigneeId
+      ? await db.query(`
+          SELECT l.id, l.title, l.current_stage, l.stage_updated_at, l.lead_value, u.name as assignee_name
+          FROM sales_leads l
+          LEFT JOIN users u ON l.assignee_id = u.id
+          WHERE l.current_stage NOT IN ('order', 'billing')
+            AND l.stage_updated_at < CURRENT_TIMESTAMP - INTERVAL '30 days'
+            AND l.assignee_id = $1
+          ORDER BY l.stage_updated_at ASC
+        `, [targetAssigneeId])
+      : await db.query(`
+          SELECT l.id, l.title, l.current_stage, l.stage_updated_at, l.lead_value, u.name as assignee_name
+          FROM sales_leads l
+          LEFT JOIN users u ON l.assignee_id = u.id
+          WHERE l.current_stage NOT IN ('order', 'billing')
+            AND l.stage_updated_at < CURRENT_TIMESTAMP - INTERVAL '30 days'
+          ORDER BY l.stage_updated_at ASC
+        `);
 
     res.json({
       month: currentMonth,

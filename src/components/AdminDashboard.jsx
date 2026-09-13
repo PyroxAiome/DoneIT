@@ -891,33 +891,9 @@ export default function AdminDashboard({ user }) {
                   </div>
 
                   {isSalesUser ? (
-                    <>
-                      <div className="mt-3 flex items-center justify-between text-xs text-amber-800 font-semibold bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200/60">
-                        <span>💼 Sales Representative</span>
-                      </div>
-                      <div className="flex gap-2 mt-4 pt-3 border-t border-gray-100">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleViewEmployeeTasks(emp);
-                          }}
-                          className="flex-1 text-center py-1.5 px-2 bg-gray-50 hover:bg-gray-100 text-gray-700 text-[10px] font-semibold rounded-lg transition-colors border border-gray-200"
-                        >
-                          👤 View Profile / Tasks
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSalesPersonFilter(String(emp.id));
-                            setActiveTab('sales');
-                            window.location.hash = 'sales';
-                          }}
-                          className="flex-1 text-center py-1.5 px-2 bg-amber-600 hover:bg-amber-700 text-white text-[10px] font-semibold rounded-lg transition-colors shadow-xs"
-                        >
-                          💼 Sales Pipeline
-                        </button>
-                      </div>
-                    </>
+                    <div className="mt-3 flex items-center justify-between text-xs text-amber-800 font-semibold bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200/60">
+                      <span>💼 Sales Representative</span>
+                    </div>
                   ) : (
                     <>
                       <div className="mt-3 flex items-center gap-2">

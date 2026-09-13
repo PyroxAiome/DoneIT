@@ -15,19 +15,19 @@ const STAGE_LABELS = {
   billing: 'Billing'
 };
 
-export default function SalesMonthlyReport() {
+export default function SalesMonthlyReport({ assigneeId = '' }) {
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetchStats();
-  }, [selectedMonth]);
+  }, [selectedMonth, assigneeId]);
 
   const fetchStats = async () => {
     setLoading(true);
     try {
-      const data = await api.getSalesStats(selectedMonth);
+      const data = await api.getSalesStats(selectedMonth, assigneeId);
       setStats(data);
     } catch (err) {
       console.error('Failed to fetch sales stats:', err);

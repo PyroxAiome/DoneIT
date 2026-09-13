@@ -555,12 +555,13 @@ export default function SalesDashboard({ user, initialAssigneeId = '' }) {
           subCategory={subCategory}
         />
       ) : activeTab === 'report' ? (
-        <SalesMonthlyReport />
+        <SalesMonthlyReport assigneeId={assigneeFilter || (user?.role !== 'admin' && user?.role !== 'manager' ? user?.id : '')} />
       ) : (
         <SalesTargetDashboard
           user={user}
           employees={employees}
           lakshyaType={subCategory.includes('lakshya') ? subCategory.replace('_lakshya', '') : 'order'}
+          assigneeId={assigneeFilter || (user?.role !== 'admin' && user?.role !== 'manager' ? user?.id : '')}
         />
       )}
 

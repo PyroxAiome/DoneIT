@@ -26,7 +26,7 @@ const COLLECTION_STAGES = [
   { key: 'reconciled', label: 'Reconciled' }
 ];
 
-export default function SalesTargetDashboard({ user, employees = [], lakshyaType = 'order' }) {
+export default function SalesTargetDashboard({ user, employees = [], lakshyaType = 'order', assigneeId = '' }) {
   const STAGES = lakshyaType === 'billing' ? BILLING_STAGES : lakshyaType === 'collection' ? COLLECTION_STAGES : ORDER_STAGES;
   const [periodType, setPeriodType] = useState('monthly');
   const [periodYear, setPeriodYear] = useState(new Date().getFullYear().toString());
@@ -44,23 +44,16 @@ export default function SalesTargetDashboard({ user, employees = [], lakshyaType
   const [editVal, setEditVal] = useState('');
 
   const getPeriodMeta = () => {
-    const yr = parseInt(periodYear, 10) || new Date().getFullYear();
-    if (periodType === 'monthly') {
-      const m = periodMonth;
-      const dateObj = new Date(yr, parseInt(m, 10) - 1, 1);
-      const label = dateObj.toLocaleString('en-US', { month: 'short', year: 'numeric' });
-      return { start: `${yr}-${m}-01`, label, type: 'monthly' };
-    }
+    const yr = parseInt(periodYear);
+    if (periodType === 'monthly') return { start: `${periodYear}-${periodMonth}-01`, label: `${periodYear}-${periodMonth}`, type: 'monthly' };
     if (periodType === 'quarterly') {
-      let startM = '01';
-      if (periodQuarter === 'Q2') startM = '04';
-      if (periodQuarter === 'Q3') startM = '07';
-      if (periodQuarter === 'Q4') startM = '10';
-      return { start: `${yr}-${startM}-01`, label: `${periodQuarter} ${yr}`, type: 'quarterly' };
+      const startMonth = periodQuarter === 'Q1' ? '04' : periodQuarter === 'Q2' ? '07' : periodQuarter === 'Q3' ? '10' : '01';
+      const yearStr = periodQuarter === 'Q4' ? (yr + 1).toString() : periodYear;
+      return { start: `${yearStr}-${startMonth}-01`, label: `${periodQuarter} (${periodYear})`, type: 'quarterly' };
     }
     if (periodType === 'half_yearly') {
-      const startM = periodHalf === 'H1' ? '01' : '07';
-      return { start: `${yr}-${startM}-01`, label: `${periodHalf} ${yr}`, type: 'half_yearly' };
+      const startMonth = periodHalf === 'H1' ? '04' : '10';
+      return { start: `${periodYear}-${startMonth}-01`, label: `${periodHalf} (${periodYear})`, type: 'half_yearly' };
     }
     return { start: `${yr}-04-01`, label: `FY ${yr}-${(yr + 1).toString().slice(-2)}`, type: 'annual' };
   };
@@ -75,13 +68,13 @@ export default function SalesTargetDashboard({ user, employees = [], lakshyaType
 
   useEffect(() => {
     fetchProgress();
-  }, [periodType, periodYear, periodMonth, periodQuarter, periodHalf, selectedPersonId, lakshyaType]);
+  }, [periodType, periodYear, periodMonth, periodQuarter, periodHalf, selectedPersonId, lakshyaType, assigneeId]);
 
   const fetchProgress = async () => {
     setLoading(true);
     try {
       const meta = getPeriodMeta();
-      const activePersonId = !isAdmin && user?.id ? String(user.id) : selectedPersonId;
+      const activePersonId = !isAdmin && user?.id ? String(user.id) : (assigneeId ? String(assigneeId) : selectedPersonId);
       const res = await api.getSalesTargetProgress({
         period_type: meta.type,
         period_start: meta.start,
@@ -108,10 +101,11 @@ export default function SalesTargetDashboard({ user, employees = [], lakshyaType
 
   // Group progress data by Sales Person
   const groupedByPerson = {};
+  const effectiveAssigneeId = (!isAdmin && user?.id) ? String(user.id) : (assigneeId ? String(assigneeId) : null);
   targetsProgress.forEach(row => {
     const personId = row.assignee_id;
-    // For non-admin, strictly filter to own user ID
-    if (!isAdmin && user?.id && personId !== user.id) return;
+    // Strictly filter to specific person when restricted
+    if (effectiveAssigneeId && String(personId) !== String(effectiveAssigneeId)) return;
 
     if (!groupedByPerson[personId]) {
       groupedByPerson[personId] = {
