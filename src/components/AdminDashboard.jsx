@@ -275,6 +275,20 @@ export default function AdminDashboard({ user }) {
     }
   };
 
+  const handleViewEmployeeTasksByDate = (emp, dateRange) => {
+    setStatusFilter('');
+    setPriorityFilter('');
+    setCategoryFilter('');
+    setPillarFilter('general');
+    setDateRangeFilter(dateRange);
+    setCustomFromDate('');
+    setCustomToDate('');
+    setEmployeeFilter(emp.id);
+    setSelectedEmp(emp);
+    const targetTab = (activeTab === 'team' || activeTab === 'admin') ? activeTab : 'work';
+    window.location.hash = `${targetTab}/employee/${emp.id}`;
+  };
+
   const clearEmployeeFilter = () => {
     const defaultTab = activeTab === 'admin' ? 'admin' : 'team';
     window.location.hash = defaultTab;
@@ -564,6 +578,35 @@ export default function AdminDashboard({ user }) {
 
       {(activeTab === 'work' || activeTab === 'all' || activeTab === 'completed' || activeTab === 'assigned_by_me' || activeTab === 'verified' || selectedEmp) && (
         <div className="space-y-4">
+          {selectedEmp && (
+            <div className="bg-amber-50 border border-amber-200/80 rounded-xl p-3 sm:p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={clearEmployeeFilter}
+                  className="p-1.5 bg-white hover:bg-amber-100 text-amber-800 rounded-lg border border-amber-200 shadow-xs transition-colors cursor-pointer"
+                  title="Back to Team"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-base font-bold text-gray-800">{selectedEmp.name}'s Profile Workspace</h2>
+                    <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-200">
+                      {selectedEmp.role ? selectedEmp.role.replace('_', ' ') : 'Employee'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-500 font-medium">Viewing tasks, daily updates, logical explanations & activity logs</p>
+                </div>
+              </div>
+              <button
+                onClick={clearEmployeeFilter}
+                className="text-xs font-semibold text-amber-800 hover:text-amber-900 bg-white px-3 py-1.5 rounded-lg border border-amber-200 hover:bg-amber-100/50 transition-colors shrink-0 flex items-center gap-1 cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" /> Back to Team List
+              </button>
+            </div>
+          )}
+
           {/* Work Pillars: General Tasks, Vishwas, Avishkar, Nirantar, Saksham */}
           <div className="flex items-center gap-2 p-1.5 bg-gray-100/90 rounded-xl border border-gray-200/80 w-fit flex-wrap shadow-xs">
             <button
@@ -751,29 +794,36 @@ export default function AdminDashboard({ user }) {
                 </select>
               </div>
 
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <span className="text-[10px] uppercase font-semibold text-gray-400">Date:</span>
-                <select
-                  value={dateRangeFilter}
-                  onChange={(e) => {
-                    setDateRangeFilter(e.target.value);
-                    if (e.target.value !== 'custom') {
-                      setCustomFromDate('');
-                      setCustomToDate('');
-                    }
-                  }}
-                  className={getDateSelectClass(dateRangeFilter)}
-                >
-                  <option value="">All Time</option>
-                  <option value="today">Today</option>
-                  <option value="week">This Week</option>
-                  <option value="month">This Month</option>
-                  <option value="year">This Year</option>
-                  <option value="custom">Custom Range...</option>
-                </select>
+              <div className="flex items-center gap-1.5 flex-wrap bg-gray-50 border border-gray-200/80 px-2.5 py-1.5 rounded-xl">
+                <span className="text-[10px] uppercase font-bold text-gray-500 mr-1">Activity Filter:</span>
+                {[
+                  { id: '', label: 'All' },
+                  { id: 'today', label: 'Today' },
+                  { id: 'yesterday', label: 'Yesterday' },
+                  { id: 'week', label: 'Week' },
+                  { id: 'custom', label: 'Custom' }
+                ].map(f => (
+                  <button
+                    key={f.id}
+                    onClick={() => {
+                      setDateRangeFilter(f.id);
+                      if (f.id !== 'custom') {
+                        setCustomFromDate('');
+                        setCustomToDate('');
+                      }
+                    }}
+                    className={`text-xs px-2 py-0.5 rounded font-semibold capitalize border transition-all cursor-pointer ${
+                      dateRangeFilter === f.id
+                        ? 'bg-amber-500 text-white border-amber-500 shadow-xs'
+                        : 'bg-white text-gray-600 border-gray-200 hover:text-gray-900 hover:border-gray-300'
+                    }`}
+                  >
+                    {f.label}
+                  </button>
+                ))}
 
                 {dateRangeFilter === 'custom' && (
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-1 ml-1">
                     <input
                       type="date"
                       value={customFromDate}
@@ -903,28 +953,45 @@ export default function AdminDashboard({ user }) {
                         <span className="text-[11px] font-bold text-emerald-700">{emp.avg_progress}%</span>
                       </div>
                       <p className="text-xs text-gray-500 font-medium mt-1.5">{emp.completed_task_count || 0} of {emp.task_count || 0} tasks completed</p>
-                      <div className="flex gap-2 mt-4 pt-3 border-t border-gray-100">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleViewEmployeeTasksByStatus(emp, 'in_progress');
-                          }}
-                          className="flex-1 text-center py-1.5 px-2 bg-amber-50 hover:bg-amber-100 text-amber-700 text-[10px] font-semibold rounded-lg transition-colors border border-amber-200/50"
-                        >
-                          In Progress
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleViewEmployeeTasksByStatus(emp, 'completed');
-                          }}
-                          className="flex-1 text-center py-1.5 px-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-[10px] font-semibold rounded-lg transition-colors border border-emerald-200/50"
-                        >
-                          Completed
-                        </button>
-                      </div>
                     </>
                   )}
+
+                  {/* Activity Filter Buttons */}
+                  <div className="mt-3 pt-2.5 border-t border-gray-100">
+                    <span className="text-[9px] uppercase font-bold text-gray-400 block mb-1">Activity Filter:</span>
+                    <div className="flex gap-1.5">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleViewEmployeeTasksByDate(emp, 'today');
+                        }}
+                        className="flex-1 text-center py-1 px-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 text-[10px] font-bold rounded-lg transition-colors border border-amber-200/60"
+                        title="View today's activity"
+                      >
+                        Today
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleViewEmployeeTasksByDate(emp, 'yesterday');
+                        }}
+                        className="flex-1 text-center py-1 px-1.5 bg-blue-50 hover:bg-blue-100 text-blue-800 text-[10px] font-bold rounded-lg transition-colors border border-blue-200/60"
+                        title="View yesterday's activity"
+                      >
+                        Yesterday
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleViewEmployeeTasksByDate(emp, 'week');
+                        }}
+                        className="flex-1 text-center py-1 px-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-800 text-[10px] font-bold rounded-lg transition-colors border border-indigo-200/60"
+                        title="View last 7 days activity"
+                      >
+                        Week
+                      </button>
+                    </div>
+                  </div>
                 </div>
               );
             })}

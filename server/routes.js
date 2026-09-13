@@ -637,25 +637,80 @@ router.get('/tasks', auth, async (req, res) => {
       sql += ` AND t.project_id IS NULL`;
     }
 
-    // Admin-exclusive date range filtering
-    if (req.user.role === 'admin' && req.query.date_range) {
-      if (req.query.date_range === 'today') {
-        sql += " AND t.created_at >= DATE_TRUNC('day', CURRENT_TIMESTAMP)";
-      } else if (req.query.date_range === 'week') {
-        sql += " AND t.created_at >= CURRENT_TIMESTAMP - INTERVAL '7 days'";
-      } else if (req.query.date_range === 'month') {
-        sql += " AND t.created_at >= DATE_TRUNC('month', CURRENT_TIMESTAMP)";
-      } else if (req.query.date_range === 'year') {
-        sql += " AND t.created_at >= DATE_TRUNC('year', CURRENT_TIMESTAMP)";
-      } else if (req.query.date_range === 'custom') {
+    // Activity date range filtering (checks created_at, updated_at, verified_at, daily logs, explanations, comments)
+    if (req.query.date_range) {
+      const dr = req.query.date_range;
+      let startCond = null;
+      let endCond = null;
+
+      if (dr === 'today') {
+        startCond = "DATE_TRUNC('day', CURRENT_TIMESTAMP)";
+      } else if (dr === 'yesterday') {
+        startCond = "DATE_TRUNC('day', CURRENT_TIMESTAMP - INTERVAL '1 day')";
+        endCond = "DATE_TRUNC('day', CURRENT_TIMESTAMP)";
+      } else if (dr === 'week') {
+        startCond = "CURRENT_TIMESTAMP - INTERVAL '7 days'";
+      } else if (dr === 'month') {
+        startCond = "DATE_TRUNC('month', CURRENT_TIMESTAMP)";
+      } else if (dr === 'year') {
+        startCond = "DATE_TRUNC('year', CURRENT_TIMESTAMP)";
+      } else if (dr === 'custom') {
         if (req.query.from) {
-          sql += ` AND DATE(t.created_at) >= DATE($${paramIdx++})`;
+          const fromParam = `$${paramIdx++}`;
           params.push(req.query.from);
+          startCond = `DATE(${fromParam})`;
         }
         if (req.query.to) {
-          sql += ` AND DATE(t.created_at) <= DATE($${paramIdx++})`;
+          const toParam = `$${paramIdx++}`;
           params.push(req.query.to);
+          endCond = `(DATE(${toParam}) + INTERVAL '1 day')`;
         }
+      }
+
+      if (startCond || endCond) {
+        const dateMatch = (col) => {
+          let parts = [];
+          if (startCond) parts.push(`${col} >= ${startCond}`);
+          if (endCond) parts.push(`${col} < ${endCond}`);
+          return parts.join(' AND ');
+        };
+
+        let conds = [];
+        conds.push(`(${dateMatch('t.created_at')})`);
+        conds.push(`(${dateMatch('t.updated_at')})`);
+        conds.push(`(${dateMatch('t.verified_at')})`);
+
+        if (startCond && endCond) {
+          conds.push(`EXISTS (
+            SELECT 1 FROM task_daily_logs dl 
+            WHERE dl.task_id = t.id 
+              AND ((${dateMatch('dl.created_at')}) OR (DATE(dl.log_date) >= DATE(${startCond}) AND DATE(dl.log_date) < DATE(${endCond})))
+          )`);
+        } else if (startCond) {
+          conds.push(`EXISTS (
+            SELECT 1 FROM task_daily_logs dl 
+            WHERE dl.task_id = t.id 
+              AND ((${dateMatch('dl.created_at')}) OR DATE(dl.log_date) >= DATE(${startCond}))
+          )`);
+        } else if (endCond) {
+          conds.push(`EXISTS (
+            SELECT 1 FROM task_daily_logs dl 
+            WHERE dl.task_id = t.id 
+              AND ((${dateMatch('dl.created_at')}) OR DATE(dl.log_date) < DATE(${endCond}))
+          )`);
+        }
+
+        conds.push(`EXISTS (
+          SELECT 1 FROM task_explanations te 
+          WHERE te.task_id = t.id AND (${dateMatch('te.created_at')})
+        )`);
+
+        conds.push(`EXISTS (
+          SELECT 1 FROM admin_comments ac 
+          WHERE ac.task_id = t.id AND (${dateMatch('ac.created_at')})
+        )`);
+
+        sql += ` AND (${conds.join(' OR ')})`;
       }
     }
 
