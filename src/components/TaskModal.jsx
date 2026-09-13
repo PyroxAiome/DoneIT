@@ -40,15 +40,36 @@ export default function TaskModal({ isOpen, onClose, onSaved, task, employees, o
     }
   }, [isOpen]);
 
-  const assigneeList = [];
-  const seenIds = new Set();
-  
+  const isManagerOrAdmin = currentUser && ['admin', 'manager', 'site_manager', 'sales_manager'].includes(currentUser.role);
   const sourceEmployees = (employees && employees.length > 0) ? employees : allUsersList;
 
+  // Mentee IDs under currentUser
+  const myMenteeIds = new Set(
+    sourceEmployees
+      .filter(emp => Number(emp.mentor_id) === Number(currentUser?.id))
+      .map(emp => Number(emp.id))
+  );
+  const isMentor = myMenteeIds.size > 0;
+
+  const assigneeList = [];
+  const seenIds = new Set();
+
   sourceEmployees.forEach(emp => {
-    if (!seenIds.has(emp.id)) {
+    if (seenIds.has(emp.id)) return;
+
+    if (isManagerOrAdmin) {
       assigneeList.push(emp);
       seenIds.add(emp.id);
+    } else if (isMentor) {
+      if (emp.id === currentUser?.id || myMenteeIds.has(emp.id) || (task && Number(task.assignee_id) === emp.id)) {
+        assigneeList.push(emp);
+        seenIds.add(emp.id);
+      }
+    } else {
+      if (emp.id === currentUser?.id || (task && Number(task.assignee_id) === emp.id)) {
+        assigneeList.push(emp);
+        seenIds.add(emp.id);
+      }
     }
   });
 
@@ -131,7 +152,7 @@ export default function TaskModal({ isOpen, onClose, onSaved, task, employees, o
         training_video_url: '',
         training_doc_url: '',
       });
-      if (currentUser && !['admin', 'manager'].includes(currentUser.role)) {
+      if (currentUser && !isManagerOrAdmin && !isMentor) {
         setSelectedAssigneeIds([Number(currentUser.id)]);
       } else {
         setSelectedAssigneeIds([]);
@@ -143,7 +164,7 @@ export default function TaskModal({ isOpen, onClose, onSaved, task, employees, o
   if (!isOpen) return null;
 
   const toggleAssigneeSelection = (empId) => {
-    if (currentUser && !['admin', 'manager'].includes(currentUser.role) && empId !== currentUser?.id) {
+    if (currentUser && !isManagerOrAdmin && !isMentor && empId !== currentUser?.id) {
       return;
     }
     setSelectedAssigneeIds(prev => {
@@ -153,53 +174,50 @@ export default function TaskModal({ isOpen, onClose, onSaved, task, employees, o
   };
 
   const handleChange = (field) => (e) => {
-    setForm(prev => ({ ...prev, [field]: e.target.value }));
+    setForm({ ...form, [field]: e.target.value });
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.title.trim()) { setError('Title is required'); return; }
-    if (form.is_red_flagged && (!form.red_flag_reason || !form.red_flag_reason.trim())) {
-      setError('Please provide a reason / cause for marking this task as a Red Flag.');
+    setError('');
+    const cleanTitle = form.title.trim();
+    if (!cleanTitle) {
+      setError('Title required');
       return;
     }
-    if (currentUser && ['admin', 'manager'].includes(currentUser.role)) {
-      if (selectedAssigneeIds.length === 0) { setError('At least one assignee must be selected'); return; }
+    if (form.is_red_flagged && !form.red_flag_reason.trim()) {
+      setError('Please provide a reason / cause for red flagging this task.');
+      return;
     }
+
     setBusy(true);
     try {
-      let result;
-      const targetProjectId = form.project_id ? Number(form.project_id) : null;
-      const targetVerifierId = form.verifier_id ? Number(form.verifier_id) : null;
-      const targetHiringLeadId = form.hiring_lead_id ? Number(form.hiring_lead_id) : null;
+      let finalAssigneeIds = selectedAssigneeIds;
+      if (!isManagerOrAdmin && !isMentor && currentUser) {
+        finalAssigneeIds = [Number(currentUser.id)];
+      }
+
+      const payload = {
+        ...form,
+        title: cleanTitle,
+        estimated_hours: form.estimated_hours ? Number(form.estimated_hours) : 0,
+        project_id: form.project_id ? Number(form.project_id) : null,
+        verifier_id: form.verifier_id ? Number(form.verifier_id) : null,
+        vacancies_count: Number(form.vacancies_count || 0),
+        hiring_lead_id: form.hiring_lead_id ? Number(form.hiring_lead_id) : null,
+        assignee_id: isEdit ? (form.assignee_id ? Number(form.assignee_id) : null) : (finalAssigneeIds[0] || (form.assignee_id ? Number(form.assignee_id) : null)),
+        assignee_ids: finalAssigneeIds.length > 0 ? finalAssigneeIds : undefined
+      };
+
+      let saved;
       if (isEdit) {
-        const payload = {
-          ...form,
-          assignee_id: form.assignee_id ? Number(form.assignee_id) : null,
-          assignee_ids: selectedAssigneeIds,
-          estimated_hours: form.estimated_hours ? Number(form.estimated_hours) : 0,
-          project_id: targetProjectId,
-          verifier_id: targetVerifierId,
-          hiring_lead_id: targetHiringLeadId,
-        };
-        result = await api.updateTask(task.id, payload);
+        saved = await api.updateTask(task.id, payload);
       } else {
-        const payload = {
-          ...form,
-          assignee_id: form.assignee_id ? Number(form.assignee_id) : null,
-          assignee_ids: selectedAssigneeIds,
-          estimated_hours: form.estimated_hours ? Number(form.estimated_hours) : 0,
-          project_id: targetProjectId,
-          verifier_id: targetVerifierId,
-          hiring_lead_id: targetHiringLeadId,
-        };
-        result = await api.createTask(payload);
+        saved = await api.createTask(payload);
       }
-      onSaved();
+
+      if (onSaved) onSaved(saved);
       onClose();
-      if (result && result.verificationRequired) {
-        onVerificationNeeded?.({ ...task, title: form.title, status: 'under_review' });
-      }
     } catch (err) {
       setError(err.message);
     } finally {
@@ -208,9 +226,9 @@ export default function TaskModal({ isOpen, onClose, onSaved, task, employees, o
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/30 backdrop-blur-sm" onClick={onClose}>
-      <div className="card max-w-lg w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between mb-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/30 backdrop-blur-sm overflow-y-auto" onClick={onClose}>
+      <div className="card max-w-lg w-full my-8 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-4 sticky top-0 bg-white pt-1 pb-2 border-b border-gray-100 z-10">
           <h3 className="font-semibold text-gray-900">{isEdit ? 'Edit Task' : 'Create Task'}</h3>
           <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded transition-colors">
             <X className="w-4 h-4 text-gray-400" />
@@ -224,17 +242,29 @@ export default function TaskModal({ isOpen, onClose, onSaved, task, employees, o
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-3">
+        <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="text-xs text-gray-500 uppercase tracking-wider block mb-1">Title</label>
-            <input value={form.title} onChange={handleChange('title')} className="input-field" placeholder="Task title" />
-          </div>
-          <div>
-            <label className="text-xs text-gray-500 uppercase tracking-wider block mb-1">Description</label>
-            <textarea value={form.description} onChange={handleChange('description')} className="input-field" rows={2} placeholder="Optional description" />
+            <input
+              value={form.title}
+              onChange={handleChange('title')}
+              className="input-field"
+              placeholder="Task title"
+              required
+            />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-xs text-gray-500 uppercase tracking-wider block mb-1">Description</label>
+            <textarea
+              value={form.description}
+              onChange={handleChange('description')}
+              className="input-field min-h-[80px] py-2"
+              placeholder="Optional description"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="text-xs text-gray-500 uppercase tracking-wider block mb-1">Status</label>
               <select value={form.status} onChange={handleChange('status')} className="input-field">
@@ -257,9 +287,14 @@ export default function TaskModal({ isOpen, onClose, onSaved, task, employees, o
 
           <div>
             <label className="text-xs text-gray-500 uppercase tracking-wider block mb-1">
-              {isEdit && currentUser?.role !== 'admin' ? 'Assign To' : 'Assign To (Select Multiple to Group)'}
+              {!isManagerOrAdmin && !isMentor ? 'Assign To' : (isEdit && currentUser?.role !== 'admin' ? 'Assign To' : 'Assign To (Select Multiple to Group)')}
             </label>
-            {isEdit && currentUser?.role !== 'admin' ? (
+            {!isManagerOrAdmin && !isMentor ? (
+              <div className="input-field bg-gray-50 border-gray-200 text-gray-700 font-medium flex items-center justify-between cursor-not-allowed">
+                <span>{currentUser?.name || 'Self'} <span className="text-[10px] text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200/60 font-semibold ml-1">Self-Assigned</span></span>
+                <span className="text-[10px] text-gray-400 font-normal">Only Managers/Admins/Mentors can assign tasks to others</span>
+              </div>
+            ) : isEdit && currentUser?.role !== 'admin' ? (
               <select value={form.assignee_id} onChange={handleChange('assignee_id')} className="input-field">
                 <option value="" disabled>Select Assignee</option>
                 {assigneeList.map((emp) => (
@@ -278,13 +313,7 @@ export default function TaskModal({ isOpen, onClose, onSaved, task, employees, o
                         <input
                           type="checkbox"
                           checked={isChecked}
-                          onChange={() => {
-                            if (isChecked) {
-                              setSelectedAssigneeIds(prev => prev.filter(id => id !== emp.id));
-                            } else {
-                              setSelectedAssigneeIds(prev => [...prev, emp.id]);
-                            }
-                          }}
+                          onChange={() => toggleAssigneeSelection(emp.id)}
                           className="rounded text-amber-500 focus:ring-amber-500 border-gray-300"
                         />
                         <span className="truncate">{emp.name} <span className="text-[10px] text-gray-400">({getRoleDisplay(emp)})</span></span>

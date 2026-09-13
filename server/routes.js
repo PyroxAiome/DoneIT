@@ -778,13 +778,33 @@ router.post('/tasks', auth, async (req, res) => {
       }
     }
 
+    const isManagerOrAdmin = ['admin', 'manager', 'site_manager', 'sales_manager'].includes(req.user.role);
+
+    const targetAssigneeIds = (assignee_ids && Array.isArray(assignee_ids) && assignee_ids.length > 0)
+      ? assignee_ids.map(Number)
+      : [assignee_id ? Number(assignee_id) : Number(req.user.id)];
+
+    let isAuthorizedMentor = true;
+    for (const tId of targetAssigneeIds) {
+      if (tId !== req.user.id) {
+        const { rows: menteeRows } = await db.query(
+          'SELECT id FROM users WHERE id = $1 AND mentor_id = $2',
+          [tId, req.user.id]
+        );
+        if (!menteeRows[0]) {
+          isAuthorizedMentor = false;
+          break;
+        }
+      }
+    }
+
     let assignees = [];
-    if (!['admin', 'manager', 'site_manager'].includes(req.user.role)) {
+    if (!isManagerOrAdmin && !isAuthorizedMentor) {
       assignees = [req.user.id];
     } else if (assignee_ids && Array.isArray(assignee_ids) && assignee_ids.length > 0) {
       assignees = assignee_ids;
     } else {
-      assignees = [assignee_id || null];
+      assignees = [assignee_id || req.user.id];
     }
 
     const createdTasks = [];
