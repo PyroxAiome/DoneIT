@@ -432,7 +432,7 @@ export default function SalesLeadDetailModal({ leadId, isOpen, onClose, user, on
                   {/* Clean Stage Funnel Progress Grid */}
                   <div>
                     <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">
-                      {lead.category === 'billing_lakshya' ? 'Billing Process Stages' : lead.category === 'collection_lakshya' ? 'Collection Process Stages' : '7-Stage Funnel Status'}
+                      {lead.category === 'billing_lakshya' ? 'Billing Process Stages' : lead.category === 'collection_lakshya' ? 'Collection Process Stages' : `${activeStages.length}-Stage Funnel Status`}
                     </h3>
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                       {activeStages.map((stageKey, idx) => {

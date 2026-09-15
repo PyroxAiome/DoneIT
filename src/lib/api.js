@@ -22,7 +22,11 @@ async function request(endpoint, options = {}) {
   } else {
     try {
       const text = await res.text();
-      data = { error: text || `HTTP ${res.status}: ${res.statusText}` };
+      if (text && (text.includes('<!DOCTYPE') || text.includes('<html'))) {
+        data = { error: `Server route error (${res.status}). Please ensure server changes are deployed and restarted (pm2 restart all).` };
+      } else {
+        data = { error: text || `HTTP ${res.status}: ${res.statusText}` };
+      }
     } catch (e) {
       data = { error: `HTTP ${res.status}: ${res.statusText}` };
     }
