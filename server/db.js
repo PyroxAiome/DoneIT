@@ -491,8 +491,8 @@ const initDatabase = async () => {
       skipped_stages TEXT DEFAULT '[]',
       lead_source TEXT DEFAULT '' CHECK(lead_source IN ('','referral','cold_call','website','exhibition','tender_portal','consultant','existing_client','other')),
       industry TEXT DEFAULT '' CHECK(industry IN ('','real_estate','banking','healthcare','education','government','hospitality','manufacturing','retail','it_ites','infrastructure','energy','other')),
-      product_category TEXT DEFAULT '' CHECK(product_category IN ('','building_automation','hvac','electrical','plumbing','fire_safety','integrated_solution','other')),
-      priority TEXT DEFAULT 'medium' CHECK(priority IN ('low','medium','high','critical')),
+      product_category TEXT DEFAULT '',
+      priority TEXT DEFAULT 'active',
       region TEXT DEFAULT '' CHECK(region IN ('','north_india','south_india','west_india','east_india','central_india','international')),
       country TEXT DEFAULT 'India',
       city TEXT DEFAULT '',
@@ -677,6 +677,14 @@ const initDatabase = async () => {
       console.log('Sample Lakshya Goal seeded.');
     } else {
       goalId = existingGoals[0].id;
+    }
+
+    try {
+      await pool.query("ALTER TABLE sales_leads DROP CONSTRAINT IF EXISTS sales_leads_priority_check;");
+      await pool.query("ALTER TABLE sales_leads DROP CONSTRAINT IF EXISTS sales_leads_product_category_check;");
+      await pool.query("ALTER TABLE sales_leads ALTER COLUMN priority SET DEFAULT 'active';");
+    } catch (migErr) {
+      console.log('Sales constraint migration note:', migErr.message);
     }
 
     // Seed General Lead 1

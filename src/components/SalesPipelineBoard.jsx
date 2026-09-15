@@ -42,7 +42,8 @@ export default function SalesPipelineBoard({ leads = [], onLeadClick, onEditLead
     <div className="flex gap-3 overflow-x-auto pb-6 pt-1 min-h-[580px] scrollbar-thin">
       {activeStages.map(stage => {
         const stageLeads = leads.filter(l => l.current_stage === stage.key || (!l.current_stage && stage.key === activeStages[0].key));
-        const stageTotalValue = stageLeads.reduce((sum, l) => sum + (parseFloat(l.lead_value) || 0), 0);
+        const stageActiveLeads = stageLeads.filter(l => (l.priority || '').toLowerCase() !== 'lost');
+        const stageTotalValue = stageActiveLeads.reduce((sum, l) => sum + (parseFloat(l.lead_value) || 0), 0);
 
         return (
           <div

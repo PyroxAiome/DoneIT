@@ -5,10 +5,23 @@ import {
 } from 'lucide-react';
 
 const PRIORITY_STYLES = {
+  active: 'border-l-4 border-l-emerald-500',
+  highly_active: 'border-l-4 border-l-amber-500',
+  regular: 'border-l-4 border-l-blue-500',
+  dormant: 'border-l-4 border-l-slate-400',
+  lost: 'border-l-4 border-l-red-600 bg-red-50/20',
   low: 'border-l-4 border-l-slate-400',
-  medium: 'border-l-4 border-l-blue-500',
+  medium: 'border-l-4 border-l-emerald-500',
   high: 'border-l-4 border-l-amber-500',
   critical: 'border-l-4 border-l-red-600'
+};
+
+const PRIORITY_BADGES = {
+  active: { label: '🟢 Active', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+  highly_active: { label: '⚡ Highly Active', cls: 'bg-amber-50 text-amber-800 border-amber-200' },
+  regular: { label: '🔷 Regular', cls: 'bg-blue-50 text-blue-700 border-blue-200' },
+  dormant: { label: '🌙 Dormant', cls: 'bg-gray-100 text-gray-600 border-gray-200' },
+  lost: { label: '❌ Lost', cls: 'bg-red-100 text-red-700 border-red-200' }
 };
 
 const STAGE_LABELS = {
@@ -57,11 +70,12 @@ export default function SalesLeadCard({ lead, onClick, onEdit, onDelete, onStage
     return Math.floor(diffTime / (1000 * 60 * 60 * 24));
   };
   const daysInStage = getDaysInStage();
+  const priorityBadge = PRIORITY_BADGES[lead.priority];
 
   return (
     <div
       onClick={onClick}
-      className={`card relative p-3.5 bg-white rounded-xl border border-gray-200 hover:border-amber-400 hover:shadow-md transition-all cursor-pointer group ${PRIORITY_STYLES[lead.priority] || PRIORITY_STYLES.medium}`}
+      className={`card relative p-3.5 bg-white rounded-xl border border-gray-200 hover:border-amber-400 hover:shadow-md transition-all cursor-pointer group ${PRIORITY_STYLES[lead.priority] || PRIORITY_STYLES.active}`}
     >
       {/* Top Header Row */}
       <div className="flex items-start justify-between gap-2 mb-2">
@@ -70,6 +84,12 @@ export default function SalesLeadCard({ lead, onClick, onEdit, onDelete, onStage
             <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-gray-100 text-gray-700 border border-gray-200">
               {STAGE_LABELS[lead.current_stage] || lead.current_stage} ({lead.probability_pct || 0}%)
             </span>
+
+            {priorityBadge && (
+              <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border ${priorityBadge.cls}`}>
+                {priorityBadge.label}
+              </span>
+            )}
 
             {lead.category === 'lakshya' && (
               <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200 flex items-center gap-0.5">

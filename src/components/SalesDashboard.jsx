@@ -59,6 +59,7 @@ export default function SalesDashboard({ user, initialAssigneeId = '' }) {
   // Filter states
   const [search, setSearch] = useState('');
   const [stageFilter, setStageFilter] = useState('');
+  const [productFilter, setProductFilter] = useState('');
   const [sourceFilter, setSourceFilter] = useState('');
   const [regionFilter, setRegionFilter] = useState('');
   const [priorityFilter, setPriorityFilter] = useState('');
@@ -92,7 +93,7 @@ export default function SalesDashboard({ user, initialAssigneeId = '' }) {
     return () => {
       window.removeEventListener('sales-updated', handleUpdate);
     };
-  }, [subCategory, selectedGoalId, stageFilter, sourceFilter, regionFilter, priorityFilter, assigneeFilter]);
+  }, [subCategory, selectedGoalId, stageFilter, productFilter, sourceFilter, regionFilter, priorityFilter, assigneeFilter]);
 
   const fetchAllData = async () => {
     setLoading(true);
@@ -103,6 +104,7 @@ export default function SalesDashboard({ user, initialAssigneeId = '' }) {
           category: subCategory,
           goal_id: selectedGoalId,
           stage: stageFilter,
+          product_category: productFilter,
           lead_source: sourceFilter,
           region: regionFilter,
           priority: priorityFilter,
@@ -134,10 +136,14 @@ export default function SalesDashboard({ user, initialAssigneeId = '' }) {
     return `₹${parseFloat(val).toLocaleString('en-IN')}`;
   };
 
-  // Metrics
-  const totalValue = leads.reduce((sum, l) => sum + (parseFloat(l.lead_value) || 0), 0);
-  const wonLeads = leads.filter(l => l.current_stage === 'order' || l.current_stage === 'billing');
-  const avgProb = leads.length > 0 ? Math.round(leads.reduce((sum, l) => sum + (l.probability_pct || 0), 0) / leads.length) : 0;
+  // Metrics (Separating Lost Leads from Active Pipeline)
+  const activeLeadsList = leads.filter(l => (l.priority || '').toLowerCase() !== 'lost');
+  const lostLeadsList = leads.filter(l => (l.priority || '').toLowerCase() === 'lost');
+
+  const totalValue = activeLeadsList.reduce((sum, l) => sum + (parseFloat(l.lead_value) || 0), 0);
+  const lostValue = lostLeadsList.reduce((sum, l) => sum + (parseFloat(l.lead_value) || 0), 0);
+  const wonLeads = activeLeadsList.filter(l => l.current_stage === 'order' || l.current_stage === 'billing');
+  const avgProb = activeLeadsList.length > 0 ? Math.round(activeLeadsList.reduce((sum, l) => sum + (l.probability_pct || 0), 0) / activeLeadsList.length) : 0;
   const filteredSalesPerson = assigneeFilter
     ? employees.find(e => String(e.id) === String(assigneeFilter))
     : null;
@@ -396,44 +402,57 @@ export default function SalesDashboard({ user, initialAssigneeId = '' }) {
         </div>
 
       {/* Summary Metric Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center text-gray-600 shrink-0">
-            <Briefcase className="w-5 h-5" />
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-3.5 flex items-center gap-3">
+          <div className="w-9 h-9 rounded-lg bg-gray-100 flex items-center justify-center text-gray-600 shrink-0">
+            <Briefcase className="w-4 h-4" />
           </div>
           <div>
-            <div className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Active Leads</div>
-            <div className="text-xl font-bold text-gray-900">{leads.length}</div>
+            <div className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Active Leads</div>
+            <div className="text-lg font-bold text-gray-900">{activeLeadsList.length}</div>
           </div>
         </div>
 
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-amber-50 flex items-center justify-center text-amber-600 shrink-0">
-            <TrendingUp className="w-5 h-5" />
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-3.5 flex items-center gap-3">
+          <div className="w-9 h-9 rounded-lg bg-amber-50 flex items-center justify-center text-amber-600 shrink-0">
+            <TrendingUp className="w-4 h-4" />
           </div>
           <div>
-            <div className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Pipeline Value</div>
-            <div className="text-xl font-bold text-amber-700">{formatCurrency(totalValue)}</div>
+            <div className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Pipeline Value</div>
+            <div className="text-lg font-bold text-amber-700">{formatCurrency(totalValue)}</div>
           </div>
         </div>
 
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-amber-50 flex items-center justify-center text-amber-600 shrink-0">
-            <CheckCircle2 className="w-5 h-5" />
+        <div className="bg-white rounded-xl shadow-sm border border-red-200/80 bg-red-50/20 p-3.5 flex items-center gap-3">
+          <div className="w-9 h-9 rounded-lg bg-red-100 flex items-center justify-center text-red-600 shrink-0">
+            <TrendingUp className="w-4 h-4 rotate-180" />
           </div>
           <div>
-            <div className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Won Leads</div>
-            <div className="text-xl font-bold text-amber-800">{wonLeads.length}</div>
+            <div className="text-[10px] font-semibold text-red-600 uppercase tracking-wider flex items-center gap-1">
+              Lost Pipeline
+              <span className="text-[9px] font-bold px-1 py-0.2 rounded bg-red-200 text-red-800">{lostLeadsList.length}</span>
+            </div>
+            <div className="text-lg font-bold text-red-700">{formatCurrency(lostValue)}</div>
           </div>
         </div>
 
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center text-gray-600 shrink-0">
-            <Award className="w-5 h-5" />
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-3.5 flex items-center gap-3">
+          <div className="w-9 h-9 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600 shrink-0">
+            <CheckCircle2 className="w-4 h-4" />
           </div>
           <div>
-            <div className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Avg Probability</div>
-            <div className="text-xl font-bold text-gray-900">{avgProb}%</div>
+            <div className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Won Leads</div>
+            <div className="text-lg font-bold text-emerald-800">{wonLeads.length}</div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-3.5 flex items-center gap-3">
+          <div className="w-9 h-9 rounded-lg bg-gray-100 flex items-center justify-center text-gray-600 shrink-0">
+            <Award className="w-4 h-4" />
+          </div>
+          <div>
+            <div className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Avg Probability</div>
+            <div className="text-lg font-bold text-gray-900">{avgProb}%</div>
           </div>
         </div>
       </div>
@@ -467,7 +486,7 @@ export default function SalesDashboard({ user, initialAssigneeId = '' }) {
 
         {/* Filters */}
         {activeTab === 'board' && (
-          <div className="grid grid-cols-1 sm:grid-cols-6 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-7 gap-2">
             <div className="sm:col-span-1">
               <form onSubmit={handleSearchSubmit} className="relative">
                 <input
@@ -508,6 +527,19 @@ export default function SalesDashboard({ user, initialAssigneeId = '' }) {
             </div>
 
             <div>
+              <select value={productFilter} onChange={(e) => setProductFilter(e.target.value)} className="input-field text-xs bg-gray-50">
+                <option value="">Product Choice (All)</option>
+                <option value="home_automation">Home Automation</option>
+                <option value="fire_ready">Fire-ready</option>
+                <option value="firesafety">Firesafety</option>
+                {/* Custom product category support */}
+                {Array.from(new Set(leads.map(l => l.product_category).filter(p => p && !['home_automation', 'fire_ready', 'firesafety'].includes(p)))).map(p => (
+                  <option key={p} value={p}>{p}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
               <select value={sourceFilter} onChange={(e) => setSourceFilter(e.target.value)} className="input-field text-xs bg-gray-50">
                 <option value="">All Sources</option>
                 {SOURCES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
@@ -524,10 +556,11 @@ export default function SalesDashboard({ user, initialAssigneeId = '' }) {
             <div>
               <select value={priorityFilter} onChange={(e) => setPriorityFilter(e.target.value)} className="input-field text-xs bg-gray-50">
                 <option value="">All Priorities</option>
-                <option value="low">Low</option>
-                <option value="medium">Medium</option>
-                <option value="high">High</option>
-                <option value="critical">🔴 Critical</option>
+                <option value="active">🟢 Active</option>
+                <option value="highly_active">⚡ Highly Active</option>
+                <option value="regular">🔷 Regular</option>
+                <option value="dormant">🌙 Dormant</option>
+                <option value="lost">❌ Lost</option>
               </select>
             </div>
           </div>

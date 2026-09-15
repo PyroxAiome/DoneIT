@@ -35,6 +35,14 @@ const PRODUCTS = [
   { value: 'other', label: '📌 Other' }
 ];
 
+const PRIORITIES = [
+  { value: 'active', label: '🟢 Active' },
+  { value: 'highly_active', label: '⚡ Highly Active' },
+  { value: 'regular', label: '🔷 Regular' },
+  { value: 'dormant', label: '🌙 Dormant' },
+  { value: 'lost', label: '❌ Lost' }
+];
+
 const REGIONS = [
   { value: 'north_india', label: '🗺️ North India' },
   { value: 'south_india', label: '🗺️ South India' },
@@ -60,7 +68,7 @@ export default function SalesLeadModal({
     industry_other: '',
     product_category: '',
     product_category_other: '',
-    priority: 'medium',
+    priority: 'active',
     region: '',
     country: 'India',
     city: '',
@@ -105,7 +113,7 @@ export default function SalesLeadModal({
         industry_other: editingLead.industry_other || '',
         product_category: editingLead.product_category || '',
         product_category_other: editingLead.product_category_other || '',
-        priority: editingLead.priority || 'medium',
+        priority: editingLead.priority || 'active',
         region: editingLead.region || '',
         country: editingLead.country || 'India',
         city: editingLead.city || '',
@@ -141,7 +149,7 @@ export default function SalesLeadModal({
         industry_other: '',
         product_category: '',
         product_category_other: '',
-        priority: initialPriority || 'medium',
+        priority: initialPriority || 'active',
         region: initialRegion || '',
         country: 'India',
         city: '',
@@ -388,10 +396,7 @@ export default function SalesLeadModal({
             <div>
               <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider block mb-1">Priority</label>
               <select value={form.priority} onChange={handleChange('priority')} className="input-field">
-                <option value="low">Low</option>
-                <option value="medium">Medium</option>
-                <option value="high">High</option>
-                <option value="critical">🔴 Critical</option>
+                {PRIORITIES.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
               </select>
             </div>
           </div>

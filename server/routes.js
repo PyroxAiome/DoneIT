@@ -3648,7 +3648,7 @@ router.get('/sales/leads/quota', auth, salesAccessOnly, async (req, res) => {
 // ── Sales Leads CRUD ──
 router.get('/sales/leads', auth, salesAccessOnly, async (req, res) => {
   try {
-    const { stage, category, goal_id, assignee_id, region, lead_source, industry, priority, month, search } = req.query;
+    const { stage, category, goal_id, assignee_id, region, lead_source, industry, priority, month, search, product_category } = req.query;
 
     let conditions = ['1=1'];
     let params = [];
@@ -3708,6 +3708,12 @@ router.get('/sales/leads', auth, salesAccessOnly, async (req, res) => {
     if (priority) {
       conditions.push(`l.priority = $${paramIdx}`);
       params.push(priority);
+      paramIdx++;
+    }
+
+    if (product_category) {
+      conditions.push(`l.product_category = $${paramIdx}`);
+      params.push(product_category);
       paramIdx++;
     }
 
@@ -4348,8 +4354,11 @@ router.get('/sales/stats', auth, salesAccessOnly, async (req, res) => {
       ? await db.query(`
           SELECT
             COUNT(*) as total_leads,
-            COALESCE(SUM(lead_value), 0) as total_pipeline_value,
-            COALESCE(ROUND(AVG(probability_pct), 1), 0) as avg_probability,
+            COUNT(CASE WHEN LOWER(COALESCE(priority, '')) != 'lost' THEN 1 END) as active_leads,
+            COUNT(CASE WHEN LOWER(COALESCE(priority, '')) = 'lost' THEN 1 END) as lost_leads,
+            COALESCE(SUM(CASE WHEN LOWER(COALESCE(priority, '')) != 'lost' THEN lead_value ELSE 0 END), 0) as total_pipeline_value,
+            COALESCE(SUM(CASE WHEN LOWER(COALESCE(priority, '')) = 'lost' THEN lead_value ELSE 0 END), 0) as lost_pipeline_value,
+            COALESCE(ROUND(AVG(CASE WHEN LOWER(COALESCE(priority, '')) != 'lost' THEN probability_pct END), 1), 0) as avg_probability,
             COUNT(CASE WHEN current_stage IN ('order', 'billing') THEN 1 END) as won_leads,
             COALESCE(SUM(CASE WHEN current_stage IN ('order', 'billing') THEN lead_value ELSE 0 END), 0) as won_value
           FROM sales_leads
@@ -4358,8 +4367,11 @@ router.get('/sales/stats', auth, salesAccessOnly, async (req, res) => {
       : await db.query(`
           SELECT
             COUNT(*) as total_leads,
-            COALESCE(SUM(lead_value), 0) as total_pipeline_value,
-            COALESCE(ROUND(AVG(probability_pct), 1), 0) as avg_probability,
+            COUNT(CASE WHEN LOWER(COALESCE(priority, '')) != 'lost' THEN 1 END) as active_leads,
+            COUNT(CASE WHEN LOWER(COALESCE(priority, '')) = 'lost' THEN 1 END) as lost_leads,
+            COALESCE(SUM(CASE WHEN LOWER(COALESCE(priority, '')) != 'lost' THEN lead_value ELSE 0 END), 0) as total_pipeline_value,
+            COALESCE(SUM(CASE WHEN LOWER(COALESCE(priority, '')) = 'lost' THEN lead_value ELSE 0 END), 0) as lost_pipeline_value,
+            COALESCE(ROUND(AVG(CASE WHEN LOWER(COALESCE(priority, '')) != 'lost' THEN probability_pct END), 1), 0) as avg_probability,
             COUNT(CASE WHEN current_stage IN ('order', 'billing') THEN 1 END) as won_leads,
             COALESCE(SUM(CASE WHEN current_stage IN ('order', 'billing') THEN lead_value ELSE 0 END), 0) as won_value
           FROM sales_leads
