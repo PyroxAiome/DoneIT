@@ -85,6 +85,8 @@ export default function SalesDashboard({ user, initialAssigneeId = '' }) {
     }
   }, [subCategory, activeTab]);
 
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
+
   useEffect(() => {
     fetchAllData();
 
@@ -96,7 +98,10 @@ export default function SalesDashboard({ user, initialAssigneeId = '' }) {
   }, [subCategory, selectedGoalId, stageFilter, productFilter, sourceFilter, regionFilter, priorityFilter, assigneeFilter]);
 
   const fetchAllData = async () => {
-    setLoading(true);
+    // Only show full loading spinner if initial load and no leads exist
+    if (isInitialLoad && leads.length === 0) {
+      setLoading(true);
+    }
     try {
       const lakshyaTypeParam = subCategory.includes('lakshya') ? subCategory.replace('_lakshya', '') : '';
       const [leadsRes, goalsRes, empRes] = await Promise.all([
@@ -121,6 +126,7 @@ export default function SalesDashboard({ user, initialAssigneeId = '' }) {
       console.error('Sales fetch error:', err);
     } finally {
       setLoading(false);
+      setIsInitialLoad(false);
     }
   };
 
@@ -568,7 +574,7 @@ export default function SalesDashboard({ user, initialAssigneeId = '' }) {
       </div>
 
       {/* Main Content Area */}
-      {loading ? (
+      {loading && leads.length === 0 ? (
         <div className="p-12 text-center text-gray-500">
           <div className="w-8 h-8 border-2 border-amber-600 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
           Loading sales data...
