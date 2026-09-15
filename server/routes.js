@@ -3919,7 +3919,7 @@ router.put('/sales/leads/:id', auth, salesAccessOnly, async (req, res) => {
       product_category, priority, region, country, city, site_address,
       consultant_name, consultant_firm, consultant_email, consultant_phone,
       client_name, client_company, client_email, client_phone, client_designation,
-      client_is_leverage, consultant_is_leverage,
+      client_is_leverage, consultant_is_leverage, strategy,
       assignee_id, start_date, expected_close_date, probability_pct,
       lead_source_other, industry_other, product_category_other,
       additional_customers, additional_consultants
@@ -3954,17 +3954,18 @@ router.put('/sales/leads/:id', auth, salesAccessOnly, async (req, res) => {
           client_designation = COALESCE($22, client_designation),
           client_is_leverage = COALESCE($23, client_is_leverage),
           consultant_is_leverage = COALESCE($24, consultant_is_leverage),
-          assignee_id = COALESCE($25, assignee_id),
-          start_date = COALESCE($26, start_date),
-          expected_close_date = COALESCE($27, expected_close_date),
-          probability_pct = COALESCE($28, probability_pct),
-          lead_source_other = COALESCE($29, lead_source_other),
-          industry_other = COALESCE($30, industry_other),
-          product_category_other = COALESCE($31, product_category_other),
-          additional_customers = COALESCE($32, additional_customers),
-          additional_consultants = COALESCE($33, additional_consultants),
+          strategy = COALESCE($25, strategy),
+          assignee_id = COALESCE($26, assignee_id),
+          start_date = COALESCE($27, start_date),
+          expected_close_date = COALESCE($28, expected_close_date),
+          probability_pct = COALESCE($29, probability_pct),
+          lead_source_other = COALESCE($30, lead_source_other),
+          industry_other = COALESCE($31, industry_other),
+          product_category_other = COALESCE($32, product_category_other),
+          additional_customers = COALESCE($33, additional_customers),
+          additional_consultants = COALESCE($34, additional_consultants),
           updated_at = CURRENT_TIMESTAMP
-      WHERE id = $34
+      WHERE id = $35
       RETURNING *
     `, [
       title, description, category, goal_id || null, lead_value, lead_source, industry,
@@ -3973,11 +3974,28 @@ router.put('/sales/leads/:id', auth, salesAccessOnly, async (req, res) => {
       client_name, client_company, client_email, client_phone, client_designation,
       client_is_leverage !== undefined ? Boolean(client_is_leverage) : null,
       consultant_is_leverage !== undefined ? Boolean(consultant_is_leverage) : null,
+      strategy !== undefined ? strategy : null,
       assignee_id, start_date, expected_close_date, probability_pct,
       lead_source_other, industry_other, product_category_other,
       addCustStr, addConsStr, id
     ]);
 
+    if (!rows[0]) return res.status(404).json({ error: 'Lead not found' });
+    res.json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Admin-only Strategy Update Endpoint
+router.put('/sales/leads/:id/strategy', auth, adminOnly, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { strategy } = req.body;
+    const { rows } = await db.query(
+      'UPDATE sales_leads SET strategy = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING *',
+      [strategy || '', id]
+    );
     if (!rows[0]) return res.status(404).json({ error: 'Lead not found' });
     res.json(rows[0]);
   } catch (err) {

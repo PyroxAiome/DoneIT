@@ -476,6 +476,12 @@ export const api = {
       body: JSON.stringify({ new_stage, notes }),
     }),
 
+  updateSalesLeadStrategy: (id, strategy) =>
+    request(`/sales/leads/${id}/strategy`, {
+      method: 'PUT',
+      body: JSON.stringify({ strategy }),
+    }),
+
   confirmSalesOrder: (id) =>
     request(`/sales/leads/${id}/confirm-order`, {
       method: 'POST',
