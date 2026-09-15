@@ -493,9 +493,11 @@ export default function SalesLeadDetailModal({ leadId, isOpen, onClose, user, on
                           <div className="space-y-2 bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs">
                             <div className="font-semibold text-slate-900 text-xs flex items-center justify-between border-b border-slate-100 pb-2">
                               <span className="flex items-center gap-1 font-bold text-slate-900">🏢 Primary Customer Contact</span>
-                              <span className="text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300 px-2 py-0.5 rounded flex items-center gap-1">
-                                <Star className="w-3 h-3 fill-amber-500 text-amber-500" /> Leverage Contact
-                              </span>
+                              {Boolean(lead.client_is_leverage) && (
+                                <span className="text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300 px-2 py-0.5 rounded flex items-center gap-1">
+                                  <Star className="w-3 h-3 fill-amber-500 text-amber-500" /> Leverage Contact
+                                </span>
+                              )}
                             </div>
                             {lead.client_company && <div className="text-slate-800 font-semibold">Firm: {lead.client_company}</div>}
                             {lead.client_name && <div className="text-slate-700">Contact: {lead.client_name} {lead.client_designation ? `(${lead.client_designation})` : ''}</div>}
@@ -515,9 +517,11 @@ export default function SalesLeadDetailModal({ leadId, isOpen, onClose, user, on
                                       {c.client_name && (
                                         <div className="font-semibold text-slate-800 flex items-center justify-between">
                                           <span>{c.client_name} {c.client_designation ? `(${c.client_designation})` : ''}</span>
-                                          <span className="text-[9px] font-semibold text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
-                                            ⭐ Leverage
-                                          </span>
+                                          {Boolean(c.is_leverage) && (
+                                            <span className="text-[9px] font-semibold text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
+                                              ⭐ Leverage
+                                            </span>
+                                          )}
                                         </div>
                                       )}
                                       {c.client_phone && <div className="text-slate-600 flex items-center gap-1"><Phone className="w-2.5 h-2.5 text-slate-400" /> {c.client_phone}</div>}
@@ -534,9 +538,11 @@ export default function SalesLeadDetailModal({ leadId, isOpen, onClose, user, on
                           <div className="space-y-2 bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs">
                             <div className="font-semibold text-slate-900 text-xs flex items-center justify-between border-b border-slate-100 pb-2">
                               <span className="flex items-center gap-1 font-bold text-slate-900">👔 Primary Consultant Contact</span>
-                              <span className="text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300 px-2 py-0.5 rounded flex items-center gap-1">
-                                <Star className="w-3 h-3 fill-amber-500 text-amber-500" /> Leverage Contact
-                              </span>
+                              {Boolean(lead.consultant_is_leverage) && (
+                                <span className="text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300 px-2 py-0.5 rounded flex items-center gap-1">
+                                  <Star className="w-3 h-3 fill-amber-500 text-amber-500" /> Leverage Contact
+                                </span>
+                              )}
                             </div>
                             {lead.consultant_name && <div className="text-slate-800 font-semibold">Name: {lead.consultant_name}</div>}
                             {lead.consultant_firm && <div className="text-slate-700">Firm: {lead.consultant_firm}</div>}
@@ -556,9 +562,11 @@ export default function SalesLeadDetailModal({ leadId, isOpen, onClose, user, on
                                       {c.consultant_name && (
                                         <div className="font-semibold text-slate-800 flex items-center justify-between">
                                           <span>{c.consultant_name} {c.consultant_firm ? `(${c.consultant_firm})` : ''}</span>
-                                          <span className="text-[9px] font-semibold text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
-                                            ⭐ Leverage
-                                          </span>
+                                          {Boolean(c.is_leverage) && (
+                                            <span className="text-[9px] font-semibold text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
+                                              ⭐ Leverage
+                                            </span>
+                                          )}
                                         </div>
                                       )}
                                       {c.consultant_phone && <div className="text-slate-600 flex items-center gap-1"><Phone className="w-2.5 h-2.5 text-slate-400" /> {c.consultant_phone}</div>}

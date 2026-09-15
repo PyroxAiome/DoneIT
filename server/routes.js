@@ -3842,6 +3842,7 @@ router.post('/sales/leads', auth, salesAccessOnly, async (req, res) => {
       product_category, priority, region, country, city, site_address,
       consultant_name, consultant_firm, consultant_email, consultant_phone,
       client_name, client_company, client_email, client_phone, client_designation,
+      client_is_leverage, consultant_is_leverage,
       assignee_id, start_date, expected_close_date,
       lead_source_other, industry_other, product_category_other,
       additional_customers, additional_consultants
@@ -3869,11 +3870,12 @@ router.post('/sales/leads', auth, salesAccessOnly, async (req, res) => {
         region, country, city, site_address, consultant_name, consultant_firm,
         consultant_email, consultant_phone,
         client_name, client_company, client_email, client_phone, client_designation,
+        client_is_leverage, consultant_is_leverage,
         assignee_id, creator_id, start_date, expected_close_date, enquiry_month,
         lead_source_other, industry_other, product_category_other,
         additional_customers, additional_consultants
       )
-      VALUES ($1, $2, $3, $4, 'suspect', CURRENT_TIMESTAMP, $5, $6, 10, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33)
+      VALUES ($1, $2, $3, $4, 'suspect', CURRENT_TIMESTAMP, $5, $6, 10, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35)
       RETURNING *
     `, [
       title.trim(), description || '', category || 'general', goal_id || null, req.user.id,
@@ -3881,6 +3883,7 @@ router.post('/sales/leads', auth, salesAccessOnly, async (req, res) => {
       region || '', country || 'India', city || '', site_address || '', consultant_name || '',
       consultant_firm || '', consultant_email || '', consultant_phone || '',
       client_name || '', client_company || '', client_email || '', client_phone || '', client_designation || '',
+      Boolean(client_is_leverage), Boolean(consultant_is_leverage),
       effectiveAssignee, req.user.id, effectiveStartDate, expected_close_date || null, enquiryMonth,
       lead_source_other || '', industry_other || '', product_category_other || '',
       addCustStr, addConsStr
@@ -3916,6 +3919,7 @@ router.put('/sales/leads/:id', auth, salesAccessOnly, async (req, res) => {
       product_category, priority, region, country, city, site_address,
       consultant_name, consultant_firm, consultant_email, consultant_phone,
       client_name, client_company, client_email, client_phone, client_designation,
+      client_is_leverage, consultant_is_leverage,
       assignee_id, start_date, expected_close_date, probability_pct,
       lead_source_other, industry_other, product_category_other,
       additional_customers, additional_consultants
@@ -3948,23 +3952,27 @@ router.put('/sales/leads/:id', auth, salesAccessOnly, async (req, res) => {
           client_email = COALESCE($20, client_email),
           client_phone = COALESCE($21, client_phone),
           client_designation = COALESCE($22, client_designation),
-          assignee_id = COALESCE($23, assignee_id),
-          start_date = COALESCE($24, start_date),
-          expected_close_date = COALESCE($25, expected_close_date),
-          probability_pct = COALESCE($26, probability_pct),
-          lead_source_other = COALESCE($27, lead_source_other),
-          industry_other = COALESCE($28, industry_other),
-          product_category_other = COALESCE($29, product_category_other),
-          additional_customers = COALESCE($30, additional_customers),
-          additional_consultants = COALESCE($31, additional_consultants),
+          client_is_leverage = COALESCE($23, client_is_leverage),
+          consultant_is_leverage = COALESCE($24, consultant_is_leverage),
+          assignee_id = COALESCE($25, assignee_id),
+          start_date = COALESCE($26, start_date),
+          expected_close_date = COALESCE($27, expected_close_date),
+          probability_pct = COALESCE($28, probability_pct),
+          lead_source_other = COALESCE($29, lead_source_other),
+          industry_other = COALESCE($30, industry_other),
+          product_category_other = COALESCE($31, product_category_other),
+          additional_customers = COALESCE($32, additional_customers),
+          additional_consultants = COALESCE($33, additional_consultants),
           updated_at = CURRENT_TIMESTAMP
-      WHERE id = $32
+      WHERE id = $34
       RETURNING *
     `, [
       title, description, category, goal_id || null, lead_value, lead_source, industry,
       product_category, priority, region, country, city, site_address,
       consultant_name, consultant_firm, consultant_email, consultant_phone,
       client_name, client_company, client_email, client_phone, client_designation,
+      client_is_leverage !== undefined ? Boolean(client_is_leverage) : null,
+      consultant_is_leverage !== undefined ? Boolean(consultant_is_leverage) : null,
       assignee_id, start_date, expected_close_date, probability_pct,
       lead_source_other, industry_other, product_category_other,
       addCustStr, addConsStr, id

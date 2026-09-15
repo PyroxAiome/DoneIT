@@ -123,10 +123,12 @@ export default function SalesLeadModal({
         client_email: editingLead.client_email || '',
         client_phone: editingLead.client_phone || '',
         client_designation: editingLead.client_designation || '',
+        client_is_leverage: Boolean(editingLead.client_is_leverage),
         consultant_name: editingLead.consultant_name || '',
         consultant_firm: editingLead.consultant_firm || '',
         consultant_email: editingLead.consultant_email || '',
         consultant_phone: editingLead.consultant_phone || '',
+        consultant_is_leverage: Boolean(editingLead.consultant_is_leverage),
         assignee_id: editingLead.assignee_id || '',
         start_date: editingLead.start_date || new Date().toISOString().split('T')[0],
         expected_close_date: editingLead.expected_close_date || ''
@@ -159,10 +161,12 @@ export default function SalesLeadModal({
         client_email: '',
         client_phone: '',
         client_designation: '',
+        client_is_leverage: false,
         consultant_name: '',
         consultant_firm: '',
         consultant_email: '',
         consultant_phone: '',
+        consultant_is_leverage: false,
         assignee_id: user?.id || '',
         start_date: new Date().toISOString().split('T')[0],
         expected_close_date: ''
@@ -193,7 +197,7 @@ export default function SalesLeadModal({
   };
 
   const addCustomerField = () => {
-    setAdditionalCustomers([...additionalCustomers, { client_name: '', client_company: '', client_designation: '', client_email: '', client_phone: '' }]);
+    setAdditionalCustomers([...additionalCustomers, { client_name: '', client_company: '', client_designation: '', client_email: '', client_phone: '', is_leverage: false }]);
   };
 
   const removeCustomerField = (index) => {
@@ -207,7 +211,7 @@ export default function SalesLeadModal({
   };
 
   const addConsultantField = () => {
-    setAdditionalConsultants([...additionalConsultants, { consultant_name: '', consultant_firm: '', consultant_email: '', consultant_phone: '' }]);
+    setAdditionalConsultants([...additionalConsultants, { consultant_name: '', consultant_firm: '', consultant_email: '', consultant_phone: '', is_leverage: false }]);
   };
 
   const removeConsultantField = (index) => {
@@ -484,9 +488,20 @@ export default function SalesLeadModal({
                 <label className="text-[11px] text-slate-600 block mb-1">Client Email</label>
                 <input type="email" value={form.client_email} onChange={handleChange('client_email')} placeholder="client@company.com" className="input-field bg-white" />
               </div>
-              <div className="sm:col-span-2">
+              <div>
                 <label className="text-[11px] text-slate-600 block mb-1">Client Phone</label>
                 <input type="text" value={form.client_phone} onChange={handleChange('client_phone')} placeholder="+91 98765 43210" className="input-field bg-white" />
+              </div>
+              <div className="flex items-end">
+                <label className="flex items-center gap-2 cursor-pointer text-xs text-amber-900 font-semibold bg-amber-50/80 p-2.5 rounded-lg border border-amber-200/80 w-full hover:bg-amber-100/60 transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={form.client_is_leverage || false}
+                    onChange={(e) => setForm({ ...form, client_is_leverage: e.target.checked })}
+                    className="w-4 h-4 text-amber-600 rounded focus:ring-amber-500"
+                  />
+                  <span>⭐ Leverage Person for Us (Internal Champion)</span>
+                </label>
               </div>
             </div>
 
@@ -544,6 +559,17 @@ export default function SalesLeadModal({
                       className="input-field bg-gray-50 text-xs"
                     />
                   </div>
+                  <div className="sm:col-span-2 pt-1">
+                    <label className="flex items-center gap-2 cursor-pointer text-xs text-amber-900 font-semibold bg-amber-50/70 p-2 rounded-lg border border-amber-200/70 hover:bg-amber-100/60 transition-colors">
+                      <input
+                        type="checkbox"
+                        checked={cust.is_leverage || false}
+                        onChange={(e) => handleAdditionalCustomerChange(idx, 'is_leverage', e.target.checked)}
+                        className="w-4 h-4 text-amber-600 rounded focus:ring-amber-500"
+                      />
+                      <span>⭐ Leverage Person for Us (Internal Champion)</span>
+                    </label>
+                  </div>
                 </div>
               </div>
             ))}
@@ -576,6 +602,17 @@ export default function SalesLeadModal({
               <div>
                 <label className="text-[11px] text-slate-600 block mb-1">Consultant Phone</label>
                 <input type="text" value={form.consultant_phone} onChange={handleChange('consultant_phone')} className="input-field bg-white" />
+              </div>
+              <div className="sm:col-span-2 pt-1">
+                <label className="flex items-center gap-2 cursor-pointer text-xs text-amber-900 font-semibold bg-amber-50/80 p-2.5 rounded-lg border border-amber-200/80 hover:bg-amber-100/60 transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={form.consultant_is_leverage || false}
+                    onChange={(e) => setForm({ ...form, consultant_is_leverage: e.target.checked })}
+                    className="w-4 h-4 text-amber-600 rounded focus:ring-amber-500"
+                  />
+                  <span>⭐ Leverage Person for Us (Internal Champion)</span>
+                </label>
               </div>
             </div>
 
@@ -632,6 +669,17 @@ export default function SalesLeadModal({
                       placeholder="consultant@firm.com"
                       className="input-field bg-gray-50 text-xs"
                     />
+                  </div>
+                  <div className="sm:col-span-2 pt-1">
+                    <label className="flex items-center gap-2 cursor-pointer text-xs text-amber-900 font-semibold bg-amber-50/70 p-2 rounded-lg border border-amber-200/70 hover:bg-amber-100/60 transition-colors">
+                      <input
+                        type="checkbox"
+                        checked={cons.is_leverage || false}
+                        onChange={(e) => handleAdditionalConsultantChange(idx, 'is_leverage', e.target.checked)}
+                        className="w-4 h-4 text-amber-600 rounded focus:ring-amber-500"
+                      />
+                      <span>⭐ Leverage Person for Us (Internal Champion)</span>
+                    </label>
                   </div>
                 </div>
               </div>
