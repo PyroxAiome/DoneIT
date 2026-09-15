@@ -89,6 +89,11 @@ export default function SalesLeadDetailModal({ leadId, isOpen, onClose, user, on
   const [savingStrategy, setSavingStrategy] = useState(false);
   const [strategySaved, setStrategySaved] = useState(false);
 
+  // History note editing state
+  const [editingHistoryId, setEditingHistoryId] = useState(null);
+  const [editHistoryNoteText, setEditHistoryNoteText] = useState('');
+  const [savingHistoryNote, setSavingHistoryNote] = useState(false);
+
   // Contact form state
   const [showContactForm, setShowContactForm] = useState(false);
   const [editingContact, setEditingContact] = useState(null);
@@ -150,6 +155,27 @@ export default function SalesLeadDetailModal({ leadId, isOpen, onClose, user, on
       setError(err.message);
     } finally {
       setSavingStrategy(false);
+    }
+  };
+
+  const handleStartEditHistoryNote = (h) => {
+    setEditingHistoryId(h.id);
+    setEditHistoryNoteText(h.notes || '');
+  };
+
+  const handleSaveHistoryNote = async (historyId) => {
+    if (!historyId) return;
+    setSavingHistoryNote(true);
+    setError('');
+    try {
+      await api.updateSalesStageHistoryNote(lead.id, historyId, editHistoryNoteText);
+      setEditingHistoryId(null);
+      setEditHistoryNoteText('');
+      fetchLeadDetails();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSavingHistoryNote(false);
     }
   };
 
@@ -515,20 +541,64 @@ export default function SalesLeadDetailModal({ leadId, isOpen, onClose, user, on
                     ) : (
                       <div className="relative border-l-2 border-gray-200 ml-3 space-y-4 pl-4">
                         {lead.history?.map((h, i) => (
-                          <div key={h.id || i} className="relative text-xs">
+                          <div key={h.id || i} className="relative text-xs space-y-1">
                             <div className="absolute -left-[23px] top-0.5 w-3 h-3 rounded-full bg-amber-500 border-2 border-white" />
-                            <div className="font-semibold text-gray-900">
-                              {h.from_stage ? `${STAGE_LABELS[h.from_stage]} ➔ ` : ''}{STAGE_LABELS[h.to_stage]}
-                              {h.was_skipped && (
-                                <span className="ml-2 text-[10px] text-red-600 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded font-bold">
-                                  🔴 Skipped Step
-                                </span>
-                              )}
+                            <div className="flex items-center justify-between">
+                              <div className="font-semibold text-gray-900 flex items-center gap-1.5 flex-wrap">
+                                <span>{h.from_stage ? `${STAGE_LABELS[h.from_stage] || h.from_stage} ➔ ` : ''}{STAGE_LABELS[h.to_stage] || h.to_stage}</span>
+                                {h.was_skipped && (
+                                  <span className="text-[10px] text-red-600 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded font-bold">
+                                    🔴 Skipped Step
+                                  </span>
+                                )}
+                              </div>
+                              <button
+                                onClick={() => handleStartEditHistoryNote(h)}
+                                className="text-amber-700 hover:text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-200/80 px-2 py-0.5 rounded transition-colors flex items-center gap-1 text-[11px] font-semibold shrink-0"
+                              >
+                                <Edit3 className="w-3 h-3" /> Edit Note
+                              </button>
                             </div>
-                            <div className="text-[11px] text-gray-500 mt-0.5">
+                            <div className="text-[11px] text-gray-500">
                               By <strong>{h.changed_by_name || 'System'}</strong> on {new Date(h.created_at).toLocaleString()}
                             </div>
-                            {h.notes && <p className="text-gray-700 bg-gray-50 p-2 rounded-lg mt-1 italic border border-gray-100">{h.notes}</p>}
+
+                            {editingHistoryId === h.id ? (
+                              <div className="mt-2 p-3 bg-amber-50/50 border border-amber-200 rounded-xl space-y-2 animate-in fade-in">
+                                <label className="text-[11px] font-semibold text-amber-900 block">Edit Stage Move Note:</label>
+                                <textarea
+                                  value={editHistoryNoteText}
+                                  onChange={(e) => setEditHistoryNoteText(e.target.value)}
+                                  placeholder="Enter updated stage move notes..."
+                                  className="input-field text-xs bg-white min-h-[65px] focus:ring-amber-500"
+                                />
+                                <div className="flex items-center justify-end gap-2 pt-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => setEditingHistoryId(null)}
+                                    className="btn-primary text-xs py-1 px-3"
+                                  >
+                                    Cancel
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleSaveHistoryNote(h.id)}
+                                    disabled={savingHistoryNote}
+                                    className="btn-amber text-xs py-1 px-3 flex items-center gap-1 disabled:opacity-50"
+                                  >
+                                    {savingHistoryNote ? 'Saving...' : 'Save Note'}
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              h.notes ? (
+                                <p className="text-gray-700 bg-gray-50 p-2.5 rounded-lg italic border border-gray-100 text-xs">
+                                  "{h.notes}"
+                                </p>
+                              ) : (
+                                <p className="text-gray-400 italic text-[11px]">No notes added.</p>
+                              )
+                            )}
                           </div>
                         ))}
                       </div>

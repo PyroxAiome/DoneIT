@@ -498,6 +498,12 @@ export const api = {
 
   getSalesLeadHistory: (id) => request(`/sales/leads/${id}/history`),
 
+  updateSalesStageHistoryNote: (id, historyId, notes) =>
+    request(`/sales/leads/${id}/stage-history/${historyId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ notes }),
+    }),
+
   getSalesLeadContacts: (id) => request(`/sales/leads/${id}/contacts`),
 
   createSalesLeadContact: (id, data) =>

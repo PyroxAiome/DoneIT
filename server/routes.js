@@ -4007,6 +4007,22 @@ router.put('/sales/leads/:id/strategy', auth, adminOnly, async (req, res) => {
   }
 });
 
+// Update Stage Transition History Note Endpoint
+router.put('/sales/leads/:id/stage-history/:historyId', auth, salesAccessOnly, async (req, res) => {
+  try {
+    const { id, historyId } = req.params;
+    const { notes } = req.body;
+    const { rows } = await db.query(
+      'UPDATE sales_stage_history SET notes = $1 WHERE id = $2 AND lead_id = $3 RETURNING *',
+      [notes || '', historyId, id]
+    );
+    if (!rows[0]) return res.status(404).json({ error: 'Stage transition history record not found' });
+    res.json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.delete('/sales/leads/:id', auth, adminOnly, async (req, res) => {
   try {
     const { id } = req.params;
