@@ -675,39 +675,44 @@ router.get('/tasks', auth, async (req, res) => {
           return parts.join(' AND ');
         };
 
+        const taskRefMatch = `(dl.task_id = t.id OR dl.task_id IN (SELECT child.id FROM tasks child WHERE child.parent_id = t.id))`;
+        const expRefMatch = `(te.task_id = t.id OR te.task_id IN (SELECT child.id FROM tasks child WHERE child.parent_id = t.id))`;
+        const acRefMatch = `(ac.task_id = t.id OR ac.task_id IN (SELECT child.id FROM tasks child WHERE child.parent_id = t.id))`;
+
         let conds = [];
         conds.push(`(${dateMatch('t.created_at')})`);
         conds.push(`(${dateMatch('t.updated_at')})`);
         conds.push(`(${dateMatch('t.verified_at')})`);
+        conds.push(`EXISTS (SELECT 1 FROM tasks child WHERE child.parent_id = t.id AND (${dateMatch('child.updated_at')} OR ${dateMatch('child.created_at')} OR ${dateMatch('child.verified_at')}))`);
 
         if (startCond && endCond) {
           conds.push(`EXISTS (
             SELECT 1 FROM task_daily_logs dl 
-            WHERE dl.task_id = t.id 
-              AND ((${dateMatch('dl.created_at')}) OR (DATE(dl.log_date) >= DATE(${startCond}) AND DATE(dl.log_date) < DATE(${endCond})))
+            WHERE ${taskRefMatch}
+              AND ((${dateMatch('dl.created_at')}) OR (${dateMatch('dl.updated_at')}) OR (DATE(dl.log_date) >= DATE(${startCond}) AND DATE(dl.log_date) < DATE(${endCond})))
           )`);
         } else if (startCond) {
           conds.push(`EXISTS (
             SELECT 1 FROM task_daily_logs dl 
-            WHERE dl.task_id = t.id 
-              AND ((${dateMatch('dl.created_at')}) OR DATE(dl.log_date) >= DATE(${startCond}))
+            WHERE ${taskRefMatch}
+              AND ((${dateMatch('dl.created_at')}) OR (${dateMatch('dl.updated_at')}) OR DATE(dl.log_date) >= DATE(${startCond}))
           )`);
         } else if (endCond) {
           conds.push(`EXISTS (
             SELECT 1 FROM task_daily_logs dl 
-            WHERE dl.task_id = t.id 
-              AND ((${dateMatch('dl.created_at')}) OR DATE(dl.log_date) < DATE(${endCond}))
+            WHERE ${taskRefMatch}
+              AND ((${dateMatch('dl.created_at')}) OR (${dateMatch('dl.updated_at')}) OR DATE(dl.log_date) < DATE(${endCond}))
           )`);
         }
 
         conds.push(`EXISTS (
           SELECT 1 FROM task_explanations te 
-          WHERE te.task_id = t.id AND (${dateMatch('te.created_at')})
+          WHERE ${expRefMatch} AND (${dateMatch('te.created_at')})
         )`);
 
         conds.push(`EXISTS (
           SELECT 1 FROM admin_comments ac 
-          WHERE ac.task_id = t.id AND (${dateMatch('ac.created_at')})
+          WHERE ${acRefMatch} AND (${dateMatch('ac.created_at')})
         )`);
 
         sql += ` AND (${conds.join(' OR ')})`;
@@ -1637,6 +1642,7 @@ router.post('/tasks/:id/daily-logs', auth, async (req, res) => {
       const result = await db.query('INSERT INTO task_daily_logs (task_id, user_id, log_date, content) VALUES ($1, $2, $3, $4) RETURNING id', [taskId, req.user.id, log_date, content]);
       logId = result.rows[0].id;
     }
+    await db.query('UPDATE tasks SET updated_at = CURRENT_TIMESTAMP WHERE id = $1 OR parent_id = $1 OR id = (SELECT parent_id FROM tasks WHERE id = $1)', [taskId]);
 
     const { rows: logRows } = await db.query(`
       SELECT dl.*, u.name as user_name, u.role as user_role,

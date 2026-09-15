@@ -305,6 +305,9 @@ export default function AdminDashboard({ user }) {
     if (!empId) return false;
     const id = Number(empId);
     if (Number(t.assignee_id) === id) return true;
+    if (Number(t.creator_id) === id) return true;
+    if (Number(t.verifier_id) === id) return true;
+    if (Number(t.completed_by) === id) return true;
     if (Number(t.hiring_lead_id) === id) return true;
     if (t.group_assignee_ids && Array.isArray(t.group_assignee_ids) && t.group_assignee_ids.map(Number).includes(id)) return true;
     return false;
@@ -313,6 +316,12 @@ export default function AdminDashboard({ user }) {
   const workBaseTasks = tasks.filter(t => {
     if (selectedEmp) {
       const isMine = isAssignedToEmp(t, selectedEmp.id);
+
+      // If a date activity range filter is active (today, yesterday, week, etc.), show ALL tasks (active & completed) for this employee
+      if (dateRangeFilter) {
+        if (statusFilter && t.status !== statusFilter) return false;
+        return isMine;
+      }
 
       if (activeTab === 'verified') {
         const isVerified = t.status === 'completed' && (Number(t.completed_by) === Number(selectedEmp.id) || Number(t.verifier_id) === Number(selectedEmp.id)) && !isMine;
@@ -335,7 +344,7 @@ export default function AdminDashboard({ user }) {
         if (statusFilter && t.status !== statusFilter) return false;
         return isActive;
       }
-      // activeTab === 'all' or 'admin' or default (All tasks assigned to this user):
+      // activeTab === 'all' or 'admin' or 'team' or default
       if (statusFilter && t.status !== statusFilter) return false;
       return isMine;
     }
@@ -372,7 +381,7 @@ export default function AdminDashboard({ user }) {
   const upakaramPillarCount = workBaseTasks.filter(t => t.pillar === 'upakaram').length;
 
   const displayedTasks = workBaseTasks.filter(t => {
-    if (pillarFilter === 'all' || !pillarFilter) return true;
+    if (dateRangeFilter || pillarFilter === 'all' || !pillarFilter) return true;
     if (pillarFilter === 'general' && t.pillar && t.pillar !== 'general') return false;
     if (pillarFilter === 'vishwas' && t.pillar !== 'vishwas') return false;
     if (pillarFilter === 'avishkar' && t.pillar !== 'avishkar') return false;
