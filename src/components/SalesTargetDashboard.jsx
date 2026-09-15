@@ -5,11 +5,14 @@ import { Target, TrendingUp, CheckCircle2, User, RefreshCw, ChevronDown, Chevron
 const ORDER_STAGES = [
   { key: 'suspect', label: 'Suspect' },
   { key: 'prospect', label: 'Prospect' },
-  { key: 'enquiry', label: 'Enquiry' },
   { key: 'presentation', label: 'Presentation' },
   { key: 'demo', label: 'Demo' },
   { key: 'spec_tender', label: 'Spec of Tender' },
-  { key: 'design_negotiation', label: 'Design Negotiation' }
+  { key: 'enquiry', label: 'Enquiry' },
+  { key: 'quotation', label: 'Quotation' },
+  { key: 'design_optimisation', label: 'Design Optimisation' },
+  { key: 'negotiation', label: 'Negotiation' },
+  { key: 'pending_order_receipts', label: 'Pending Order Receipts' }
 ];
 
 const BILLING_STAGES = [

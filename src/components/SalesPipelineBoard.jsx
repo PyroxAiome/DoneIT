@@ -2,12 +2,15 @@ import SalesLeadCard from './SalesLeadCard';
 
 const ORDER_STAGES = [
   { key: 'suspect', label: 'Suspect', prob: 10 },
-  { key: 'prospect', label: 'Prospect', prob: 25 },
-  { key: 'enquiry', label: 'Enquiry', prob: 40 },
-  { key: 'presentation', label: 'Presentation', prob: 55 },
-  { key: 'demo', label: 'Demo', prob: 70 },
-  { key: 'spec_tender', label: 'Spec of Tender', prob: 85 },
-  { key: 'design_negotiation', label: 'Design Negotiation', prob: 95 }
+  { key: 'prospect', label: 'Prospect', prob: 20 },
+  { key: 'presentation', label: 'Presentation', prob: 30 },
+  { key: 'demo', label: 'Demo', prob: 40 },
+  { key: 'spec_tender', label: 'Spec of Tender', prob: 50 },
+  { key: 'enquiry', label: 'Enquiry', prob: 60 },
+  { key: 'quotation', label: 'Quotation', prob: 70 },
+  { key: 'design_optimisation', label: 'Design Optimisation', prob: 80 },
+  { key: 'negotiation', label: 'Negotiation', prob: 90 },
+  { key: 'pending_order_receipts', label: 'Pending Order Receipts', prob: 95 }
 ];
 
 const BILLING_STAGES = [

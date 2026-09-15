@@ -3324,19 +3324,23 @@ router.post('/repeated-tasks/:id/reviews', auth, async (req, res) => {
 
 // ─── SALES PIPELINE MODULE ─────────────────────────────────────
 const STAGE_ORDER = [
-  'suspect', 'prospect', 'enquiry', 'presentation', 'demo',
-  'spec_tender', 'design_negotiation',
+  'suspect', 'prospect', 'presentation', 'demo', 'spec_tender',
+  'enquiry', 'quotation', 'design_optimisation', 'negotiation', 'pending_order_receipts',
   'proforma_invoice', 'tax_invoice', 'billing_approved', 'payment_pending',
   'payment_due', 'followup', 'partially_collected', 'fully_collected'
 ];
 
 const STAGE_PROBABILITIES = {
   suspect: 10,
-  prospect: 25,
-  enquiry: 40,
-  presentation: 55,
-  demo: 70,
-  spec_tender: 85,
+  prospect: 20,
+  presentation: 30,
+  demo: 40,
+  spec_tender: 50,
+  enquiry: 60,
+  quotation: 70,
+  design_optimisation: 80,
+  negotiation: 90,
+  pending_order_receipts: 95,
   design_negotiation: 95,
 
   proforma_invoice: 25,

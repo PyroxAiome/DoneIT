@@ -483,7 +483,7 @@ const initDatabase = async () => {
       description TEXT DEFAULT '',
       category TEXT DEFAULT 'general' CHECK(category IN ('general','lakshya')),
       goal_id INTEGER REFERENCES sales_goals(id) ON DELETE SET NULL,
-      current_stage TEXT NOT NULL DEFAULT 'suspect' CHECK(current_stage IN ('suspect','prospect','enquiry','presentation','demo','spec_tender','design_negotiation','dfp','order','billing')),
+      current_stage TEXT NOT NULL DEFAULT 'suspect' CHECK(current_stage IN ('suspect','prospect','presentation','demo','spec_tender','enquiry','quotation','design_optimisation','negotiation','pending_order_receipts','design_negotiation','dfp','order','billing','proforma_invoice','tax_invoice','billing_approved','payment_pending','payment_due','followup','partially_collected','fully_collected')),
       stage_updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       stage_updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
       lead_value REAL DEFAULT 0,
@@ -685,6 +685,7 @@ const initDatabase = async () => {
     try {
       await pool.query("ALTER TABLE sales_leads DROP CONSTRAINT IF EXISTS sales_leads_priority_check;");
       await pool.query("ALTER TABLE sales_leads DROP CONSTRAINT IF EXISTS sales_leads_product_category_check;");
+      await pool.query("ALTER TABLE sales_leads DROP CONSTRAINT IF EXISTS sales_leads_current_stage_check;");
       await pool.query("ALTER TABLE sales_leads ALTER COLUMN priority SET DEFAULT 'active';");
       await pool.query("ALTER TABLE sales_leads ADD COLUMN IF NOT EXISTS client_is_leverage BOOLEAN DEFAULT FALSE;");
       await pool.query("ALTER TABLE sales_leads ADD COLUMN IF NOT EXISTS consultant_is_leverage BOOLEAN DEFAULT FALSE;");

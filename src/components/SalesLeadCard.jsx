@@ -27,10 +27,14 @@ const PRIORITY_BADGES = {
 const STAGE_LABELS = {
   suspect: 'Suspect',
   prospect: 'Prospect',
-  enquiry: 'Enquiry',
   presentation: 'Presentation',
   demo: 'Demo',
   spec_tender: 'Spec of Tender',
+  enquiry: 'Enquiry',
+  quotation: 'Quotation',
+  design_optimisation: 'Design Optimisation',
+  negotiation: 'Negotiation',
+  pending_order_receipts: 'Pending Order Receipts',
   design_negotiation: 'Design Negotiation',
 
   proforma_invoice: 'Proforma Invoice',

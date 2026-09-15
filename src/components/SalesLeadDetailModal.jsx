@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 
 const ORDER_STAGES = [
-  'suspect', 'prospect', 'enquiry', 'presentation', 'demo', 'spec_tender', 'design_negotiation'
+  'suspect', 'prospect', 'presentation', 'demo', 'spec_tender', 'enquiry', 'quotation', 'design_optimisation', 'negotiation', 'pending_order_receipts'
 ];
 
 const BILLING_STAGES = [
@@ -21,10 +21,14 @@ const COLLECTION_STAGES = [
 const STAGE_LABELS = {
   suspect: 'Suspect',
   prospect: 'Prospect',
-  enquiry: 'Enquiry',
   presentation: 'Presentation',
   demo: 'Demo',
   spec_tender: 'Spec of Tender',
+  enquiry: 'Enquiry',
+  quotation: 'Quotation',
+  design_optimisation: 'Design Optimisation',
+  negotiation: 'Negotiation',
+  pending_order_receipts: 'Pending Order Receipts',
   design_negotiation: 'Design Negotiation',
 
   proforma_invoice: 'Proforma Invoice',
