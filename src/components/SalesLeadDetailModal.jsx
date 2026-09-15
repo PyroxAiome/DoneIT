@@ -326,13 +326,6 @@ export default function SalesLeadDetailModal({ leadId, isOpen, onClose, user, on
                 Client Contacts ({lead.contacts?.length || 0})
               </button>
               <button
-                onClick={() => setActiveTab('daily-logs')}
-                className={`py-3 px-4 text-xs font-semibold border-b-2 transition-colors flex items-center gap-1.5 whitespace-nowrap ${activeTab === 'daily-logs' ? 'border-amber-600 text-amber-700' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
-              >
-                <MessageSquare className="w-4 h-4" />
-                Daily Achievements ({dailyLogs.length})
-              </button>
-              <button
                 onClick={() => setActiveTab('timeline')}
                 className={`py-3 px-4 text-xs font-semibold border-b-2 transition-colors flex items-center gap-1.5 whitespace-nowrap ${activeTab === 'timeline' ? 'border-amber-600 text-amber-700' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
               >
@@ -372,81 +365,6 @@ export default function SalesLeadDetailModal({ leadId, isOpen, onClose, user, on
                         <Check className="w-4 h-4" />
                         Confirm Order
                       </button>
-                    </div>
-                  )}
-
-                  {/* Customer / Client Overview Card */}
-                  {(lead.client_name || lead.client_company || lead.consultant_name || lead.additional_customers || lead.additional_consultants) && (
-                    <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
-                      <div className="flex items-center justify-between">
-                        <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-                          <Building className="w-4 h-4 text-slate-600" />
-                          Key Client & Consultant Overview
-                        </h4>
-                      </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-                        {(lead.client_name || lead.client_company || lead.additional_customers) && (
-                          <div className="space-y-2 bg-white p-3 rounded-lg border border-slate-200">
-                            <div className="font-semibold text-slate-900 text-xs flex items-center gap-1 border-b border-slate-100 pb-1">
-                              <span>🏢 Primary Customer Contact</span>
-                            </div>
-                            {lead.client_company && <div className="text-slate-800 font-medium">Firm: {lead.client_company}</div>}
-                            {lead.client_name && <div className="text-slate-700">Contact: {lead.client_name} {lead.client_designation ? `(${lead.client_designation})` : ''}</div>}
-                            {lead.client_email && <div className="text-slate-600 flex items-center gap-1"><Mail className="w-3 h-3 text-slate-400" /> {lead.client_email}</div>}
-                            {lead.client_phone && <div className="text-slate-600 flex items-center gap-1"><Phone className="w-3 h-3 text-slate-400" /> {lead.client_phone}</div>}
-
-                            {/* Additional Customer Contacts */}
-                            {(() => {
-                              let extra = [];
-                              try { extra = typeof lead.additional_customers === 'string' ? JSON.parse(lead.additional_customers) : (lead.additional_customers || []); } catch (e) {}
-                              if (!extra.length) return null;
-                              return (
-                                <div className="pt-2 border-t border-slate-100 space-y-1.5 mt-2">
-                                  <div className="text-[10px] font-bold text-amber-800 uppercase">Additional Customer Contacts ({extra.length})</div>
-                                  {extra.map((c, i) => (
-                                    <div key={i} className="p-1.5 bg-slate-50 rounded text-[11px] space-y-0.5 border border-slate-100">
-                                      {c.client_name && <div className="font-semibold text-slate-800">{c.client_name} {c.client_designation ? `(${c.client_designation})` : ''}</div>}
-                                      {c.client_phone && <div className="text-slate-600 flex items-center gap-1"><Phone className="w-2.5 h-2.5 text-slate-400" /> {c.client_phone}</div>}
-                                      {c.client_email && <div className="text-slate-600 flex items-center gap-1"><Mail className="w-2.5 h-2.5 text-slate-400" /> {c.client_email}</div>}
-                                    </div>
-                                  ))}
-                                </div>
-                              );
-                            })()}
-                          </div>
-                        )}
-
-                        {(lead.consultant_name || lead.additional_consultants) && (
-                          <div className="space-y-2 bg-white p-3 rounded-lg border border-slate-200">
-                            <div className="font-semibold text-slate-900 text-xs flex items-center gap-1 border-b border-slate-100 pb-1">
-                              <span>👔 Primary Consultant Contact</span>
-                            </div>
-                            {lead.consultant_name && <div className="text-slate-800 font-medium">Name: {lead.consultant_name}</div>}
-                            {lead.consultant_firm && <div className="text-slate-700">Firm: {lead.consultant_firm}</div>}
-                            {lead.consultant_email && <div className="text-slate-600 flex items-center gap-1"><Mail className="w-3 h-3 text-slate-400" /> {lead.consultant_email}</div>}
-                            {lead.consultant_phone && <div className="text-slate-600 flex items-center gap-1"><Phone className="w-3 h-3 text-slate-400" /> {lead.consultant_phone}</div>}
-
-                            {/* Additional Consultant Contacts */}
-                            {(() => {
-                              let extra = [];
-                              try { extra = typeof lead.additional_consultants === 'string' ? JSON.parse(lead.additional_consultants) : (lead.additional_consultants || []); } catch (e) {}
-                              if (!extra.length) return null;
-                              return (
-                                <div className="pt-2 border-t border-slate-100 space-y-1.5 mt-2">
-                                  <div className="text-[10px] font-bold text-amber-800 uppercase">Additional Consultant Contacts ({extra.length})</div>
-                                  {extra.map((c, i) => (
-                                    <div key={i} className="p-1.5 bg-slate-50 rounded text-[11px] space-y-0.5 border border-slate-100">
-                                      {c.consultant_name && <div className="font-semibold text-slate-800">{c.consultant_name} {c.consultant_firm ? `(${c.consultant_firm})` : ''}</div>}
-                                      {c.consultant_phone && <div className="text-slate-600 flex items-center gap-1"><Phone className="w-2.5 h-2.5 text-slate-400" /> {c.consultant_phone}</div>}
-                                      {c.consultant_email && <div className="text-slate-600 flex items-center gap-1"><Mail className="w-2.5 h-2.5 text-slate-400" /> {c.consultant_email}</div>}
-                                    </div>
-                                  ))}
-                                </div>
-                              );
-                            })()}
-                          </div>
-                        )}
-                      </div>
                     </div>
                   )}
 
@@ -560,9 +478,104 @@ export default function SalesLeadDetailModal({ leadId, isOpen, onClose, user, on
 
               {/* ── TAB 2: CONTACTS ── */}
               {activeTab === 'contacts' && (
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider">Client / Suspect Side Contacts</h3>
+                <div className="space-y-6">
+                  {/* Customer / Client Overview Card with Leverage Options */}
+                  {(lead.client_name || lead.client_company || lead.consultant_name || lead.additional_customers || lead.additional_consultants) && (
+                    <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                          <Building className="w-4 h-4 text-slate-600" />
+                          Key Client & Consultant Overview
+                        </h4>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                        {(lead.client_name || lead.client_company || lead.additional_customers) && (
+                          <div className="space-y-2 bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs">
+                            <div className="font-semibold text-slate-900 text-xs flex items-center justify-between border-b border-slate-100 pb-2">
+                              <span className="flex items-center gap-1 font-bold text-slate-900">🏢 Primary Customer Contact</span>
+                              <span className="text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300 px-2 py-0.5 rounded flex items-center gap-1">
+                                <Star className="w-3 h-3 fill-amber-500 text-amber-500" /> Leverage Contact
+                              </span>
+                            </div>
+                            {lead.client_company && <div className="text-slate-800 font-semibold">Firm: {lead.client_company}</div>}
+                            {lead.client_name && <div className="text-slate-700">Contact: {lead.client_name} {lead.client_designation ? `(${lead.client_designation})` : ''}</div>}
+                            {lead.client_email && <div className="text-slate-600 flex items-center gap-1"><Mail className="w-3 h-3 text-slate-400" /> {lead.client_email}</div>}
+                            {lead.client_phone && <div className="text-slate-600 flex items-center gap-1"><Phone className="w-3 h-3 text-slate-400" /> {lead.client_phone}</div>}
+
+                            {/* Additional Customer Contacts */}
+                            {(() => {
+                              let extra = [];
+                              try { extra = typeof lead.additional_customers === 'string' ? JSON.parse(lead.additional_customers) : (lead.additional_customers || []); } catch (e) {}
+                              if (!extra.length) return null;
+                              return (
+                                <div className="pt-2.5 border-t border-slate-100 space-y-2 mt-2">
+                                  <div className="text-[10px] font-bold text-amber-900 uppercase tracking-wider">Additional Customer Contacts ({extra.length})</div>
+                                  {extra.map((c, i) => (
+                                    <div key={i} className="p-2 bg-slate-50 rounded-lg text-[11px] space-y-1 border border-slate-100">
+                                      {c.client_name && (
+                                        <div className="font-semibold text-slate-800 flex items-center justify-between">
+                                          <span>{c.client_name} {c.client_designation ? `(${c.client_designation})` : ''}</span>
+                                          <span className="text-[9px] font-semibold text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
+                                            ⭐ Leverage
+                                          </span>
+                                        </div>
+                                      )}
+                                      {c.client_phone && <div className="text-slate-600 flex items-center gap-1"><Phone className="w-2.5 h-2.5 text-slate-400" /> {c.client_phone}</div>}
+                                      {c.client_email && <div className="text-slate-600 flex items-center gap-1"><Mail className="w-2.5 h-2.5 text-slate-400" /> {c.client_email}</div>}
+                                    </div>
+                                  ))}
+                                </div>
+                              );
+                            })()}
+                          </div>
+                        )}
+
+                        {(lead.consultant_name || lead.additional_consultants) && (
+                          <div className="space-y-2 bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs">
+                            <div className="font-semibold text-slate-900 text-xs flex items-center justify-between border-b border-slate-100 pb-2">
+                              <span className="flex items-center gap-1 font-bold text-slate-900">👔 Primary Consultant Contact</span>
+                              <span className="text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300 px-2 py-0.5 rounded flex items-center gap-1">
+                                <Star className="w-3 h-3 fill-amber-500 text-amber-500" /> Leverage Contact
+                              </span>
+                            </div>
+                            {lead.consultant_name && <div className="text-slate-800 font-semibold">Name: {lead.consultant_name}</div>}
+                            {lead.consultant_firm && <div className="text-slate-700">Firm: {lead.consultant_firm}</div>}
+                            {lead.consultant_email && <div className="text-slate-600 flex items-center gap-1"><Mail className="w-3 h-3 text-slate-400" /> {lead.consultant_email}</div>}
+                            {lead.consultant_phone && <div className="text-slate-600 flex items-center gap-1"><Phone className="w-3 h-3 text-slate-400" /> {lead.consultant_phone}</div>}
+
+                            {/* Additional Consultant Contacts */}
+                            {(() => {
+                              let extra = [];
+                              try { extra = typeof lead.additional_consultants === 'string' ? JSON.parse(lead.additional_consultants) : (lead.additional_consultants || []); } catch (e) {}
+                              if (!extra.length) return null;
+                              return (
+                                <div className="pt-2.5 border-t border-slate-100 space-y-2 mt-2">
+                                  <div className="text-[10px] font-bold text-amber-900 uppercase tracking-wider">Additional Consultant Contacts ({extra.length})</div>
+                                  {extra.map((c, i) => (
+                                    <div key={i} className="p-2 bg-slate-50 rounded-lg text-[11px] space-y-1 border border-slate-100">
+                                      {c.consultant_name && (
+                                        <div className="font-semibold text-slate-800 flex items-center justify-between">
+                                          <span>{c.consultant_name} {c.consultant_firm ? `(${c.consultant_firm})` : ''}</span>
+                                          <span className="text-[9px] font-semibold text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
+                                            ⭐ Leverage
+                                          </span>
+                                        </div>
+                                      )}
+                                      {c.consultant_phone && <div className="text-slate-600 flex items-center gap-1"><Phone className="w-2.5 h-2.5 text-slate-400" /> {c.consultant_phone}</div>}
+                                      {c.consultant_email && <div className="text-slate-600 flex items-center gap-1"><Mail className="w-2.5 h-2.5 text-slate-400" /> {c.consultant_email}</div>}
+                                    </div>
+                                  ))}
+                                </div>
+                              );
+                            })()}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-between pt-2">
+                    <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider">All Managed Contacts</h3>
                     <button
                       onClick={() => { setShowContactForm(!showContactForm); setEditingContact(null); }}
                       className="btn-amber text-xs px-3 py-1.5 flex items-center gap-1"
@@ -695,77 +708,7 @@ export default function SalesLeadDetailModal({ leadId, isOpen, onClose, user, on
                 </div>
               )}
 
-              {/* ── TAB 3: DAILY LOGS (ACHIEVEMENTS) ── */}
-              {activeTab === 'daily-logs' && (
-                <div className="space-y-6">
-                  {/* Daily Log Entry Form */}
-                  <form onSubmit={handleSaveDailyLog} className="p-4 bg-gray-50 border border-gray-200 rounded-xl space-y-3">
-                    <h4 className="text-xs font-bold text-gray-800 uppercase tracking-wider">Log Today's Progress / Activity</h4>
-                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-                      <div>
-                        <label className="text-[11px] text-gray-600 block mb-1">Date</label>
-                        <input
-                          type="date"
-                          value={logDate}
-                          onChange={(e) => setLogDate(e.target.value)}
-                          className="input-field bg-white text-xs"
-                        />
-                      </div>
-                      <div className="sm:col-span-3">
-                        <label className="text-[11px] text-gray-600 block mb-1">Progress Details</label>
-                        <input
-                          type="text"
-                          value={logContent}
-                          onChange={(e) => setLogContent(e.target.value)}
-                          placeholder="Describe what happened today on this lead (calls, meetings, responses)..."
-                          className="input-field bg-white text-xs"
-                        />
-                      </div>
-                    </div>
-                    <div className="flex justify-end">
-                      <button type="submit" className="btn-amber text-xs px-4 py-2">Submit Daily Log</button>
-                    </div>
-                  </form>
 
-                  {/* Logs Feed */}
-                  <div className="space-y-4">
-                    {dailyLogs.length === 0 ? (
-                      <p className="text-xs text-gray-400 italic text-center p-4">No daily logs submitted yet.</p>
-                    ) : (
-                      dailyLogs.map(log => (
-                        <div key={log.id} className="p-4 border border-gray-200 rounded-xl bg-white space-y-3">
-                          <div className="flex items-center justify-between text-xs text-gray-500 border-b border-gray-100 pb-2">
-                            <span className="font-semibold text-gray-900">{log.user_name}</span>
-                            <span>{new Date(log.log_date).toLocaleDateString('en-IN', { weekday: 'short', month: 'short', day: 'numeric' })}</span>
-                          </div>
-                          <p className="text-xs text-gray-800">{log.content}</p>
-
-                          {/* Comments section */}
-                          <div className="pt-2 border-t border-gray-100 space-y-2">
-                            {log.comments?.map(cmt => (
-                              <div key={cmt.id} className="text-[11px] bg-gray-50 p-2 rounded-lg border border-gray-100">
-                                <span className="font-semibold text-gray-800">{cmt.user_name}: </span>
-                                <span className="text-gray-700">{cmt.comment_text}</span>
-                              </div>
-                            ))}
-
-                            <div className="flex gap-2 pt-1">
-                              <input
-                                type="text"
-                                value={commentText[log.id] || ''}
-                                onChange={(e) => setCommentText({ ...commentText, [log.id]: e.target.value })}
-                                placeholder="Add a comment..."
-                                className="input-field text-xs bg-gray-50"
-                              />
-                              <button onClick={() => handleAddLogComment(log.id)} className="btn-primary text-xs py-1 px-3">Reply</button>
-                            </div>
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-              )}
 
               {/* ── TAB 4: TIMELINE / ACTIVITIES ── */}
               {activeTab === 'timeline' && (
