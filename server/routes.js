@@ -3706,14 +3706,23 @@ router.get('/sales/leads', auth, salesAccessOnly, async (req, res) => {
     }
 
     if (priority) {
-      conditions.push(`l.priority = $${paramIdx}`);
-      params.push(priority);
-      paramIdx++;
+      const lowerP = priority.toLowerCase();
+      if (lowerP === 'active') {
+        conditions.push(`(LOWER(COALESCE(l.priority, '')) = 'active' OR LOWER(COALESCE(l.priority, '')) = 'medium' OR LOWER(COALESCE(l.priority, '')) = 'low')`);
+      } else if (lowerP === 'highly_active') {
+        conditions.push(`(LOWER(COALESCE(l.priority, '')) = 'highly_active' OR LOWER(COALESCE(l.priority, '')) = 'high')`);
+      } else if (lowerP === 'lost') {
+        conditions.push(`(LOWER(COALESCE(l.priority, '')) = 'lost')`);
+      } else {
+        conditions.push(`LOWER(COALESCE(l.priority, '')) = $${paramIdx}`);
+        params.push(lowerP);
+        paramIdx++;
+      }
     }
 
     if (product_category) {
-      conditions.push(`l.product_category = $${paramIdx}`);
-      params.push(product_category);
+      conditions.push(`(LOWER(COALESCE(l.product_category, '')) = $${paramIdx} OR LOWER(COALESCE(l.product_category_other, '')) = $${paramIdx})`);
+      params.push(product_category.toLowerCase());
       paramIdx++;
     }
 

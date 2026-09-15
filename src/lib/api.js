@@ -446,6 +446,7 @@ export const api = {
     if (params.lead_source) qs.set('lead_source', params.lead_source);
     if (params.industry) qs.set('industry', params.industry);
     if (params.priority) qs.set('priority', params.priority);
+    if (params.product_category) qs.set('product_category', params.product_category);
     if (params.month) qs.set('month', params.month);
     if (params.search) qs.set('search', params.search);
     const q = qs.toString();
