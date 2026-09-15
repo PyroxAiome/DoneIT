@@ -3846,7 +3846,7 @@ router.post('/sales/leads', auth, salesAccessOnly, async (req, res) => {
       product_category, priority, region, country, city, site_address,
       consultant_name, consultant_firm, consultant_email, consultant_phone,
       client_name, client_company, client_email, client_phone, client_designation,
-      client_is_leverage, consultant_is_leverage,
+      client_is_leverage, consultant_is_leverage, strategy,
       assignee_id, start_date, expected_close_date,
       lead_source_other, industry_other, product_category_other,
       additional_customers, additional_consultants
@@ -3874,12 +3874,12 @@ router.post('/sales/leads', auth, salesAccessOnly, async (req, res) => {
         region, country, city, site_address, consultant_name, consultant_firm,
         consultant_email, consultant_phone,
         client_name, client_company, client_email, client_phone, client_designation,
-        client_is_leverage, consultant_is_leverage,
+        client_is_leverage, consultant_is_leverage, strategy,
         assignee_id, creator_id, start_date, expected_close_date, enquiry_month,
         lead_source_other, industry_other, product_category_other,
         additional_customers, additional_consultants
       )
-      VALUES ($1, $2, $3, $4, 'suspect', CURRENT_TIMESTAMP, $5, $6, 10, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35)
+      VALUES ($1, $2, $3, $4, 'suspect', CURRENT_TIMESTAMP, $5, $6, 10, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36)
       RETURNING *
     `, [
       title.trim(), description || '', category || 'general', goal_id || null, req.user.id,
@@ -3887,7 +3887,7 @@ router.post('/sales/leads', auth, salesAccessOnly, async (req, res) => {
       region || '', country || 'India', city || '', site_address || '', consultant_name || '',
       consultant_firm || '', consultant_email || '', consultant_phone || '',
       client_name || '', client_company || '', client_email || '', client_phone || '', client_designation || '',
-      Boolean(client_is_leverage), Boolean(consultant_is_leverage),
+      Boolean(client_is_leverage), Boolean(consultant_is_leverage), strategy || '',
       effectiveAssignee, req.user.id, effectiveStartDate, expected_close_date || null, enquiryMonth,
       lead_source_other || '', industry_other || '', product_category_other || '',
       addCustStr, addConsStr

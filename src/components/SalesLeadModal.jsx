@@ -129,6 +129,7 @@ export default function SalesLeadModal({
         consultant_email: editingLead.consultant_email || '',
         consultant_phone: editingLead.consultant_phone || '',
         consultant_is_leverage: Boolean(editingLead.consultant_is_leverage),
+        strategy: editingLead.strategy || '',
         assignee_id: editingLead.assignee_id || '',
         start_date: editingLead.start_date || new Date().toISOString().split('T')[0],
         expected_close_date: editingLead.expected_close_date || ''
@@ -167,6 +168,7 @@ export default function SalesLeadModal({
         consultant_email: '',
         consultant_phone: '',
         consultant_is_leverage: false,
+        strategy: '',
         assignee_id: user?.id || '',
         start_date: new Date().toISOString().split('T')[0],
         expected_close_date: ''
@@ -339,6 +341,16 @@ export default function SalesLeadModal({
               onChange={handleChange('description')}
               placeholder="Provide background context, scope, requirements, or key discussions..."
               className="input-field min-h-[75px]"
+            />
+          </div>
+
+          <div>
+            <label className="text-xs font-semibold text-amber-900 uppercase tracking-wider block mb-1">Strategy For This Project</label>
+            <textarea
+              value={form.strategy || ''}
+              onChange={handleChange('strategy')}
+              placeholder="Write the master strategy, key action items, leverage points, or target conversion plan..."
+              className="input-field min-h-[75px] bg-amber-50/30"
             />
           </div>
 
