@@ -4362,6 +4362,150 @@ router.post('/sales/leads/:id/daily-logs/:logId/comments', auth, salesAccessOnly
   }
 });
 
+// ── Sales Lead Problems & Leverage Interactive Endpoints ──
+router.get('/sales/leads/:id/problems', auth, salesAccessOnly, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { rows: problems } = await db.query(`
+      SELECT p.*, u.name as author_name, u.role as author_role
+      FROM sales_lead_problems p
+      LEFT JOIN users u ON p.user_id = u.id
+      WHERE p.lead_id = $1
+      ORDER BY p.created_at DESC
+    `, [id]);
+
+    for (const prob of problems) {
+      const { rows: replies } = await db.query(`
+        SELECT r.*, u.name as author_name, u.role as author_role
+        FROM sales_lead_problem_replies r
+        LEFT JOIN users u ON r.user_id = u.id
+        WHERE r.problem_id = $1
+        ORDER BY r.created_at ASC
+      `, [prob.id]);
+      prob.replies = replies;
+    }
+
+    res.json(problems);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/sales/leads/:id/problems', auth, salesAccessOnly, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { issue_type, title, description } = req.body;
+
+    if (!title || !title.trim() || !description || !description.trim()) {
+      return res.status(400).json({ error: 'Title and description are required' });
+    }
+
+    const validIssueType = ['problem', 'leverage_request', 'general_issue'].includes(issue_type) ? issue_type : 'problem';
+
+    const { rows } = await db.query(`
+      INSERT INTO sales_lead_problems (lead_id, user_id, issue_type, title, description, status)
+      VALUES ($1, $2, $3, $4, $5, 'open')
+      RETURNING *
+    `, [id, req.user.id, validIssueType, title.trim(), description.trim()]);
+
+    const newProblem = rows[0];
+    newProblem.author_name = req.user.name;
+    newProblem.author_role = req.user.role;
+    newProblem.replies = [];
+
+    // Send notifications to lead assignee & admins if raised by someone else
+    const { rows: leadRows } = await db.query('SELECT title, assignee_id FROM sales_leads WHERE id = $1', [id]);
+    if (leadRows[0] && leadRows[0].assignee_id && leadRows[0].assignee_id !== req.user.id) {
+      await createNotification(
+        leadRows[0].assignee_id,
+        req.user.id,
+        `New ${validIssueType === 'leverage_request' ? 'Leverage Request' : 'Project Blocker'} on "${leadRows[0].title}": ${title.trim()}`
+      );
+    }
+
+    res.status(201).json(newProblem);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.put('/sales/leads/:id/problems/:problemId/status', auth, salesAccessOnly, async (req, res) => {
+  try {
+    const { id, problemId } = req.params;
+    const { status } = req.body;
+
+    if (!['open', 'in_progress', 'resolved'].includes(status)) {
+      return res.status(400).json({ error: 'Invalid status' });
+    }
+
+    const { rows } = await db.query(`
+      UPDATE sales_lead_problems
+      SET status = $1, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $2 AND lead_id = $3
+      RETURNING *
+    `, [status, problemId, id]);
+
+    if (!rows[0]) return res.status(404).json({ error: 'Problem not found' });
+    res.json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/sales/leads/:id/problems/:problemId/replies', auth, salesAccessOnly, async (req, res) => {
+  try {
+    const { problemId } = req.params;
+    const { reply_text } = req.body;
+
+    if (!reply_text || !reply_text.trim()) {
+      return res.status(400).json({ error: 'Reply text is required' });
+    }
+
+    const { rows: probRows } = await db.query('SELECT user_id, lead_id, title FROM sales_lead_problems WHERE id = $1', [problemId]);
+    if (!probRows[0]) return res.status(404).json({ error: 'Problem not found' });
+
+    const { rows } = await db.query(`
+      INSERT INTO sales_lead_problem_replies (problem_id, user_id, reply_text)
+      VALUES ($1, $2, $3)
+      RETURNING *
+    `, [problemId, req.user.id, reply_text.trim()]);
+
+    const newReply = rows[0];
+    newReply.author_name = req.user.name;
+    newReply.author_role = req.user.role;
+
+    // Send notification to problem creator if replied by someone else
+    if (probRows[0].user_id !== req.user.id) {
+      await createNotification(
+        probRows[0].user_id,
+        req.user.id,
+        `${req.user.name} replied to your problem/leverage topic "${probRows[0].title}"`
+      );
+    }
+
+    res.status(201).json(newReply);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete('/sales/leads/:id/problems/:problemId', auth, salesAccessOnly, async (req, res) => {
+  try {
+    const { id, problemId } = req.params;
+    const { rows } = await db.query('SELECT user_id FROM sales_lead_problems WHERE id = $1 AND lead_id = $2', [problemId, id]);
+    if (!rows[0]) return res.status(404).json({ error: 'Problem not found' });
+
+    if (rows[0].user_id !== req.user.id && req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Can only delete own problem posts' });
+    }
+
+    await db.query('DELETE FROM sales_lead_problems WHERE id = $1', [problemId]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── Lead Activities & Timeline Endpoints ──
 router.post('/sales/leads/:id/activities', auth, salesAccessOnly, async (req, res) => {
   try {

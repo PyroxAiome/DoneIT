@@ -544,6 +544,29 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
+  getSalesLeadProblems: (id) => request(`/sales/leads/${id}/problems`),
+
+  createSalesLeadProblem: (id, data) =>
+    request(`/sales/leads/${id}/problems`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  updateSalesLeadProblemStatus: (id, problemId, status) =>
+    request(`/sales/leads/${id}/problems/${problemId}/status`, {
+      method: 'PUT',
+      body: JSON.stringify({ status }),
+    }),
+
+  createSalesLeadProblemReply: (id, problemId, reply_text) =>
+    request(`/sales/leads/${id}/problems/${problemId}/replies`, {
+      method: 'POST',
+      body: JSON.stringify({ reply_text }),
+    }),
+
+  deleteSalesLeadProblem: (id, problemId) =>
+    request(`/sales/leads/${id}/problems/${problemId}`, { method: 'DELETE' }),
+
   getSalesStats: (month = '', assigneeId = '') => {
     const params = new URLSearchParams();
     if (month) params.append('month', month);

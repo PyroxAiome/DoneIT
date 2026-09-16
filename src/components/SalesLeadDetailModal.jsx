@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { api } from '../lib/api';
 import {
-  X, Briefcase, ChevronRight, Check, AlertCircle, ShieldAlert,
+  X, Briefcase, ChevronRight, Check, AlertCircle, ShieldAlert, AlertTriangle,
   Users, Plus, Star, Trash2, Edit3, MessageSquare,
   Clock, Calendar, Activity, TrendingUp, TrendingDown, Phone, Mail, Building, Tag, MapPin, User, Compass
 } from 'lucide-react';
@@ -114,6 +114,20 @@ export default function SalesLeadDetailModal({ leadId, isOpen, onClose, user, on
     activity_type: 'call', negative_reason: '', title: '', description: '', probability_change: 0, activity_date: new Date().toISOString().split('T')[0]
   });
 
+  // Problems & Leverage state
+  const [problems, setProblems] = useState([]);
+  const [loadingProblems, setLoadingProblems] = useState(false);
+  const [showProblemForm, setShowProblemForm] = useState(false);
+  const [problemForm, setProblemForm] = useState({
+    issue_type: 'problem',
+    title: '',
+    description: ''
+  });
+  const [submittingProblem, setSubmittingProblem] = useState(false);
+  const [replyTextMap, setReplyTextMap] = useState({});
+  const [submittingReplyMap, setSubmittingReplyMap] = useState({});
+  const [problemFilter, setProblemFilter] = useState('all');
+
   useEffect(() => {
     if (isOpen && leadId) {
       fetchLeadDetails();
@@ -134,10 +148,74 @@ export default function SalesLeadDetailModal({ leadId, isOpen, onClose, user, on
       setTargetStage(data.current_stage);
       setStrategyText(data.strategy || '');
       fetchDailyLogs();
+      fetchProblems();
     } catch (err) {
       setError(err.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchProblems = async () => {
+    if (!leadId) return;
+    setLoadingProblems(true);
+    try {
+      const data = await api.getSalesLeadProblems(leadId);
+      setProblems(data || []);
+    } catch (err) {
+      console.error('Failed to fetch problems:', err);
+    } finally {
+      setLoadingProblems(false);
+    }
+  };
+
+  const handleCreateProblem = async (e) => {
+    if (e) e.preventDefault();
+    if (!problemForm.title.trim() || !problemForm.description.trim()) return;
+    setSubmittingProblem(true);
+    try {
+      await api.createSalesLeadProblem(lead.id, problemForm);
+      setProblemForm({ issue_type: 'problem', title: '', description: '' });
+      setShowProblemForm(false);
+      fetchProblems();
+    } catch (err) {
+      setError(err.message || 'Failed to create problem entry');
+    } finally {
+      setSubmittingProblem(false);
+    }
+  };
+
+  const handleStatusChange = async (problemId, newStatus) => {
+    try {
+      await api.updateSalesLeadProblemStatus(lead.id, problemId, newStatus);
+      fetchProblems();
+    } catch (err) {
+      setError(err.message || 'Failed to update problem status');
+    }
+  };
+
+  const handleCreateReply = async (problemId) => {
+    const text = replyTextMap[problemId];
+    if (!text || !text.trim()) return;
+    setSubmittingReplyMap(prev => ({ ...prev, [problemId]: true }));
+    try {
+      await api.createSalesLeadProblemReply(lead.id, problemId, text);
+      setReplyTextMap(prev => ({ ...prev, [problemId]: '' }));
+      fetchProblems();
+    } catch (err) {
+      setError(err.message || 'Failed to post reply');
+    } finally {
+      setSubmittingReplyMap(prev => ({ ...prev, [problemId]: false }));
+    }
+  };
+
+  const handleDeleteProblem = async (problemId) => {
+    if (!window.confirm('Are you sure you want to delete this issue thread?')) return;
+    try {
+      await api.deleteSalesLeadProblem(lead.id, problemId);
+      fetchProblems();
+    } catch (err) {
+      setError(err.message || 'Failed to delete problem entry');
     }
   };
 
@@ -420,6 +498,13 @@ export default function SalesLeadDetailModal({ leadId, isOpen, onClose, user, on
               >
                 <Compass className="w-4 h-4" />
                 Strategy For This Project
+              </button>
+              <button
+                onClick={() => setActiveTab('problems')}
+                className={`py-3 px-4 text-xs font-semibold border-b-2 transition-colors flex items-center gap-1.5 whitespace-nowrap ${activeTab === 'problems' ? 'border-amber-600 text-amber-700' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+              >
+                <AlertTriangle className="w-4 h-4 text-amber-600" />
+                Problems & Leverage ({problems.length})
               </button>
             </div>
 
@@ -1093,6 +1178,247 @@ export default function SalesLeadDetailModal({ leadId, isOpen, onClose, user, on
                           Add Project Strategy
                         </button>
                       )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ── TAB 5: PROBLEMS AND LEVERAGE ── */}
+              {activeTab === 'problems' && (
+                <div className="space-y-6">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-amber-50/40 p-4 rounded-2xl border border-amber-200/60">
+                    <div>
+                      <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                        <AlertTriangle className="w-4 h-4 text-amber-600" />
+                        Project Blockers, Issues & Leverage Requests
+                      </h3>
+                      <p className="text-xs text-slate-600 mt-0.5">
+                        Report project delays, bottlenecks, or ask for leverage support from management and team members.
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setShowProblemForm(!showProblemForm)}
+                      className="btn-amber text-xs px-3.5 py-2 flex items-center gap-1.5 shrink-0 shadow-2xs font-semibold"
+                    >
+                      <Plus className="w-4 h-4" />
+                      {showProblemForm ? 'Close Form' : 'Log Problem / Request Leverage'}
+                    </button>
+                  </div>
+
+                  {/* New Problem Form */}
+                  {showProblemForm && (
+                    <form onSubmit={handleCreateProblem} className="p-4 bg-white border border-amber-200 rounded-2xl space-y-4 shadow-xs animate-in fade-in">
+                      <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                        <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                          <Plus className="w-4 h-4 text-amber-600" />
+                          New Problem or Leverage Entry
+                        </h4>
+                        <span className="text-[11px] text-slate-500">Visible to team members & Admins</span>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div>
+                          <label className="text-[11px] font-semibold text-slate-700 block mb-1 uppercase tracking-wider">Type of Issue *</label>
+                          <select
+                            value={problemForm.issue_type}
+                            onChange={(e) => setProblemForm({ ...problemForm, issue_type: e.target.value })}
+                            className="input-field text-xs bg-white"
+                          >
+                            <option value="problem">🔴 Project Blocker / Problem</option>
+                            <option value="leverage_request">⭐ Leverage Support Request</option>
+                            <option value="general_issue">💡 General Issue / Concern</option>
+                          </select>
+                        </div>
+                        <div className="sm:col-span-2">
+                          <label className="text-[11px] font-semibold text-slate-700 block mb-1 uppercase tracking-wider">Title / Brief Summary *</label>
+                          <input
+                            type="text"
+                            value={problemForm.title}
+                            onChange={(e) => setProblemForm({ ...problemForm, title: e.target.value })}
+                            placeholder="e.g. Client management delayed approval; need director level call..."
+                            className="input-field text-xs bg-white"
+                            required
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="text-[11px] font-semibold text-slate-700 block mb-1 uppercase tracking-wider">Detailed Description *</label>
+                        <textarea
+                          value={problemForm.description}
+                          onChange={(e) => setProblemForm({ ...problemForm, description: e.target.value })}
+                          placeholder="Describe what problems are coming, why the project is stuck, or what leverage support is needed..."
+                          rows={3}
+                          className="input-field text-xs bg-white min-h-[80px]"
+                          required
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-end gap-2 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => setShowProblemForm(false)}
+                          className="btn-primary text-xs py-1.5 px-3"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="submit"
+                          disabled={submittingProblem || !problemForm.title.trim() || !problemForm.description.trim()}
+                          className="btn-amber text-xs py-1.5 px-4 font-semibold shadow-2xs disabled:opacity-50"
+                        >
+                          {submittingProblem ? 'Submitting...' : 'Post Entry'}
+                        </button>
+                      </div>
+                    </form>
+                  )}
+
+                  {/* Filter Tabs */}
+                  <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                    <div className="flex items-center gap-2">
+                      {['all', 'open', 'resolved'].map((f) => (
+                        <button
+                          key={f}
+                          onClick={() => setProblemFilter(f)}
+                          className={`px-3 py-1 rounded-lg text-xs font-semibold capitalize transition-colors ${problemFilter === f ? 'bg-amber-100 text-amber-900 border border-amber-300' : 'text-slate-500 hover:text-slate-800'}`}
+                        >
+                          {f === 'all' ? `All Threads (${problems.length})` : f === 'open' ? `Open (${problems.filter(p => p.status !== 'resolved').length})` : `Resolved (${problems.filter(p => p.status === 'resolved').length})`}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Problems / Leverage List */}
+                  {loadingProblems ? (
+                    <div className="text-center py-8 text-xs text-slate-400">Loading discussion threads...</div>
+                  ) : problems.length === 0 ? (
+                    <div className="text-center py-10 bg-white border border-slate-200 rounded-2xl space-y-2">
+                      <AlertTriangle className="w-8 h-8 text-slate-300 mx-auto" />
+                      <p className="text-xs text-slate-500 font-medium">No project problems or leverage requests logged yet.</p>
+                      <p className="text-[11px] text-slate-400">Click the button above to log project blockers or leverage needs.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {problems
+                        .filter(p => {
+                          if (problemFilter === 'open') return p.status !== 'resolved';
+                          if (problemFilter === 'resolved') return p.status === 'resolved';
+                          return true;
+                        })
+                        .map(p => (
+                          <div key={p.id} className="p-4 bg-white border border-slate-200 rounded-2xl space-y-3.5 shadow-2xs">
+                            {/* Header */}
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="space-y-1">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  {p.issue_type === 'leverage_request' ? (
+                                    <span className="text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300 px-2 py-0.5 rounded-full flex items-center gap-1">
+                                      <Star className="w-3 h-3 fill-amber-500 text-amber-600" /> Leverage Request
+                                    </span>
+                                  ) : p.issue_type === 'problem' ? (
+                                    <span className="text-[10px] font-bold bg-red-100 text-red-900 border border-red-300 px-2 py-0.5 rounded-full flex items-center gap-1">
+                                      <ShieldAlert className="w-3 h-3 text-red-600" /> Project Blocker
+                                    </span>
+                                  ) : (
+                                    <span className="text-[10px] font-bold bg-slate-100 text-slate-800 border border-slate-300 px-2 py-0.5 rounded-full flex items-center gap-1">
+                                      <AlertCircle className="w-3 h-3 text-slate-600" /> General Concern
+                                    </span>
+                                  )}
+
+                                  <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full border ${p.status === 'resolved' ? 'bg-emerald-50 text-emerald-800 border-emerald-300' : p.status === 'in_progress' ? 'bg-blue-50 text-blue-800 border-blue-300' : 'bg-amber-50 text-amber-800 border-amber-300'}`}>
+                                    {p.status === 'resolved' ? '✓ Resolved' : p.status === 'in_progress' ? '⏳ In Progress' : '⚡ Open'}
+                                  </span>
+                                </div>
+
+                                <h4 className="font-bold text-sm text-slate-900 pt-0.5">{p.title}</h4>
+
+                                <div className="text-[11px] text-slate-500 flex items-center gap-2">
+                                  <span>Posted by <strong className="text-slate-700">{p.author_name || 'Team Member'}</strong> ({p.author_role || 'Staff'})</span>
+                                  <span>•</span>
+                                  <span>{new Date(p.created_at).toLocaleString()}</span>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-2 shrink-0">
+                                {/* Status Select dropdown */}
+                                <select
+                                  value={p.status}
+                                  onChange={(e) => handleStatusChange(p.id, e.target.value)}
+                                  className="text-[11px] font-semibold bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-slate-700 focus:ring-amber-500"
+                                >
+                                  <option value="open">Status: Open</option>
+                                  <option value="in_progress">Status: In Progress</option>
+                                  <option value="resolved">Status: Resolved</option>
+                                </select>
+
+                                {(user?.role === 'admin' || user?.id === p.user_id) && (
+                                  <button
+                                    onClick={() => handleDeleteProblem(p.id)}
+                                    className="text-slate-300 hover:text-red-500 transition-colors p-1"
+                                    title="Delete Thread"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Description Body */}
+                            <div className="text-xs text-slate-800 whitespace-pre-wrap leading-relaxed p-3 bg-slate-50/70 rounded-xl border border-slate-100">
+                              {p.description}
+                            </div>
+
+                            {/* Interactive Replies */}
+                            <div className="pt-2 border-t border-slate-100 space-y-2.5">
+                              <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                                <MessageSquare className="w-3.5 h-3.5 text-amber-600" />
+                                Discussion & Replies ({p.replies?.length || 0})
+                              </div>
+
+                              {p.replies && p.replies.length > 0 && (
+                                <div className="space-y-2 pl-2 sm:pl-3 border-l-2 border-amber-200/80">
+                                  {p.replies.map(r => (
+                                    <div key={r.id} className="p-2.5 bg-amber-50/30 rounded-xl border border-amber-100/70 text-xs space-y-1">
+                                      <div className="flex items-center justify-between text-[11px]">
+                                        <span className="font-bold text-slate-900 flex items-center gap-1">
+                                          {r.author_name || 'User'}
+                                          <span className="text-[10px] font-medium text-slate-500 capitalize">({r.author_role || 'staff'})</span>
+                                        </span>
+                                        <span className="text-[10px] text-slate-400">{new Date(r.created_at).toLocaleString()}</span>
+                                      </div>
+                                      <p className="text-slate-800 whitespace-pre-wrap leading-relaxed text-xs">{r.reply_text}</p>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+
+                              {/* Add Reply Input */}
+                              <div className="flex items-center gap-2 pt-1">
+                                <input
+                                  type="text"
+                                  value={replyTextMap[p.id] || ''}
+                                  onChange={(e) => setReplyTextMap({ ...replyTextMap, [p.id]: e.target.value })}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter' && !e.shiftKey) {
+                                      e.preventDefault();
+                                      handleCreateReply(p.id);
+                                    }
+                                  }}
+                                  placeholder="Write a reply or provide leverage update..."
+                                  className="input-field text-xs bg-slate-50/80 flex-1 py-1.5 focus:bg-white"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => handleCreateReply(p.id)}
+                                  disabled={submittingReplyMap[p.id] || !replyTextMap[p.id]?.trim()}
+                                  className="btn-amber text-xs py-1.5 px-3 flex items-center gap-1 font-semibold shrink-0 disabled:opacity-50"
+                                >
+                                  {submittingReplyMap[p.id] ? 'Posting...' : 'Reply'}
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
                     </div>
                   )}
                 </div>

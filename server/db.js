@@ -592,6 +592,26 @@ const initDatabase = async () => {
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       UNIQUE(assignee_id, product_line, stage, period_type, period_start, lakshya_type)
     );
+
+    CREATE TABLE IF NOT EXISTS sales_lead_problems (
+      id SERIAL PRIMARY KEY,
+      lead_id INTEGER NOT NULL REFERENCES sales_leads(id) ON DELETE CASCADE,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      issue_type TEXT NOT NULL DEFAULT 'problem' CHECK(issue_type IN ('problem', 'leverage_request', 'general_issue')),
+      title TEXT NOT NULL,
+      description TEXT NOT NULL,
+      status TEXT DEFAULT 'open' CHECK(status IN ('open', 'in_progress', 'resolved')),
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS sales_lead_problem_replies (
+      id SERIAL PRIMARY KEY,
+      problem_id INTEGER NOT NULL REFERENCES sales_lead_problems(id) ON DELETE CASCADE,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      reply_text TEXT NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
   `);
 
   // ── Create Indexes ─────────────────────────────────────────────
@@ -618,6 +638,8 @@ const initDatabase = async () => {
     CREATE INDEX IF NOT EXISTS idx_sales_stage_history ON sales_stage_history(lead_id);
     CREATE INDEX IF NOT EXISTS idx_sales_daily_logs ON sales_daily_logs(lead_id);
     CREATE INDEX IF NOT EXISTS idx_sales_activities ON sales_lead_activities(lead_id);
+    CREATE INDEX IF NOT EXISTS idx_sales_lead_problems ON sales_lead_problems(lead_id);
+    CREATE INDEX IF NOT EXISTS idx_sales_problem_replies ON sales_lead_problem_replies(problem_id);
   `);
 
   // ── Seed / Ensure Default Master Items ──────────────────────────
