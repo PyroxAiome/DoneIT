@@ -317,11 +317,9 @@ export default function AdminDashboard({ user }) {
     if (!empId) return false;
     const id = Number(empId);
     if (Number(t.assignee_id) === id) return true;
-    if (Number(t.creator_id) === id) return true;
-    if (Number(t.verifier_id) === id) return true;
-    if (Number(t.completed_by) === id) return true;
     if (Number(t.hiring_lead_id) === id) return true;
     if (t.group_assignee_ids && Array.isArray(t.group_assignee_ids) && t.group_assignee_ids.map(Number).includes(id)) return true;
+    if (!t.assignee_id && Number(t.creator_id) === id) return true;
     return false;
   };
 

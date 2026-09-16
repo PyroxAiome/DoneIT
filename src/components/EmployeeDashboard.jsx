@@ -193,6 +193,7 @@ export default function EmployeeDashboard({ user }) {
     if (Number(t.assignee_id) === id) return true;
     if (Number(t.hiring_lead_id) === id) return true;
     if (t.group_assignee_ids && Array.isArray(t.group_assignee_ids) && t.group_assignee_ids.map(Number).includes(id)) return true;
+    if (!t.assignee_id && Number(t.creator_id) === id) return true;
     return false;
   };
 
