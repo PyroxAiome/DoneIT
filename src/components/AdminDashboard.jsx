@@ -227,7 +227,17 @@ export default function AdminDashboard({ user }) {
   useEffect(() => {
     fetchAll();
     window.addEventListener('task-updated', fetchAll);
-    return () => window.removeEventListener('task-updated', fetchAll);
+    const handleOpenLead = (e) => {
+      if (e.detail && e.detail.leadId) {
+        setActiveTab('sales');
+        window.location.hash = '#sales';
+      }
+    };
+    window.addEventListener('open-sales-lead', handleOpenLead);
+    return () => {
+      window.removeEventListener('task-updated', fetchAll);
+      window.removeEventListener('open-sales-lead', handleOpenLead);
+    };
   }, []);
 
   useEffect(() => {

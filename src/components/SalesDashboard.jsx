@@ -94,9 +94,16 @@ export default function SalesDashboard({ user, initialAssigneeId = '' }) {
     fetchAllData();
 
     const handleUpdate = () => fetchAllData();
+    const handleOpenLead = (e) => {
+      if (e.detail && e.detail.leadId) {
+        setSelectedLeadId(e.detail.leadId);
+      }
+    };
     window.addEventListener('sales-updated', handleUpdate);
+    window.addEventListener('open-sales-lead', handleOpenLead);
     return () => {
       window.removeEventListener('sales-updated', handleUpdate);
+      window.removeEventListener('open-sales-lead', handleOpenLead);
     };
   }, [subCategory, selectedGoalId, stageFilter, productFilter, sourceFilter, regionFilter, priorityFilter, assigneeFilter]);
 

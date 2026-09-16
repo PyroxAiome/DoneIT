@@ -146,6 +146,8 @@ export default function Header({ user, onLogout, onChangePassword, onViewTask })
     }
     if (n.task_id && onViewTask) {
       onViewTask({ id: n.task_id });
+    } else if (n.lead_id) {
+      window.dispatchEvent(new CustomEvent('open-sales-lead', { detail: { leadId: n.lead_id } }));
     }
   };
 

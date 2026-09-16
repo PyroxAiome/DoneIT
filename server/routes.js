@@ -86,19 +86,20 @@ const adminOnly = (req, res, next) => {
 
 let sseClients = [];
 
-const createNotification = async (recipientId, updaterId, message, taskId) => {
-  if (!recipientId || recipientId === updaterId) return;
+const createNotification = async (recipientId, updaterId, message, taskId = null, leadId = null) => {
+  if (!recipientId || Number(recipientId) === Number(updaterId)) return;
   try {
     const result = await db.query(
-      "INSERT INTO notifications (user_id, message, task_id) VALUES ($1, $2, $3) RETURNING *",
-      [recipientId, message, taskId]
+      "INSERT INTO notifications (user_id, message, task_id, lead_id) VALUES ($1, $2, $3, $4) RETURNING *",
+      [recipientId, message, taskId || null, leadId || null]
     );
     const notificationId = result.rows[0].id;
 
     const { rows } = await db.query(`
-      SELECT n.*, t.title as task_title
+      SELECT n.*, t.title as task_title, l.title as lead_title
       FROM notifications n
       LEFT JOIN tasks t ON n.task_id = t.id
+      LEFT JOIN sales_leads l ON n.lead_id = l.id
       WHERE n.id = $1
     `, [notificationId]);
     const notification = rows[0];
@@ -1774,12 +1775,13 @@ router.delete('/tasks/:id/daily-logs/:logId/comments/:commentId', auth, async (r
 router.get('/notifications', auth, async (req, res) => {
   try {
     const { rows: list } = await db.query(`
-      SELECT n.*, t.title as task_title 
+      SELECT n.*, t.title as task_title, l.title as lead_title
       FROM notifications n
       LEFT JOIN tasks t ON n.task_id = t.id
+      LEFT JOIN sales_leads l ON n.lead_id = l.id
       WHERE n.user_id = $1 
       ORDER BY n.created_at DESC 
-      LIMIT 50
+      LIMIT 100
     `, [req.user.id]);
     res.json(list);
   } catch (err) {
@@ -3901,11 +3903,14 @@ router.post('/sales/leads', auth, salesAccessOnly, async (req, res) => {
       VALUES ($1, NULL, 'suspect', false, '[]', 10, $2, 'Lead created', $3)
     `, [lead.id, lead.lead_value, req.user.id]);
 
-    // Send notifications to admins
-    const { rows: admins } = await db.query("SELECT id FROM users WHERE role = 'admin'");
-    for (const a of admins) {
-      if (a.id !== req.user.id) {
-        await createNotification(a.id, req.user.id, `${req.user.name} created sales lead "${lead.title}"`);
+    // Send notifications to admins, sales managers, and assignee
+    const { rows: recipients } = await db.query(
+      "SELECT id FROM users WHERE role IN ('admin', 'sales_manager') OR id = $1",
+      [lead.assignee_id || 0]
+    );
+    for (const r of recipients) {
+      if (r.id !== req.user.id) {
+        await createNotification(r.id, req.user.id, `${req.user.name} created sales lead "${lead.title}"`, null, lead.id);
       }
     }
 
@@ -3985,7 +3990,17 @@ router.put('/sales/leads/:id', auth, salesAccessOnly, async (req, res) => {
     ]);
 
     if (!rows[0]) return res.status(404).json({ error: 'Lead not found' });
-    res.json(rows[0]);
+    const updatedLead = rows[0];
+    if (updatedLead.assignee_id && updatedLead.assignee_id !== req.user.id) {
+      await createNotification(
+        updatedLead.assignee_id,
+        req.user.id,
+        `${req.user.name} updated / assigned sales lead "${updatedLead.title}" to you`,
+        null,
+        updatedLead.id
+      );
+    }
+    res.json(updatedLead);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -4104,13 +4119,21 @@ router.put('/sales/leads/:id/stage', auth, salesAccessOnly, async (req, res) => 
       notes || '', req.user.id
     ]);
 
-    // Send notifications
-    if (lead.assignee_id && lead.assignee_id !== req.user.id) {
-      await createNotification(
-        lead.assignee_id,
-        req.user.id,
-        `${req.user.name} moved lead "${lead.title}" to ${new_stage.replace('_', ' ')}`
-      );
+    // Send notifications to admins, sales managers, and lead assignee
+    const { rows: recipients } = await db.query(
+      "SELECT id FROM users WHERE role IN ('admin', 'sales_manager') OR id = $1",
+      [lead.assignee_id || 0]
+    );
+    for (const r of recipients) {
+      if (r.id !== req.user.id) {
+        await createNotification(
+          r.id,
+          req.user.id,
+          `${req.user.name} moved lead "${lead.title}" to ${new_stage.replace(/_/g, ' ')}`,
+          null,
+          id
+        );
+      }
     }
 
     res.json(updatedLead);
@@ -4413,14 +4436,25 @@ router.post('/sales/leads/:id/problems', auth, salesAccessOnly, async (req, res)
     newProblem.author_role = req.user.role;
     newProblem.replies = [];
 
-    // Send notifications to lead assignee & admins if raised by someone else
+    // Send notifications to admins, sales managers, and lead assignee
     const { rows: leadRows } = await db.query('SELECT title, assignee_id FROM sales_leads WHERE id = $1', [id]);
-    if (leadRows[0] && leadRows[0].assignee_id && leadRows[0].assignee_id !== req.user.id) {
-      await createNotification(
-        leadRows[0].assignee_id,
-        req.user.id,
-        `New ${validIssueType === 'leverage_request' ? 'Leverage Request' : 'Project Blocker'} on "${leadRows[0].title}": ${title.trim()}`
+    if (leadRows[0]) {
+      const { rows: recipients } = await db.query(
+        "SELECT id FROM users WHERE role IN ('admin', 'sales_manager') OR id = $1",
+        [leadRows[0].assignee_id || 0]
       );
+      const msgTag = validIssueType === 'leverage_request' ? 'Leverage Request' : validIssueType === 'problem' ? 'Project Blocker' : 'Issue';
+      for (const r of recipients) {
+        if (r.id !== req.user.id) {
+          await createNotification(
+            r.id,
+            req.user.id,
+            `New ${msgTag} on "${leadRows[0].title}": ${title.trim()}`,
+            null,
+            id
+          );
+        }
+      }
     }
 
     res.status(201).json(newProblem);
@@ -4474,13 +4508,23 @@ router.post('/sales/leads/:id/problems/:problemId/replies', auth, salesAccessOnl
     newReply.author_name = req.user.name;
     newReply.author_role = req.user.role;
 
-    // Send notification to problem creator if replied by someone else
-    if (probRows[0].user_id !== req.user.id) {
-      await createNotification(
-        probRows[0].user_id,
-        req.user.id,
-        `${req.user.name} replied to your problem/leverage topic "${probRows[0].title}"`
-      );
+    // Send notifications to problem creator, lead assignee, and admins
+    const { rows: leadRows } = await db.query('SELECT title, assignee_id FROM sales_leads WHERE id = $1', [probRows[0].lead_id]);
+    const leadTitle = leadRows[0]?.title || '';
+    const { rows: recipients } = await db.query(
+      "SELECT id FROM users WHERE role IN ('admin', 'sales_manager') OR id = $1 OR id = $2",
+      [probRows[0].user_id, leadRows[0]?.assignee_id || 0]
+    );
+    for (const r of recipients) {
+      if (r.id !== req.user.id) {
+        await createNotification(
+          r.id,
+          req.user.id,
+          `${req.user.name} replied to issue "${probRows[0].title}" on "${leadTitle}"`,
+          null,
+          probRows[0].lead_id
+        );
+      }
     }
 
     res.status(201).json(newReply);

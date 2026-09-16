@@ -238,9 +238,11 @@ const initDatabase = async () => {
       user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       message TEXT NOT NULL,
       task_id INTEGER REFERENCES tasks(id) ON DELETE SET NULL,
+      lead_id INTEGER REFERENCES sales_leads(id) ON DELETE SET NULL,
       is_read INTEGER DEFAULT 0,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
+    ALTER TABLE notifications ADD COLUMN IF NOT EXISTS lead_id INTEGER REFERENCES sales_leads(id) ON DELETE SET NULL;
 
     CREATE TABLE IF NOT EXISTS task_daily_logs (
       id SERIAL PRIMARY KEY,
@@ -640,6 +642,7 @@ const initDatabase = async () => {
     CREATE INDEX IF NOT EXISTS idx_sales_activities ON sales_lead_activities(lead_id);
     CREATE INDEX IF NOT EXISTS idx_sales_lead_problems ON sales_lead_problems(lead_id);
     CREATE INDEX IF NOT EXISTS idx_sales_problem_replies ON sales_lead_problem_replies(problem_id);
+    CREATE INDEX IF NOT EXISTS idx_notifications_lead_id ON notifications(lead_id);
   `);
 
   // ── Seed / Ensure Default Master Items ──────────────────────────
