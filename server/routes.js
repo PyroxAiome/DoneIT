@@ -3851,6 +3851,7 @@ router.post('/sales/leads', auth, salesAccessOnly, async (req, res) => {
       consultant_name, consultant_firm, consultant_email, consultant_phone,
       client_name, client_company, client_email, client_phone, client_designation,
       client_is_leverage, consultant_is_leverage, strategy,
+      building_nomenclature, building_specs,
       assignee_id, start_date, expected_close_date,
       lead_source_other, industry_other, product_category_other,
       additional_customers, additional_consultants
@@ -3870,6 +3871,7 @@ router.post('/sales/leads', auth, salesAccessOnly, async (req, res) => {
 
     const addCustStr = typeof additional_customers === 'string' ? additional_customers : JSON.stringify(additional_customers || []);
     const addConsStr = typeof additional_consultants === 'string' ? additional_consultants : JSON.stringify(additional_consultants || []);
+    const bSpecsStr = typeof building_specs === 'string' ? building_specs : JSON.stringify(building_specs || {});
 
     const { rows } = await db.query(`
       INSERT INTO sales_leads (
@@ -3879,11 +3881,12 @@ router.post('/sales/leads', auth, salesAccessOnly, async (req, res) => {
         consultant_email, consultant_phone,
         client_name, client_company, client_email, client_phone, client_designation,
         client_is_leverage, consultant_is_leverage, strategy,
+        building_nomenclature, building_specs,
         assignee_id, creator_id, start_date, expected_close_date, enquiry_month,
         lead_source_other, industry_other, product_category_other,
         additional_customers, additional_consultants
       )
-      VALUES ($1, $2, $3, $4, 'suspect', CURRENT_TIMESTAMP, $5, $6, 10, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36)
+      VALUES ($1, $2, $3, $4, 'suspect', CURRENT_TIMESTAMP, $5, $6, 10, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38)
       RETURNING *
     `, [
       title.trim(), description || '', category || 'general', goal_id || null, req.user.id,
@@ -3892,6 +3895,7 @@ router.post('/sales/leads', auth, salesAccessOnly, async (req, res) => {
       consultant_firm || '', consultant_email || '', consultant_phone || '',
       client_name || '', client_company || '', client_email || '', client_phone || '', client_designation || '',
       Boolean(client_is_leverage), Boolean(consultant_is_leverage), strategy || '',
+      building_nomenclature || '', bSpecsStr,
       effectiveAssignee, req.user.id, effectiveStartDate, expected_close_date || null, enquiryMonth,
       lead_source_other || '', industry_other || '', product_category_other || '',
       addCustStr, addConsStr
@@ -3931,6 +3935,7 @@ router.put('/sales/leads/:id', auth, salesAccessOnly, async (req, res) => {
       consultant_name, consultant_firm, consultant_email, consultant_phone,
       client_name, client_company, client_email, client_phone, client_designation,
       client_is_leverage, consultant_is_leverage, strategy,
+      building_nomenclature, building_specs,
       assignee_id, start_date, expected_close_date, probability_pct,
       lead_source_other, industry_other, product_category_other,
       additional_customers, additional_consultants
@@ -3938,6 +3943,7 @@ router.put('/sales/leads/:id', auth, salesAccessOnly, async (req, res) => {
 
     const addCustStr = additional_customers !== undefined ? (typeof additional_customers === 'string' ? additional_customers : JSON.stringify(additional_customers)) : null;
     const addConsStr = additional_consultants !== undefined ? (typeof additional_consultants === 'string' ? additional_consultants : JSON.stringify(additional_consultants)) : null;
+    const bSpecsStr = building_specs !== undefined ? (typeof building_specs === 'string' ? building_specs : JSON.stringify(building_specs)) : null;
 
     const { rows } = await db.query(`
       UPDATE sales_leads
@@ -3966,17 +3972,19 @@ router.put('/sales/leads/:id', auth, salesAccessOnly, async (req, res) => {
           client_is_leverage = COALESCE($23, client_is_leverage),
           consultant_is_leverage = COALESCE($24, consultant_is_leverage),
           strategy = COALESCE($25, strategy),
-          assignee_id = COALESCE($26, assignee_id),
-          start_date = COALESCE($27, start_date),
-          expected_close_date = COALESCE($28, expected_close_date),
-          probability_pct = COALESCE($29, probability_pct),
-          lead_source_other = COALESCE($30, lead_source_other),
-          industry_other = COALESCE($31, industry_other),
-          product_category_other = COALESCE($32, product_category_other),
-          additional_customers = COALESCE($33, additional_customers),
-          additional_consultants = COALESCE($34, additional_consultants),
+          building_nomenclature = COALESCE($26, building_nomenclature),
+          building_specs = COALESCE($27, building_specs),
+          assignee_id = COALESCE($28, assignee_id),
+          start_date = COALESCE($29, start_date),
+          expected_close_date = COALESCE($30, expected_close_date),
+          probability_pct = COALESCE($31, probability_pct),
+          lead_source_other = COALESCE($32, lead_source_other),
+          industry_other = COALESCE($33, industry_other),
+          product_category_other = COALESCE($34, product_category_other),
+          additional_customers = COALESCE($35, additional_customers),
+          additional_consultants = COALESCE($36, additional_consultants),
           updated_at = CURRENT_TIMESTAMP
-      WHERE id = $35
+      WHERE id = $37
       RETURNING *
     `, [
       title, description, category, goal_id || null, lead_value, lead_source, industry,
@@ -3986,6 +3994,8 @@ router.put('/sales/leads/:id', auth, salesAccessOnly, async (req, res) => {
       client_is_leverage !== undefined ? Boolean(client_is_leverage) : null,
       consultant_is_leverage !== undefined ? Boolean(consultant_is_leverage) : null,
       strategy !== undefined ? strategy : null,
+      building_nomenclature !== undefined ? building_nomenclature : null,
+      bSpecsStr,
       assignee_id, start_date, expected_close_date, probability_pct,
       lead_source_other, industry_other, product_category_other,
       addCustStr, addConsStr, id

@@ -588,6 +588,89 @@ export default function SalesLeadDetailModal({ leadId, isOpen, onClose, user, on
                     </div>
                   )}
 
+                  {/* Building Structure & Scale Configuration Card (Placed BEFORE 10-stage funnel status) */}
+                  {lead?.building_nomenclature && (
+                    <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3 animate-in fade-in">
+                      <div className="flex items-center justify-between border-b border-slate-200 pb-2 flex-wrap gap-2">
+                        <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                          <span className="text-sm">🏢</span>
+                          Building Structure & Scale Configuration
+                        </h4>
+                        <span className="text-xs font-mono font-bold bg-amber-100 text-amber-900 border border-amber-300 px-2.5 py-0.5 rounded-md">
+                          {lead.building_nomenclature}
+                        </span>
+                      </div>
+
+                      {/* Structured Breakdown */}
+                      {(() => {
+                        let bSpecs = {};
+                        try { bSpecs = typeof lead.building_specs === 'string' ? JSON.parse(lead.building_specs) : (lead.building_specs || {}); } catch (e) {}
+                        if (!bSpecs) return null;
+
+                        const sType = bSpecs.structure_type || 'T';
+                        const sLabel = sType === 'Blk' ? 'Blocks' : sType === 'W' ? 'Wings' : sType === 'Bldg' ? 'Buildings' : sType === 'Z' ? 'Zones' : 'Towers';
+                        const sSingular = sType === 'Blk' ? 'Block' : sType === 'W' ? 'Wing' : sType === 'Bldg' ? 'Building' : sType === 'Z' ? 'Zone' : 'Tower';
+
+                        return (
+                          <div className="space-y-3">
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs pt-1">
+                              {bSpecs.towers_count > 0 ? (
+                                <div className="bg-white p-3 rounded-xl border border-slate-200">
+                                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">{sLabel} & Floor Breakdown</span>
+                                  <strong className="text-slate-900 text-sm block mb-1">{bSpecs.towers_count} {sLabel}</strong>
+                                  {Array.isArray(bSpecs.tower_details) && bSpecs.tower_details.length > 0 && (
+                                    <div className="space-y-1 border-t border-slate-100 pt-1.5 text-[11px] text-slate-600">
+                                      {bSpecs.tower_details.map((t, idx) => (
+                                        <div key={idx} className="flex items-center justify-between">
+                                          <span>{sSingular} {idx + 1}:</span>
+                                          <strong className="text-slate-800">{t.floors ? `${t.floors} Floors` : ''} {t.units ? `(${t.units} flats/fl)` : ''}</strong>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              ) : (bSpecs.general_floors || bSpecs.general_units) ? (
+                                <div className="bg-white p-3 rounded-xl border border-slate-200">
+                                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Building Floors & Scale</span>
+                                  <strong className="text-slate-900 text-sm block">
+                                    {bSpecs.general_floors ? `${bSpecs.general_floors} Floors` : ''}
+                                    {bSpecs.general_floors && bSpecs.general_units ? ' • ' : ''}
+                                    {bSpecs.general_units ? `${bSpecs.general_units} Units/Fl` : ''}
+                                  </strong>
+                                </div>
+                              ) : null}
+
+                              {(bSpecs.basements_count > 0 || bSpecs.has_ground) && (
+                                <div className="bg-white p-3 rounded-xl border border-slate-200">
+                                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Basements & Levels</span>
+                                  <strong className="text-slate-900 text-sm block">
+                                    {bSpecs.basements_count ? `${bSpecs.basements_count} Basements` : ''}
+                                    {bSpecs.basements_count && bSpecs.has_ground ? ' + ' : ''}
+                                    {bSpecs.has_ground ? 'Ground Floor (G)' : ''}
+                                  </strong>
+                                </div>
+                              )}
+
+                              {bSpecs.amenities && (
+                                <div className="bg-white p-3 rounded-xl border border-slate-200">
+                                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Amenities & Extra Structures</span>
+                                  <strong className="text-amber-800 text-xs block">{bSpecs.amenities}</strong>
+                                </div>
+                              )}
+                            </div>
+
+                            {bSpecs.building_notes && (
+                              <div className="bg-amber-50/70 p-3 rounded-xl border border-amber-200/80 text-xs text-amber-950">
+                                <span className="text-[10px] font-bold text-amber-900 uppercase tracking-wider block mb-1">📝 Extra Building / Structure Notes</span>
+                                <p className="whitespace-pre-wrap leading-relaxed">{bSpecs.building_notes}</p>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
+
                   {/* Clean Stage Funnel Progress Grid */}
                   <div>
                     <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">

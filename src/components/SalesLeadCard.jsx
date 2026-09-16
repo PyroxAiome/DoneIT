@@ -175,6 +175,14 @@ export default function SalesLeadCard({ lead, onClick, onEdit, onDelete, onStage
         )}
       </div>
 
+      {/* Building Structure Nomenclature Badge */}
+      {lead.building_nomenclature && (
+        <div className="mb-2 px-2 py-1 bg-amber-50/80 border border-amber-200/90 rounded-md flex items-center gap-1.5 text-[11px] text-amber-950 font-mono font-bold truncate shadow-2xs">
+          <span className="text-xs shrink-0">🏢</span>
+          <span className="truncate" title={lead.building_nomenclature}>{lead.building_nomenclature}</span>
+        </div>
+      )}
+
       {/* Skipped Stage Warning Badge (RED) */}
       {skippedList.length > 0 && (
         <div className="mb-2 p-1.5 bg-red-50 border border-red-200 rounded-lg flex items-center gap-1.5 text-[11px] text-red-700 font-medium animate-in fade-in">

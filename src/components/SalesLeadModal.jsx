@@ -89,14 +89,113 @@ export default function SalesLeadModal({
 
   const [additionalCustomers, setAdditionalCustomers] = useState([]);
   const [additionalConsultants, setAdditionalConsultants] = useState([]);
+  const [bNomenclature, setBNomenclature] = useState('');
+  const [bSpecs, setBSpecs] = useState({ towers_count: 0, basements_count: 0, has_ground: false, tower_details: [], amenities: '' });
+  const [showNomenGuide, setShowNomenGuide] = useState(true);
   const [quota, setQuota] = useState(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+
+  const parseJsonObj = (val) => {
+    if (!val) return {};
+    if (typeof val === 'object') return val;
+    try { return JSON.parse(val); } catch (e) { return {}; }
+  };
 
   const parseJsonArr = (val) => {
     if (!val) return [];
     if (Array.isArray(val)) return val;
     try { return JSON.parse(val); } catch (e) { return []; }
+  };
+
+  const generateNomenclatureString = (specs) => {
+    if (!specs) return '';
+    const parts = [];
+    const sType = specs.structure_type || 'T';
+    
+    // Structure count (Towers/Blocks/Wings)
+    if (specs.towers_count > 0) {
+      parts.push(`${specs.towers_count}${sType}`);
+    }
+    
+    // Basements & Ground
+    const bgParts = [];
+    if (specs.basements_count > 0) {
+      bgParts.push(`${specs.basements_count}B`);
+    }
+    if (specs.has_ground) {
+      bgParts.push('G');
+    }
+    
+    let prefix = parts.join(', ');
+    if (bgParts.length > 0) {
+      prefix = prefix ? `${prefix}, ${bgParts.join(' + ')}` : bgParts.join(' + ');
+    }
+    
+    // Per tower/block breakdown OR general floors/units
+    const towerParts = [];
+    if (specs.towers_count > 0 && Array.isArray(specs.tower_details) && specs.tower_details.length > 0) {
+      specs.tower_details.forEach((t, idx) => {
+        if (idx < specs.towers_count) {
+          const floorsStr = t.floors ? `${t.floors}F` : '';
+          const unitsStr = t.units ? `(C${t.units})` : '';
+          if (floorsStr || unitsStr) {
+            towerParts.push(`${floorsStr}${unitsStr}`);
+          }
+        }
+      });
+    } else if (!specs.towers_count && (specs.general_floors || specs.general_units)) {
+      const floorsStr = specs.general_floors ? `${specs.general_floors}F` : '';
+      const unitsStr = specs.general_units ? `(C${specs.general_units})` : '';
+      if (floorsStr || unitsStr) {
+        towerParts.push(`${floorsStr}${unitsStr}`);
+      }
+    }
+    
+    let fullStr = prefix;
+    if (towerParts.length > 0) {
+      fullStr = fullStr ? `${fullStr} + ${towerParts.join(', ')}` : towerParts.join(', ');
+    }
+    
+    // Amenities
+    if (specs.amenities && specs.amenities.trim()) {
+      fullStr = fullStr ? `${fullStr} + ${specs.amenities.trim()}` : specs.amenities.trim();
+    }
+
+    // Extra notes summary badge
+    if (specs.building_notes && specs.building_notes.trim()) {
+      fullStr = fullStr ? `${fullStr} + ${specs.building_notes.trim()}` : specs.building_notes.trim();
+    }
+    
+    return fullStr;
+  };
+
+  const handleBSpecsChange = (field, val) => {
+    setBSpecs(prev => {
+      const next = { ...prev, [field]: val };
+      if (field === 'towers_count') {
+        const count = parseInt(val, 10) || 0;
+        const currentDetails = [...(prev.tower_details || [])];
+        while (currentDetails.length < count) {
+          currentDetails.push({ floors: '', units: '' });
+        }
+        next.tower_details = currentDetails.slice(0, count);
+      }
+      const autoStr = generateNomenclatureString(next);
+      setBNomenclature(autoStr);
+      return next;
+    });
+  };
+
+  const handleTowerDetailChange = (idx, key, val) => {
+    setBSpecs(prev => {
+      const details = [...(prev.tower_details || [])];
+      details[idx] = { ...details[idx], [key]: val };
+      const next = { ...prev, tower_details: details };
+      const autoStr = generateNomenclatureString(next);
+      setBNomenclature(autoStr);
+      return next;
+    });
   };
 
   useEffect(() => {
@@ -136,6 +235,8 @@ export default function SalesLeadModal({
       });
       setAdditionalCustomers(parseJsonArr(editingLead.additional_customers));
       setAdditionalConsultants(parseJsonArr(editingLead.additional_consultants));
+      setBNomenclature(editingLead.building_nomenclature || '');
+      setBSpecs(parseJsonObj(editingLead.building_specs));
     } else {
       const selectedCat = initialCategory || (initialGoalId ? 'lakshya' : 'general');
       const selectedGoal = initialGoalId || (goals.length > 0 ? goals[0].id : '');
@@ -175,6 +276,8 @@ export default function SalesLeadModal({
       });
       setAdditionalCustomers([]);
       setAdditionalConsultants([]);
+      setBNomenclature('');
+      setBSpecs({ towers_count: 0, basements_count: 0, has_ground: false, tower_details: [], amenities: '' });
     }
     setError('');
 
@@ -243,7 +346,9 @@ export default function SalesLeadModal({
         goal_id: form.category.includes('lakshya') && form.goal_id ? parseInt(form.goal_id, 10) : null,
         assignee_id: form.assignee_id ? parseInt(form.assignee_id, 10) : null,
         additional_customers: additionalCustomers,
-        additional_consultants: additionalConsultants
+        additional_consultants: additionalConsultants,
+        building_nomenclature: bNomenclature,
+        building_specs: bSpecs
       };
 
       if (editingLead) {
@@ -352,6 +457,210 @@ export default function SalesLeadModal({
               placeholder="Write the master strategy, key action items, leverage points, or target conversion plan..."
               className="input-field min-h-[75px] bg-amber-50/30"
             />
+          </div>
+
+          {/* Building & Structure Nomenclature Section */}
+          <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3.5">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-2 flex-wrap gap-2">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-amber-500 text-white flex items-center justify-center font-bold text-xs shrink-0">
+                  🏢
+                </div>
+                <div>
+                  <h4 className="font-bold text-xs text-slate-900">Building Structure & Scale (Nomenclature Builder)</h4>
+                  <p className="text-[11px] text-slate-500">Record towers, basements, floors & flats for instant Admin Kanban visibility</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowNomenGuide(!showNomenGuide)}
+                className="text-[11px] font-semibold text-amber-800 hover:text-amber-900 bg-amber-100/70 hover:bg-amber-100 border border-amber-300 px-2.5 py-1 rounded-md transition-colors flex items-center gap-1 cursor-pointer"
+              >
+                <Info className="w-3.5 h-3.5 text-amber-700" />
+                {showNomenGuide ? 'Hide Rule Guide' : 'ℹ️ Nomenclature Rule Guide'}
+              </button>
+            </div>
+
+            {/* Rule Guide / Legend Box */}
+            {showNomenGuide && (
+              <div className="p-3 bg-amber-50/90 border border-amber-200 rounded-lg text-xs text-amber-950 space-y-2 animate-in fade-in">
+                <div className="font-bold text-amber-900 border-b border-amber-200/80 pb-1 flex items-center gap-1">
+                  <span>📌 Nomenclature Shorthand Rules:</span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-[11px]">
+                  <div className="bg-white/80 p-1.5 rounded border border-amber-200">
+                    <strong className="text-amber-800">T = Towers</strong> (e.g. <code>3T</code> = 3 Towers)
+                  </div>
+                  <div className="bg-white/80 p-1.5 rounded border border-amber-200">
+                    <strong className="text-amber-800">B = Basements</strong> (e.g. <code>2B</code> = 2 Basements)
+                  </div>
+                  <div className="bg-white/80 p-1.5 rounded border border-amber-200">
+                    <strong className="text-amber-800">G = Ground Floor</strong> (Ground included)
+                  </div>
+                  <div className="bg-white/80 p-1.5 rounded border border-amber-200">
+                    <strong className="text-amber-800">F = Floors</strong> (e.g. <code>33F</code> = 33 Floors)
+                  </div>
+                  <div className="bg-white/80 p-1.5 rounded border border-amber-200">
+                    <strong className="text-amber-800">(C#) = Units / Flats</strong> (e.g. <code>(C8)</code> = 8 Units per floor)
+                  </div>
+                  <div className="bg-white/80 p-1.5 rounded border border-amber-200">
+                    <strong className="text-amber-800">+ = Amenities</strong> (e.g. <code>+ Clubhouse</code>)
+                  </div>
+                </div>
+                <div className="text-[10px] text-amber-800 italic pt-0.5">
+                  Example: <code>3T, 2B + G + 33F(C8), 12F(C3), 10F(C10) + Clubhouse</code>
+                </div>
+              </div>
+            )}
+
+            {/* Structured Form Fields */}
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+              <div>
+                <label className="text-[11px] font-semibold text-slate-700 block mb-1">Structure Type</label>
+                <select
+                  value={bSpecs.structure_type || 'T'}
+                  onChange={(e) => handleBSpecsChange('structure_type', e.target.value)}
+                  className="input-field bg-white text-xs"
+                >
+                  <option value="T">Towers (T)</option>
+                  <option value="Blk">Blocks (Blk)</option>
+                  <option value="W">Wings (W)</option>
+                  <option value="Bldg">Buildings (Bldg)</option>
+                  <option value="Z">Zones / Sheds (Z)</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-[11px] font-semibold text-slate-700 block mb-1">Number of {bSpecs.structure_type === 'Blk' ? 'Blocks' : bSpecs.structure_type === 'W' ? 'Wings' : bSpecs.structure_type === 'Bldg' ? 'Buildings' : bSpecs.structure_type === 'Z' ? 'Zones' : 'Towers'}</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={bSpecs.towers_count || ''}
+                  onChange={(e) => handleBSpecsChange('towers_count', parseInt(e.target.value, 10) || 0)}
+                  placeholder="e.g. 1"
+                  className="input-field bg-white text-xs"
+                />
+              </div>
+              <div>
+                <label className="text-[11px] font-semibold text-slate-700 block mb-1">Number of Basements (B)</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={bSpecs.basements_count || ''}
+                  onChange={(e) => handleBSpecsChange('basements_count', parseInt(e.target.value, 10) || 0)}
+                  placeholder="e.g. 2"
+                  className="input-field bg-white text-xs"
+                />
+              </div>
+              <div className="flex items-center pt-3 sm:pt-5">
+                <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-800">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(bSpecs.has_ground)}
+                    onChange={(e) => handleBSpecsChange('has_ground', e.target.checked)}
+                    className="w-4 h-4 text-amber-600 rounded border-slate-300"
+                  />
+                  <span>Include Ground (G)</span>
+                </label>
+              </div>
+            </div>
+
+            {/* Per Structure Breakdown Rows (If towers > 0) */}
+            {bSpecs.towers_count > 0 ? (
+              <div className="space-y-2 pt-1">
+                <label className="text-[11px] font-semibold text-slate-700 block">Floors & Units Breakdown Per {bSpecs.structure_type === 'Blk' ? 'Block' : bSpecs.structure_type === 'W' ? 'Wing' : bSpecs.structure_type === 'Bldg' ? 'Building' : 'Tower'}</label>
+                {Array.from({ length: Math.min(bSpecs.towers_count, 10) }).map((_, idx) => {
+                  const towerDetail = bSpecs.tower_details?.[idx] || { floors: '', units: '' };
+                  const labelPrefix = bSpecs.structure_type === 'Blk' ? 'Block' : bSpecs.structure_type === 'W' ? 'Wing' : bSpecs.structure_type === 'Bldg' ? 'Building' : 'Tower';
+                  return (
+                    <div key={idx} className="flex items-center gap-2 bg-white p-2 rounded-lg border border-slate-200">
+                      <span className="text-xs font-bold text-slate-700 w-24 shrink-0">{labelPrefix} {idx + 1}:</span>
+                      <div className="flex-1 grid grid-cols-2 gap-2">
+                        <input
+                          type="number"
+                          min="0"
+                          value={towerDetail.floors || ''}
+                          onChange={(e) => handleTowerDetailChange(idx, 'floors', parseInt(e.target.value, 10) || 0)}
+                          placeholder="Floors (e.g. 33)"
+                          className="input-field py-1 text-xs"
+                        />
+                        <input
+                          type="number"
+                          min="0"
+                          value={towerDetail.units || ''}
+                          onChange={(e) => handleTowerDetailChange(idx, 'units', parseInt(e.target.value, 10) || 0)}
+                          placeholder="Flats/Units per floor (e.g. 8)"
+                          className="input-field py-1 text-xs"
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              /* Single Facility / General Building Floors & Units Inputs */
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                <div>
+                  <label className="text-[11px] font-semibold text-slate-700 block mb-1">Total Floors (F)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={bSpecs.general_floors || ''}
+                    onChange={(e) => handleBSpecsChange('general_floors', parseInt(e.target.value, 10) || 0)}
+                    placeholder="e.g. 5"
+                    className="input-field bg-white text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-semibold text-slate-700 block mb-1">Units / Commercial Spaces Per Floor (C#)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={bSpecs.general_units || ''}
+                    onChange={(e) => handleBSpecsChange('general_units', parseInt(e.target.value, 10) || 0)}
+                    placeholder="e.g. 20"
+                    className="input-field bg-white text-xs"
+                  />
+                </div>
+              </div>
+            )}
+
+            <div>
+              <label className="text-[11px] font-semibold text-slate-700 block mb-1">Additional Facilities / Amenities (+)</label>
+              <input
+                type="text"
+                value={bSpecs.amenities || ''}
+                onChange={(e) => handleBSpecsChange('amenities', e.target.value)}
+                placeholder="e.g. Penthouse, Clubhouse, Podium, Datacenter Hall"
+                className="input-field bg-white text-xs"
+              />
+            </div>
+
+            {/* Extra Structure / Project Notes Box */}
+            <div>
+              <label className="text-[11px] font-semibold text-slate-700 block mb-1">Extra Building / Project Structure Notes</label>
+              <textarea
+                value={bSpecs.building_notes || ''}
+                onChange={(e) => handleBSpecsChange('building_notes', e.target.value)}
+                rows={2}
+                placeholder="Add any extra project structural details (e.g. Podium parking on L1-3, HVAC plant in B2, Phase 1 delivery...)"
+                className="input-field bg-white text-xs"
+              />
+            </div>
+
+            {/* Live Generated Nomenclature Output */}
+            <div className="p-3 bg-amber-100/60 border border-amber-300/80 rounded-xl space-y-1">
+              <div className="flex items-center justify-between text-xs text-amber-900 font-semibold">
+                <span>Generated Nomenclature Summary String:</span>
+                <span className="text-[10px] text-amber-700">Auto-built & editable</span>
+              </div>
+              <input
+                type="text"
+                value={bNomenclature}
+                onChange={(e) => setBNomenclature(e.target.value)}
+                placeholder="e.g. 3T, 2B + G + 33F(C8), 12F(C3), 10F(C10) + Clubhouse"
+                className="w-full bg-white border border-amber-300 px-3 py-1.5 rounded-lg font-mono text-xs text-amber-950 font-bold focus:ring-1 focus:ring-amber-500"
+              />
+            </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

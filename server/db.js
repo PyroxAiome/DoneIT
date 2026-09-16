@@ -504,6 +504,8 @@ const initDatabase = async () => {
       client_is_leverage BOOLEAN DEFAULT FALSE,
       consultant_is_leverage BOOLEAN DEFAULT FALSE,
       strategy TEXT DEFAULT '',
+      building_nomenclature TEXT DEFAULT '',
+      building_specs TEXT DEFAULT '{}',
       assignee_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
       creator_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
       expected_close_date TEXT,
@@ -714,6 +716,8 @@ const initDatabase = async () => {
       await pool.query("ALTER TABLE sales_leads ADD COLUMN IF NOT EXISTS client_is_leverage BOOLEAN DEFAULT FALSE;");
       await pool.query("ALTER TABLE sales_leads ADD COLUMN IF NOT EXISTS consultant_is_leverage BOOLEAN DEFAULT FALSE;");
       await pool.query("ALTER TABLE sales_leads ADD COLUMN IF NOT EXISTS strategy TEXT DEFAULT '';");
+      await pool.query("ALTER TABLE sales_leads ADD COLUMN IF NOT EXISTS building_nomenclature TEXT DEFAULT '';");
+      await pool.query("ALTER TABLE sales_leads ADD COLUMN IF NOT EXISTS building_specs TEXT DEFAULT '{}';");
     } catch (migErr) {
       console.log('Sales constraint migration note:', migErr.message);
     }
