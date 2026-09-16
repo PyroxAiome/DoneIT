@@ -424,11 +424,57 @@ export default function SalesLeadDetailModal({ leadId, isOpen, onClose, user, on
               <span className="text-xs font-semibold px-2 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200">
                 {STAGE_LABELS[lead?.current_stage] || lead?.current_stage} ({lead?.probability_pct || 0}%)
               </span>
-              {lead?.category === 'lakshya' && (
+              {(lead?.category === 'lakshya' || lead?.category === 'order_lakshya') ? (
                 <span className="text-xs font-semibold px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200 flex items-center gap-1">
                   <Tag className="w-3 h-3 text-emerald-600" />
-                  Lakshya
+                  Order Lakshya (Hot Prospect)
                 </span>
+              ) : (
+                <span className="text-xs font-semibold px-2 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200">
+                  General Inquiry
+                </span>
+              )}
+
+              {['admin', 'sales_manager'].includes(user?.role) && (
+                lead?.category === 'general' ? (
+                  <button
+                    onClick={async () => {
+                      if (window.confirm(`Promote "${lead.title}" to Order Lakshya (Hot Prospect)?`)) {
+                        try {
+                          await api.updateSalesLead(lead.id, { category: 'lakshya' });
+                          window.dispatchEvent(new CustomEvent('sales-updated'));
+                          fetchLeadDetails();
+                          if (onUpdated) onUpdated();
+                        } catch (err) {
+                          alert(err.message || 'Failed to update category');
+                        }
+                      }
+                    }}
+                    className="text-xs font-bold px-2.5 py-0.5 rounded bg-amber-500 hover:bg-amber-600 text-white transition-colors flex items-center gap-1 shadow-xs ml-1 cursor-pointer"
+                    title="Move to Order Lakshya (Hot Prospect Board)"
+                  >
+                    🔥 Move to Order Lakshya
+                  </button>
+                ) : (
+                  <button
+                    onClick={async () => {
+                      if (window.confirm(`Move "${lead.title}" back to General Inquiries?`)) {
+                        try {
+                          await api.updateSalesLead(lead.id, { category: 'general' });
+                          window.dispatchEvent(new CustomEvent('sales-updated'));
+                          fetchLeadDetails();
+                          if (onUpdated) onUpdated();
+                        } catch (err) {
+                          alert(err.message || 'Failed to update category');
+                        }
+                      }
+                    }}
+                    className="text-xs font-medium px-2 py-0.5 rounded bg-gray-100 hover:bg-gray-200 text-gray-600 transition-colors flex items-center gap-1 ml-1 cursor-pointer"
+                    title="Move back to General Inquiries"
+                  >
+                    Move to General
+                  </button>
+                )
               )}
               {lead?.region && (
                 <span className="text-xs text-gray-500 flex items-center gap-1">

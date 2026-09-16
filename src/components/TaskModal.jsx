@@ -346,7 +346,7 @@ export default function TaskModal({ isOpen, onClose, onSaved, task, employees, o
             <div>
               <label className="text-xs text-gray-500 uppercase tracking-wider block mb-1">Category / Department</label>
               <select value={form.category} onChange={handleChange('category')} className="input-field">
-                {!['General', 'Software', 'Electronics', 'Mechanical', 'Production'].includes(form.category) && form.category && (
+                {!['General', 'Software', 'Electronics', 'Mechanical', 'Production', 'Commercial', 'Legal', 'Sales & Marketing'].includes(form.category) && form.category && (
                   <option value={form.category}>{form.category}</option>
                 )}
                 <option value="General">General</option>
@@ -354,6 +354,9 @@ export default function TaskModal({ isOpen, onClose, onSaved, task, employees, o
                 <option value="Electronics">Electronics</option>
                 <option value="Mechanical">Mechanical</option>
                 <option value="Production">Production</option>
+                <option value="Commercial">Commercial</option>
+                <option value="Legal">Legal</option>
+                <option value="Sales & Marketing">Sales & Marketing</option>
               </select>
             </div>
           </div>
@@ -383,6 +386,8 @@ export default function TaskModal({ isOpen, onClose, onSaved, task, employees, o
                     <option value="Electronics">Electronics</option>
                     <option value="Mechanical">Mechanical</option>
                     <option value="Production">Production</option>
+                    <option value="Commercial">Commercial</option>
+                    <option value="Legal">Legal</option>
                     <option value="HR & Admin">HR & Admin</option>
                     <option value="Quality">Quality</option>
                     <option value="Sales & Marketing">Sales & Marketing</option>

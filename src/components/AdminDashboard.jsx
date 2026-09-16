@@ -102,6 +102,7 @@ export default function AdminDashboard({ user }) {
   const [compact, setCompact] = useState(false);
   const [selectedProject, setSelectedProject] = useState(null);
   const [salesPersonFilter, setSalesPersonFilter] = useState('');
+  const [targetLeadId, setTargetLeadId] = useState(null);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -229,6 +230,7 @@ export default function AdminDashboard({ user }) {
     window.addEventListener('task-updated', fetchAll);
     const handleOpenLead = (e) => {
       if (e.detail && e.detail.leadId) {
+        setTargetLeadId(e.detail.leadId);
         setActiveTab('sales');
         window.location.hash = '#sales';
       }
@@ -592,7 +594,12 @@ export default function AdminDashboard({ user }) {
       )}
 
       {activeTab === 'sales' && (
-        <SalesDashboard user={user} initialAssigneeId={salesPersonFilter} />
+        <SalesDashboard
+          user={user}
+          initialAssigneeId={salesPersonFilter}
+          initialLeadId={targetLeadId}
+          onClearLeadId={() => setTargetLeadId(null)}
+        />
       )}
 
       {(activeTab === 'work' || activeTab === 'all' || activeTab === 'completed' || activeTab === 'assigned_by_me' || activeTab === 'verified' || selectedEmp) && (
@@ -810,6 +817,9 @@ export default function AdminDashboard({ user }) {
                   <option value="Electronics">Electronics</option>
                   <option value="Mechanical">Mechanical</option>
                   <option value="Production">Production</option>
+                  <option value="Commercial">Commercial</option>
+                  <option value="Legal">Legal</option>
+                  <option value="Sales & Marketing">Sales & Marketing</option>
                 </select>
               </div>
 

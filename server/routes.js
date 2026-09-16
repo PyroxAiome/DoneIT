@@ -3325,11 +3325,14 @@ router.post('/repeated-tasks/:id/reviews', auth, async (req, res) => {
 });
 
 // ─── SALES PIPELINE MODULE ─────────────────────────────────────
+const ORDER_STAGES_LIST = ['suspect', 'prospect', 'presentation', 'demo', 'spec_tender', 'enquiry', 'quotation', 'design_optimisation', 'negotiation', 'pending_order_receipts'];
+const BILLING_STAGES_LIST = ['proforma_invoice', 'tax_invoice', 'billing_approved', 'payment_pending'];
+const COLLECTION_STAGES_LIST = ['payment_due', 'followup', 'partially_collected', 'fully_collected'];
+
 const STAGE_ORDER = [
-  'suspect', 'prospect', 'presentation', 'demo', 'spec_tender',
-  'enquiry', 'quotation', 'design_optimisation', 'negotiation', 'pending_order_receipts',
-  'proforma_invoice', 'tax_invoice', 'billing_approved', 'payment_pending',
-  'payment_due', 'followup', 'partially_collected', 'fully_collected'
+  ...ORDER_STAGES_LIST,
+  ...BILLING_STAGES_LIST,
+  ...COLLECTION_STAGES_LIST
 ];
 
 const STAGE_PROBABILITIES = {
@@ -3343,7 +3346,6 @@ const STAGE_PROBABILITIES = {
   design_optimisation: 80,
   negotiation: 90,
   pending_order_receipts: 95,
-  design_negotiation: 95,
 
   proforma_invoice: 25,
   tax_invoice: 50,
@@ -3903,9 +3905,9 @@ router.post('/sales/leads', auth, salesAccessOnly, async (req, res) => {
       VALUES ($1, NULL, 'suspect', false, '[]', 10, $2, 'Lead created', $3)
     `, [lead.id, lead.lead_value, req.user.id]);
 
-    // Send notifications to admins, sales managers, and assignee
+    // Send notifications to admins, sales managers, and assignee (deduplicated)
     const { rows: recipients } = await db.query(
-      "SELECT id FROM users WHERE role IN ('admin', 'sales_manager') OR id = $1",
+      "SELECT DISTINCT id FROM users WHERE role IN ('admin', 'sales_manager') OR id = $1",
       [lead.assignee_id || 0]
     );
     for (const r of recipients) {
@@ -4067,14 +4069,24 @@ router.put('/sales/leads/:id/stage', auth, salesAccessOnly, async (req, res) => 
       return res.json(lead);
     }
 
-    const oldIdx = STAGE_ORDER.indexOf(oldStage);
-    const newIdx = STAGE_ORDER.indexOf(new_stage);
+    // Calculate category-aware skipped stages (stages jumped over when moving forward within a board category)
+    let categoryList = [];
+    if (ORDER_STAGES_LIST.includes(oldStage) && ORDER_STAGES_LIST.includes(new_stage)) {
+      categoryList = ORDER_STAGES_LIST;
+    } else if (BILLING_STAGES_LIST.includes(oldStage) && BILLING_STAGES_LIST.includes(new_stage)) {
+      categoryList = BILLING_STAGES_LIST;
+    } else if (COLLECTION_STAGES_LIST.includes(oldStage) && COLLECTION_STAGES_LIST.includes(new_stage)) {
+      categoryList = COLLECTION_STAGES_LIST;
+    }
 
-    // Calculate skipped stages (stages jumped over when moving forward)
     let newlySkipped = [];
-    if (newIdx > oldIdx + 1) {
-      for (let i = oldIdx + 1; i < newIdx; i++) {
-        newlySkipped.push(STAGE_ORDER[i]);
+    if (categoryList.length > 0) {
+      const oldIdx = categoryList.indexOf(oldStage);
+      const newIdx = categoryList.indexOf(new_stage);
+      if (newIdx > oldIdx + 1) {
+        for (let i = oldIdx + 1; i < newIdx; i++) {
+          newlySkipped.push(categoryList[i]);
+        }
       }
     }
 
@@ -4119,9 +4131,9 @@ router.put('/sales/leads/:id/stage', auth, salesAccessOnly, async (req, res) => 
       notes || '', req.user.id
     ]);
 
-    // Send notifications to admins, sales managers, and lead assignee
+    // Send notifications to admins, sales managers, and lead assignee (deduplicated)
     const { rows: recipients } = await db.query(
-      "SELECT id FROM users WHERE role IN ('admin', 'sales_manager') OR id = $1",
+      "SELECT DISTINCT id FROM users WHERE role IN ('admin', 'sales_manager') OR id = $1",
       [lead.assignee_id || 0]
     );
     for (const r of recipients) {
@@ -4436,11 +4448,11 @@ router.post('/sales/leads/:id/problems', auth, salesAccessOnly, async (req, res)
     newProblem.author_role = req.user.role;
     newProblem.replies = [];
 
-    // Send notifications to admins, sales managers, and lead assignee
+    // Send notifications to admins, sales managers, and lead assignee (deduplicated)
     const { rows: leadRows } = await db.query('SELECT title, assignee_id FROM sales_leads WHERE id = $1', [id]);
     if (leadRows[0]) {
       const { rows: recipients } = await db.query(
-        "SELECT id FROM users WHERE role IN ('admin', 'sales_manager') OR id = $1",
+        "SELECT DISTINCT id FROM users WHERE role IN ('admin', 'sales_manager') OR id = $1",
         [leadRows[0].assignee_id || 0]
       );
       const msgTag = validIssueType === 'leverage_request' ? 'Leverage Request' : validIssueType === 'problem' ? 'Project Blocker' : 'Issue';
@@ -4480,7 +4492,28 @@ router.put('/sales/leads/:id/problems/:problemId/status', auth, salesAccessOnly,
     `, [status, problemId, id]);
 
     if (!rows[0]) return res.status(404).json({ error: 'Problem not found' });
-    res.json(rows[0]);
+    const updatedProblem = rows[0];
+
+    // Send notifications on status update to problem creator, lead assignee, and admins
+    const { rows: leadRows } = await db.query('SELECT title, assignee_id FROM sales_leads WHERE id = $1', [id]);
+    const leadTitle = leadRows[0]?.title || '';
+    const { rows: recipients } = await db.query(
+      "SELECT DISTINCT id FROM users WHERE role IN ('admin', 'sales_manager') OR id = $1 OR id = $2",
+      [updatedProblem.user_id, leadRows[0]?.assignee_id || 0]
+    );
+    for (const r of recipients) {
+      if (r.id !== req.user.id) {
+        await createNotification(
+          r.id,
+          req.user.id,
+          `${req.user.name} marked issue "${updatedProblem.title}" as ${status.replace('_', ' ')} on "${leadTitle}"`,
+          null,
+          id
+        );
+      }
+    }
+
+    res.json(updatedProblem);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -4488,7 +4521,7 @@ router.put('/sales/leads/:id/problems/:problemId/status', auth, salesAccessOnly,
 
 router.post('/sales/leads/:id/problems/:problemId/replies', auth, salesAccessOnly, async (req, res) => {
   try {
-    const { problemId } = req.params;
+    const { id, problemId } = req.params;
     const { reply_text } = req.body;
 
     if (!reply_text || !reply_text.trim()) {
@@ -4497,6 +4530,11 @@ router.post('/sales/leads/:id/problems/:problemId/replies', auth, salesAccessOnl
 
     const { rows: probRows } = await db.query('SELECT user_id, lead_id, title FROM sales_lead_problems WHERE id = $1', [problemId]);
     if (!probRows[0]) return res.status(404).json({ error: 'Problem not found' });
+
+    // Validate that the problem belongs to the lead specified in the URL path
+    if (probRows[0].lead_id !== parseInt(id, 10)) {
+      return res.status(400).json({ error: 'Problem does not belong to this sales lead' });
+    }
 
     const { rows } = await db.query(`
       INSERT INTO sales_lead_problem_replies (problem_id, user_id, reply_text)
@@ -4508,11 +4546,11 @@ router.post('/sales/leads/:id/problems/:problemId/replies', auth, salesAccessOnl
     newReply.author_name = req.user.name;
     newReply.author_role = req.user.role;
 
-    // Send notifications to problem creator, lead assignee, and admins
+    // Send notifications to problem creator, lead assignee, and admins (deduplicated)
     const { rows: leadRows } = await db.query('SELECT title, assignee_id FROM sales_leads WHERE id = $1', [probRows[0].lead_id]);
     const leadTitle = leadRows[0]?.title || '';
     const { rows: recipients } = await db.query(
-      "SELECT id FROM users WHERE role IN ('admin', 'sales_manager') OR id = $1 OR id = $2",
+      "SELECT DISTINCT id FROM users WHERE role IN ('admin', 'sales_manager') OR id = $1 OR id = $2",
       [probRows[0].user_id, leadRows[0]?.assignee_id || 0]
     );
     for (const r of recipients) {

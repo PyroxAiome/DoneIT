@@ -238,11 +238,9 @@ const initDatabase = async () => {
       user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       message TEXT NOT NULL,
       task_id INTEGER REFERENCES tasks(id) ON DELETE SET NULL,
-      lead_id INTEGER REFERENCES sales_leads(id) ON DELETE SET NULL,
       is_read INTEGER DEFAULT 0,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
-    ALTER TABLE notifications ADD COLUMN IF NOT EXISTS lead_id INTEGER REFERENCES sales_leads(id) ON DELETE SET NULL;
 
     CREATE TABLE IF NOT EXISTS task_daily_logs (
       id SERIAL PRIMARY KEY,
@@ -514,6 +512,7 @@ const initDatabase = async () => {
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
+    ALTER TABLE notifications ADD COLUMN IF NOT EXISTS lead_id INTEGER REFERENCES sales_leads(id) ON DELETE SET NULL;
 
     CREATE TABLE IF NOT EXISTS sales_lead_contacts (
       id SERIAL PRIMARY KEY,

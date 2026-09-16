@@ -874,6 +874,9 @@ export default function ManagerDashboard({ user }) {
                 <option value="Electronics">Electronics</option>
                 <option value="Mechanical">Mechanical</option>
                 <option value="Production">Production</option>
+                <option value="Commercial">Commercial</option>
+                <option value="Legal">Legal</option>
+                <option value="Sales & Marketing">Sales & Marketing</option>
               </select>
             </div>
 

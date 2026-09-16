@@ -45,7 +45,7 @@ const REGIONS = [
   { value: 'international', label: 'International' }
 ];
 
-export default function SalesDashboard({ user, initialAssigneeId = '' }) {
+export default function SalesDashboard({ user, initialAssigneeId = '', initialLeadId = null, onClearLeadId = null }) {
   // Main view tabs: 'board' | 'report' | 'targets'
   const [activeTab, setActiveTab] = useState('board');
 
@@ -89,6 +89,13 @@ export default function SalesDashboard({ user, initialAssigneeId = '' }) {
   }, [subCategory, activeTab]);
 
   const [isInitialLoad, setIsInitialLoad] = useState(true);
+
+  useEffect(() => {
+    if (initialLeadId) {
+      setSelectedLeadId(initialLeadId);
+      if (onClearLeadId) onClearLeadId();
+    }
+  }, [initialLeadId]);
 
   useEffect(() => {
     fetchAllData();
@@ -413,6 +420,21 @@ export default function SalesDashboard({ user, initialAssigneeId = '' }) {
                   </div>
                 );
               })}
+            </div>
+          )}
+
+          {selectedGoalId && (
+            <div className="bg-amber-50 border border-amber-300 p-2.5 rounded-lg flex items-center justify-between text-xs text-amber-900 animate-in fade-in">
+              <span className="font-medium flex items-center gap-1.5">
+                <Target className="w-4 h-4 text-amber-600 shrink-0" />
+                Filtered by Goal: <strong>{goals.find(g => g.id === selectedGoalId)?.name || 'Selected Goal'}</strong> — Showing only leads linked to this target.
+              </span>
+              <button
+                onClick={() => setSelectedGoalId(null)}
+                className="px-2.5 py-1 bg-amber-200 hover:bg-amber-300 text-amber-900 font-bold rounded-md text-xs transition-colors shrink-0 ml-2"
+              >
+                Clear Filter (Show All Leads) ✕
+              </button>
             </div>
           )}
         </div>

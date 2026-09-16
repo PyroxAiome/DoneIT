@@ -36,6 +36,9 @@ const STAGE_LABELS = {
   negotiation: 'Negotiation',
   pending_order_receipts: 'Pending Order Receipts',
   design_negotiation: 'Design Negotiation',
+  dfp: 'DFP',
+  order: 'Order',
+  billing: 'Billing',
 
   proforma_invoice: 'Proforma Invoice',
   tax_invoice: 'Tax Invoice',
@@ -126,6 +129,25 @@ export default function SalesLeadCard({ lead, onClick, onEdit, onDelete, onStage
                 <Edit3 className="w-3.5 h-3.5 text-gray-500" />
                 Edit Details
               </button>
+              {['admin', 'sales_manager'].includes(userRole) && lead.category === 'general' && (
+                <button
+                  onClick={async () => {
+                    setShowMenu(false);
+                    if (window.confirm(`Promote "${lead.title}" to Order Lakshya (Hot Prospect)?`)) {
+                      try {
+                        await api.updateSalesLead(lead.id, { category: 'lakshya' });
+                        window.dispatchEvent(new CustomEvent('sales-updated'));
+                      } catch (err) {
+                        alert(err.message || 'Failed to update lead category');
+                      }
+                    }
+                  }}
+                  className="w-full text-left px-3 py-1.5 text-xs text-amber-800 hover:bg-amber-50 flex items-center gap-2 font-medium"
+                >
+                  <Tag className="w-3.5 h-3.5 text-amber-600" />
+                  Move to Order Lakshya
+                </button>
+              )}
               {userRole === 'admin' && onDelete && (
                 <button
                   onClick={() => { setShowMenu(false); onDelete(lead); }}
