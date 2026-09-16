@@ -88,6 +88,7 @@ export default function SalesLeadDetailModal({ leadId, isOpen, onClose, user, on
   const [strategyText, setStrategyText] = useState('');
   const [savingStrategy, setSavingStrategy] = useState(false);
   const [strategySaved, setStrategySaved] = useState(false);
+  const [isEditingStrategy, setIsEditingStrategy] = useState(false);
 
   // History note editing state
   const [editingHistoryId, setEditingHistoryId] = useState(null);
@@ -148,6 +149,7 @@ export default function SalesLeadDetailModal({ leadId, isOpen, onClose, user, on
     try {
       await api.updateSalesLeadStrategy(lead.id, strategyText);
       setStrategySaved(true);
+      setIsEditingStrategy(false);
       fetchLeadDetails();
       if (onUpdated) onUpdated();
       setTimeout(() => setStrategySaved(false), 3000);
@@ -997,12 +999,48 @@ export default function SalesLeadDetailModal({ leadId, isOpen, onClose, user, on
                     </div>
                   )}
 
-                  {user?.role === 'admin' ? (
-                    <form onSubmit={handleSaveStrategy} className="space-y-4">
+                  {/* Render Saved Strategy Card View when not editing */}
+                  {!isEditingStrategy && lead?.strategy && lead.strategy.trim() ? (
+                    <div className="p-5 bg-white border border-amber-200/80 rounded-2xl space-y-3 shadow-2xs relative">
+                      <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                        <div className="flex items-center gap-2">
+                          <Compass className="w-4 h-4 text-amber-600" />
+                          <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">Active Strategy Document</h4>
+                        </div>
+                        {user?.role === 'admin' && (
+                          <button
+                            onClick={() => {
+                              setStrategyText(lead.strategy);
+                              setIsEditingStrategy(true);
+                            }}
+                            className="text-amber-700 hover:text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-200/80 px-2.5 py-1 rounded-lg transition-colors flex items-center gap-1.5 text-xs font-semibold"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                            Edit Strategy
+                          </button>
+                        )}
+                      </div>
+                      <div className="text-slate-800 whitespace-pre-wrap leading-relaxed text-xs p-3.5 bg-amber-50/20 rounded-xl border border-amber-100/60 font-medium">
+                        {lead.strategy}
+                      </div>
+                    </div>
+                  ) : isEditingStrategy ? (
+                    <form onSubmit={handleSaveStrategy} className="space-y-4 p-4 bg-amber-50/20 border border-amber-200 rounded-2xl">
                       <div>
-                        <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider block mb-1.5">
-                          Strategy & Master Plan Notes
-                        </label>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider block">
+                            Edit Strategy & Master Plan Notes
+                          </label>
+                          {lead?.strategy && (
+                            <button
+                              type="button"
+                              onClick={() => setIsEditingStrategy(false)}
+                              className="text-xs text-slate-500 hover:text-slate-800 font-medium"
+                            >
+                              Cancel
+                            </button>
+                          )}
+                        </div>
                         <textarea
                           value={strategyText}
                           onChange={(e) => setStrategyText(e.target.value)}
@@ -1014,30 +1052,46 @@ export default function SalesLeadDetailModal({ leadId, isOpen, onClose, user, on
                         <span className="text-[11px] text-slate-500 italic">
                           Only Admins can write or update this strategy note.
                         </span>
-                        <button
-                          type="submit"
-                          disabled={savingStrategy}
-                          className="btn-amber text-xs py-2 px-4 flex items-center gap-2 font-semibold shadow-xs disabled:opacity-50"
-                        >
-                          {savingStrategy ? (
-                            <div className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                          ) : (
-                            <Check className="w-4 h-4" />
+                        <div className="flex items-center gap-2">
+                          {lead?.strategy && (
+                            <button
+                              type="button"
+                              onClick={() => setIsEditingStrategy(false)}
+                              className="btn-primary text-xs py-2 px-3"
+                            >
+                              Cancel
+                            </button>
                           )}
-                          {savingStrategy ? 'Saving Strategy...' : 'Save Strategy'}
-                        </button>
+                          <button
+                            type="submit"
+                            disabled={savingStrategy}
+                            className="btn-amber text-xs py-2 px-4 flex items-center gap-2 font-semibold shadow-xs disabled:opacity-50"
+                          >
+                            {savingStrategy ? (
+                              <div className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                            ) : (
+                              <Check className="w-4 h-4" />
+                            )}
+                            {savingStrategy ? 'Saving Strategy...' : 'Save Strategy'}
+                          </button>
+                        </div>
                       </div>
                     </form>
                   ) : (
-                    <div className="p-5 bg-white border border-slate-200 rounded-2xl space-y-3 shadow-2xs">
-                      {lead?.strategy && lead.strategy.trim() ? (
-                        <div className="prose prose-xs text-slate-800 whitespace-pre-wrap leading-relaxed text-xs font-normal">
-                          {lead.strategy}
-                        </div>
-                      ) : (
-                        <p className="text-xs text-slate-400 italic text-center py-6">
-                          No project strategy has been documented by Admin for this lead yet.
-                        </p>
+                    <div className="p-8 bg-white border border-slate-200 rounded-2xl text-center space-y-3">
+                      <Compass className="w-8 h-8 text-slate-300 mx-auto" />
+                      <p className="text-xs text-slate-500">No project strategy has been documented for this lead yet.</p>
+                      {user?.role === 'admin' && (
+                        <button
+                          onClick={() => {
+                            setStrategyText('');
+                            setIsEditingStrategy(true);
+                          }}
+                          className="btn-amber text-xs py-2 px-4 inline-flex items-center gap-1.5 font-semibold"
+                        >
+                          <Plus className="w-4 h-4" />
+                          Add Project Strategy
+                        </button>
                       )}
                     </div>
                   )}
