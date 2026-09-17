@@ -123,6 +123,12 @@ const initDatabase = async () => {
     await pool.query('ALTER TABLE sales_goals ADD COLUMN IF NOT EXISTS lakshya_type TEXT DEFAULT \'order\'');
     await pool.query('ALTER TABLE sales_goals ADD COLUMN IF NOT EXISTS goal_scope TEXT DEFAULT \'company\'');
     await pool.query('ALTER TABLE sales_goals ADD COLUMN IF NOT EXISTS assigned_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL');
+    await pool.query('ALTER TABLE sales_goals ADD COLUMN IF NOT EXISTS project_name TEXT DEFAULT \'\'');
+    await pool.query('ALTER TABLE sales_goals ADD COLUMN IF NOT EXISTS product_category TEXT DEFAULT \'general\'');
+    await pool.query('ALTER TABLE sales_goals ADD COLUMN IF NOT EXISTS region TEXT DEFAULT \'\'');
+    await pool.query('ALTER TABLE sales_goals ADD COLUMN IF NOT EXISTS priority TEXT DEFAULT \'medium\'');
+    await pool.query('ALTER TABLE sales_goals ADD COLUMN IF NOT EXISTS target_order_value_min REAL DEFAULT 0');
+    await pool.query('ALTER TABLE sales_goals ADD COLUMN IF NOT EXISTS specifications TEXT DEFAULT \'\'');
     await pool.query('ALTER TABLE sales_targets ADD COLUMN IF NOT EXISTS lakshya_type TEXT DEFAULT \'order\'');
     await pool.query('ALTER TABLE sales_targets ADD COLUMN IF NOT EXISTS actual_count INTEGER DEFAULT 0');
   } catch (e) {
@@ -478,6 +484,12 @@ const initDatabase = async () => {
       lakshya_type TEXT DEFAULT 'order',
       goal_scope TEXT DEFAULT 'company' CHECK(goal_scope IN ('company','individual')),
       assigned_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      project_name TEXT DEFAULT '',
+      product_category TEXT DEFAULT 'general',
+      region TEXT DEFAULT '',
+      priority TEXT DEFAULT 'medium',
+      target_order_value_min REAL DEFAULT 0,
+      specifications TEXT DEFAULT '',
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );

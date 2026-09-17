@@ -3413,16 +3413,27 @@ router.post('/sales/goals', auth, salesAccessOnly, async (req, res) => {
     if (!['admin', 'sales_manager'].includes(req.user.role)) {
       return res.status(403).json({ error: 'Only Admin or Sales Manager can create goals' });
     }
-    const { name, description, target_value, target_leads, period_type, period_start, period_end, lakshya_type, goal_scope, assigned_user_id } = req.body;
+    const {
+      name, description, target_value, target_leads, period_type, period_start, period_end,
+      lakshya_type, goal_scope, assigned_user_id, project_name, product_category, region,
+      priority, target_order_value_min, specifications
+    } = req.body;
     if (!name) return res.status(400).json({ error: 'Goal name is required' });
 
     const { rows } = await db.query(`
-      INSERT INTO sales_goals (name, description, target_value, target_leads, period_type, period_start, period_end, creator_id, lakshya_type, goal_scope, assigned_user_id)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      INSERT INTO sales_goals (
+        name, description, target_value, target_leads, period_type, period_start, period_end,
+        creator_id, lakshya_type, goal_scope, assigned_user_id, project_name, product_category,
+        region, priority, target_order_value_min, specifications
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
       RETURNING *
     `, [
-      name, description || '', target_value || 0, target_leads || 0, period_type || 'monthly', period_start || null, period_end || null, req.user.id, lakshya_type || 'order',
-      goal_scope || 'company', assigned_user_id ? parseInt(assigned_user_id, 10) : null
+      name, description || '', target_value || 0, target_leads || 0, period_type || 'monthly',
+      period_start || null, period_end || null, req.user.id, lakshya_type || 'order',
+      goal_scope || 'company', assigned_user_id ? parseInt(assigned_user_id, 10) : null,
+      project_name || '', product_category || 'general', region || '', priority || 'medium',
+      target_order_value_min || 0, specifications || ''
     ]);
 
     res.status(201).json(rows[0]);
@@ -3437,7 +3448,11 @@ router.put('/sales/goals/:id', auth, salesAccessOnly, async (req, res) => {
       return res.status(403).json({ error: 'Only Admin or Sales Manager can edit goals' });
     }
     const { id } = req.params;
-    const { name, description, target_value, target_leads, period_type, period_start, period_end, status, lakshya_type, goal_scope, assigned_user_id } = req.body;
+    const {
+      name, description, target_value, target_leads, period_type, period_start, period_end,
+      status, lakshya_type, goal_scope, assigned_user_id, project_name, product_category,
+      region, priority, target_order_value_min, specifications
+    } = req.body;
 
     const { rows } = await db.query(`
       UPDATE sales_goals
@@ -3452,10 +3467,20 @@ router.put('/sales/goals/:id', auth, salesAccessOnly, async (req, res) => {
           lakshya_type = COALESCE($9, lakshya_type),
           goal_scope = COALESCE($10, goal_scope),
           assigned_user_id = $11,
+          project_name = COALESCE($12, project_name),
+          product_category = COALESCE($13, product_category),
+          region = COALESCE($14, region),
+          priority = COALESCE($15, priority),
+          target_order_value_min = COALESCE($16, target_order_value_min),
+          specifications = COALESCE($17, specifications),
           updated_at = CURRENT_TIMESTAMP
-      WHERE id = $12
+      WHERE id = $18
       RETURNING *
-    `, [name, description, target_value, target_leads, period_type, period_start, period_end, status, lakshya_type, goal_scope, assigned_user_id ? parseInt(assigned_user_id, 10) : null, id]);
+    `, [
+      name, description, target_value, target_leads, period_type, period_start, period_end,
+      status, lakshya_type, goal_scope, assigned_user_id ? parseInt(assigned_user_id, 10) : null,
+      project_name, product_category, region, priority, target_order_value_min, specifications, id
+    ]);
 
     if (!rows[0]) return res.status(404).json({ error: 'Goal not found' });
     res.json(rows[0]);

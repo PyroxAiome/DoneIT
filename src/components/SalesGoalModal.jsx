@@ -1,20 +1,48 @@
 import { useState, useEffect } from 'react';
 import { api } from '../lib/api';
-import { X, Target, Check, AlertCircle, Building2, User } from 'lucide-react';
+import { X, Target, Check, AlertCircle, Building2, User, Layers, ShieldAlert, MapPin, Tag } from 'lucide-react';
+
+const PRODUCT_CATEGORIES = [
+  { id: 'general', label: 'General / All Categories' },
+  { id: 'software', label: 'Software Development & Automation' },
+  { id: 'electronics', label: 'Electronics & Hardware Systems' },
+  { id: 'commercial', label: 'Commercial Infrastructure' },
+  { id: 'legal', label: 'Legal & Compliance Consultancy' },
+  { id: 'sales_marketing', label: 'Sales & Marketing Execution' },
+  { id: 'hvac', label: 'HVAC & Climate Control' },
+  { id: 'real_estate', label: 'Real Estate Development' },
+  { id: 'hospitality', label: 'Hospitality & Leisure' },
+  { id: 'other', label: 'Other Special Category' }
+];
+
+const REGIONS = [
+  { value: 'north_india', label: 'North India' },
+  { value: 'south_india', label: 'South India' },
+  { value: 'west_india', label: 'West India' },
+  { value: 'east_india', label: 'East India' },
+  { value: 'central_india', label: 'Central India' },
+  { value: 'international', label: 'International' }
+];
 
 export default function SalesGoalModal({ isOpen, onClose, onSave, editingGoal, lakshyaType = 'order', employees = [] }) {
   const [form, setForm] = useState({
     name: '',
+    project_name: '',
     description: '',
     target_value: '',
+    target_order_value_min: '',
     target_leads: '',
+    product_category: 'general',
+    region: '',
+    priority: 'medium',
     period_type: 'monthly',
     period_start: '',
     period_end: '',
     status: 'active',
     lakshya_type: lakshyaType,
     goal_scope: 'company',
-    assigned_user_id: ''
+    assigned_user_id: '',
+    specifications: ''
   });
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -34,30 +62,42 @@ export default function SalesGoalModal({ isOpen, onClose, onSave, editingGoal, l
     if (editingGoal) {
       setForm({
         name: editingGoal.name || '',
+        project_name: editingGoal.project_name || '',
         description: editingGoal.description || '',
         target_value: editingGoal.target_value || '',
+        target_order_value_min: editingGoal.target_order_value_min || '',
         target_leads: editingGoal.target_leads || '',
+        product_category: editingGoal.product_category || 'general',
+        region: editingGoal.region || '',
+        priority: editingGoal.priority || 'medium',
         period_type: editingGoal.period_type || 'monthly',
         period_start: editingGoal.period_start || '',
         period_end: editingGoal.period_end || '',
         status: editingGoal.status || 'active',
         lakshya_type: editingGoal.lakshya_type || lakshyaType || 'order',
         goal_scope: editingGoal.goal_scope || (editingGoal.assigned_user_id ? 'individual' : 'company'),
-        assigned_user_id: editingGoal.assigned_user_id ? String(editingGoal.assigned_user_id) : ''
+        assigned_user_id: editingGoal.assigned_user_id ? String(editingGoal.assigned_user_id) : '',
+        specifications: editingGoal.specifications || ''
       });
     } else {
       setForm({
         name: '',
+        project_name: '',
         description: '',
         target_value: '',
+        target_order_value_min: '',
         target_leads: '',
+        product_category: 'general',
+        region: '',
+        priority: 'medium',
         period_type: 'monthly',
         period_start: '',
         period_end: '',
         status: 'active',
         lakshya_type: lakshyaType || 'order',
         goal_scope: 'company',
-        assigned_user_id: ''
+        assigned_user_id: '',
+        specifications: ''
       });
     }
     setError('');
@@ -90,7 +130,9 @@ export default function SalesGoalModal({ isOpen, onClose, onSave, editingGoal, l
       const payload = {
         ...form,
         name: form.name.trim(),
+        project_name: (form.project_name || '').trim(),
         target_value: parseFloat(form.target_value) || 0,
+        target_order_value_min: parseFloat(form.target_order_value_min) || 0,
         target_leads: parseInt(form.target_leads, 10) || 0,
         assigned_user_id: form.goal_scope === 'individual' && form.assigned_user_id ? parseInt(form.assigned_user_id, 10) : null
       };
@@ -110,7 +152,7 @@ export default function SalesGoalModal({ isOpen, onClose, onSave, editingGoal, l
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-xs" onClick={onClose}>
-      <div className="card max-w-lg w-full bg-white rounded-2xl shadow-xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
+      <div className="card max-w-xl w-full bg-white rounded-2xl shadow-xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between p-4 border-b border-gray-100 bg-amber-50/60">
           <div className="flex items-center gap-2 text-amber-900">
             <Target className="w-5 h-5 text-amber-600" />
@@ -183,31 +225,35 @@ export default function SalesGoalModal({ isOpen, onClose, onSave, editingGoal, l
             </div>
           )}
 
-          <div>
-            <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wider block mb-1">Goal Name *</label>
-            <input
-              type="text"
-              value={form.name}
-              onChange={handleChange('name')}
-              placeholder={form.goal_scope === 'individual' ? "e.g. Satyam Q3 Target — ₹50 Lakhs" : "e.g. Company Q3 2026 — ₹5 Cr Target"}
-              className="input-field"
-              required
-            />
-          </div>
-
-          <div>
-            <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wider block mb-1">Description</label>
-            <textarea
-              value={form.description}
-              onChange={handleChange('description')}
-              placeholder="Brief summary of the target, regions, or focus area..."
-              className="input-field min-h-[60px]"
-            />
-          </div>
-
+          {/* Goal Title & Target Project Name */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wider block mb-1">Target Revenue (₹)</label>
+              <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wider block mb-1">Goal Name / Target Title *</label>
+              <input
+                type="text"
+                value={form.name}
+                onChange={handleChange('name')}
+                placeholder={form.goal_scope === 'individual' ? "e.g. Satyam Q3 Target — Commercial Buildings" : "e.g. Q3 2026 — ₹5 Cr Revenue Target"}
+                className="input-field"
+                required
+              />
+            </div>
+            <div>
+              <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wider block mb-1">Target Project / Client Name</label>
+              <input
+                type="text"
+                value={form.project_name}
+                onChange={handleChange('project_name')}
+                placeholder="e.g. DLF Cybercity Towers / HDFC Automation"
+                className="input-field"
+              />
+            </div>
+          </div>
+
+          {/* Financial Value Specifications */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wider block mb-1">Total Target Revenue (₹)</label>
               <input
                 type="number"
                 value={form.target_value}
@@ -217,7 +263,17 @@ export default function SalesGoalModal({ isOpen, onClose, onSave, editingGoal, l
               />
             </div>
             <div>
-              <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wider block mb-1">Target Lead Conversions</label>
+              <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wider block mb-1">Min Order Size (₹)</label>
+              <input
+                type="number"
+                value={form.target_order_value_min}
+                onChange={handleChange('target_order_value_min')}
+                placeholder="e.g. 500000"
+                className="input-field"
+              />
+            </div>
+            <div>
+              <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wider block mb-1">Target Lead Deals</label>
               <input
                 type="number"
                 value={form.target_leads}
@@ -228,6 +284,37 @@ export default function SalesGoalModal({ isOpen, onClose, onSave, editingGoal, l
             </div>
           </div>
 
+          {/* Category, Region & Priority */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wider block mb-1">Product / Work Category</label>
+              <select value={form.product_category} onChange={handleChange('product_category')} className="input-field">
+                {PRODUCT_CATEGORIES.map(cat => (
+                  <option key={cat.id} value={cat.id}>{cat.label}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wider block mb-1">Target Region</label>
+              <select value={form.region} onChange={handleChange('region')} className="input-field">
+                <option value="">All Regions</option>
+                {REGIONS.map(reg => (
+                  <option key={reg.value} value={reg.value}>{reg.label}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wider block mb-1">Priority Level</label>
+              <select value={form.priority} onChange={handleChange('priority')} className="input-field">
+                <option value="low">Low Priority</option>
+                <option value="medium">Medium Priority</option>
+                <option value="high">High Priority</option>
+                <option value="critical">Critical / Hot Goal</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Dates & Period Type */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
               <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wider block mb-1">Period Type</label>
@@ -256,6 +343,29 @@ export default function SalesGoalModal({ isOpen, onClose, onSave, editingGoal, l
                 className="input-field"
               />
             </div>
+          </div>
+
+          {/* Building / Project Specifications & Notes */}
+          <div>
+            <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wider block mb-1">
+              Project & Building Specifications / Strategy Notes
+            </label>
+            <textarea
+              value={form.specifications}
+              onChange={handleChange('specifications')}
+              placeholder="e.g. Target 3 Commercial Towers (G+33F), BMS integration required, max 10% discount limit..."
+              className="input-field min-h-[70px]"
+            />
+          </div>
+
+          <div>
+            <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wider block mb-1">General Description</label>
+            <textarea
+              value={form.description}
+              onChange={handleChange('description')}
+              placeholder="Brief summary of focus area, incentives, or target accounts..."
+              className="input-field min-h-[50px]"
+            />
           </div>
 
           {editingGoal && (

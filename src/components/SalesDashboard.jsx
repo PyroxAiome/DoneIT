@@ -410,6 +410,33 @@ export default function SalesDashboard({ user, initialAssigneeId = '', initialLe
                       </div>
                     </div>
 
+                    {/* Project & Category Specifications Tags */}
+                    {(g.project_name || g.product_category || g.region || g.target_order_value_min > 0) && (
+                      <div className="flex items-center gap-1.5 flex-wrap my-1.5">
+                        {g.project_name && (
+                          <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-blue-50 text-blue-800 border border-blue-200" title={`Project/Client: ${g.project_name}`}>
+                            📁 {g.project_name}
+                          </span>
+                        )}
+                        {g.product_category && g.product_category !== 'general' && (
+                          <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-gray-100 text-gray-700 border border-gray-200 capitalize">
+                            🏷️ {g.product_category.replace('_', ' ')}
+                          </span>
+                        )}
+                        {g.target_order_value_min > 0 && (
+                          <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200">
+                            Min Deal: {formatCurrency(g.target_order_value_min)}
+                          </span>
+                        )}
+                      </div>
+                    )}
+
+                    {g.specifications && (
+                      <p className="text-[11px] text-gray-600 line-clamp-1 italic bg-amber-50/50 p-1.5 rounded border border-amber-100/60 my-1">
+                        📝 {g.specifications}
+                      </p>
+                    )}
+
                     <div className="space-y-1.5 text-xs text-gray-600 mt-2">
                       <div className="flex items-center justify-between">
                         <span>Revenue Progress:</span>
