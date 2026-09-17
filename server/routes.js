@@ -1120,8 +1120,10 @@ router.put('/tasks/:id', auth, async (req, res) => {
         req.body.completed_by = req.user.id;
       }
     } else if (req.body.status === 'completed' && currentTask.status === 'completed') {
-      // Task was already completed and user is just editing other fields — preserve status, don't touch completed_by/verified_at
-      // Remove status from the update so we don't re-trigger any completion side effects
+      // Task was already completed and user is just editing other fields — preserve status, don't touch verified_at
+      if (!currentTask.completed_by && req.user?.id) {
+        req.body.completed_by = req.user.id;
+      }
       delete req.body.status;
     } else if (req.body.status && ['todo', 'in_progress'].includes(req.body.status)) {
       // Task is being moved back to todo or in_progress: clear previous completion/verification metadata

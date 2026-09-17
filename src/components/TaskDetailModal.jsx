@@ -466,7 +466,18 @@ export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated, 
             <div className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-emerald-500" />
               <span className="font-semibold text-emerald-950">
-                Verified & Completed by {taskData?.completer_name || taskData?.verifier_name || 'Admin'}
+                Verified & Completed by {
+                  (taskData?.completer_name && taskData.completer_name !== 'Admin') 
+                    ? taskData.completer_name 
+                    : ((taskData?.verifier_name && taskData.verifier_name !== 'Admin') 
+                        ? taskData.verifier_name 
+                        : (taskData?.completer_name || taskData?.verifier_name || 'Admin'))
+                }
+                {taskData?.verifier_name && taskData?.completer_name && taskData.verifier_name !== taskData.completer_name && taskData.completer_name !== 'Admin' && (
+                  <span className="text-emerald-700 font-normal ml-1">
+                    (Assigned Verifier: {taskData.verifier_name})
+                  </span>
+                )}
               </span>
             </div>
             {(taskData?.verified_at || taskData?.updated_at) && (

@@ -368,14 +368,17 @@ export default function TaskCard({ task, compact, onEdit, onDelete, onSelect, on
         </div>
 
         {task.status === 'completed' ? (
-          <span className="text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200/60 font-medium text-[9px]">
-            Verified: {task.completer_name || task.verifier_name || 'Admin'}
+          <span 
+            className="text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200/60 font-medium text-[9px]"
+            title={task.completer_name && task.verifier_name && task.completer_name !== task.verifier_name ? `Verified by ${task.completer_name} (Assigned Verifier: ${task.verifier_name})` : `Verified by ${task.completer_name && task.completer_name !== 'Admin' ? task.completer_name : (task.verifier_name && task.verifier_name !== 'Admin' ? task.verifier_name : task.completer_name || task.verifier_name || 'Admin')}`}
+          >
+            Verified: {task.completer_name && task.completer_name !== 'Admin' ? task.completer_name : (task.verifier_name && task.verifier_name !== 'Admin' ? task.verifier_name : task.completer_name || task.verifier_name || 'Admin')}
           </span>
         ) : (
           <div className="flex items-center gap-1 flex-wrap justify-end">
             {task.completed_by && Number(task.completed_by) !== Number(task.verifier_id) && (
               <span className="text-emerald-700 bg-emerald-50/90 px-1.5 py-0.5 rounded border border-emerald-200/60 font-medium text-[9px]" title={`Previously verified by ${task.completer_name || 'Admin'}`}>
-                Prev. Verified: {task.completer_name || 'Admin'}
+                Prev. Verified: {task.completer_name && task.completer_name !== 'Admin' ? task.completer_name : (task.verifier_name && task.verifier_name !== 'Admin' ? task.verifier_name : task.completer_name || 'Admin')}
               </span>
             )}
             {task.verifier_name && (
