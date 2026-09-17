@@ -324,7 +324,7 @@ export default function SalesDashboard({ user, initialAssigneeId = '', initialLe
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors shadow-xs text-xs font-semibold"
               >
                 <Plus className="w-3.5 h-3.5" />
-                Create {subCategory.replace('_lakshya', '').toUpperCase()} Goal
+                Create {subCategory === 'general' ? 'Company' : (subCategory === 'order_lakshya' || subCategory === 'lakshya' ? 'Company Order' : (subCategory === 'billing_lakshya' ? 'Company Billing' : 'Company Collection'))} Goal
               </button>
             )}
             <button
@@ -366,8 +366,17 @@ export default function SalesDashboard({ user, initialAssigneeId = '', initialLe
                   >
                     <div className="flex items-center justify-between mb-1 gap-2">
                       <h4 className="font-semibold text-xs text-gray-900 truncate flex-1">{g.name}</h4>
-                      <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
-                        <span className="text-[10px] uppercase font-semibold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-200">
+                      <div className="flex items-center gap-1 shrink-0 flex-wrap justify-end" onClick={(e) => e.stopPropagation()}>
+                        <span className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded ${
+                          g.goal_scope === 'individual' || g.assigned_user_id
+                            ? 'bg-purple-100 text-purple-900 border border-purple-200'
+                            : 'bg-amber-100 text-amber-900 border border-amber-200'
+                        }`}>
+                          {g.goal_scope === 'individual' || g.assigned_user_id
+                            ? `👤 ${g.assigned_user_name || 'Individual'}`
+                            : '🏢 Company'}
+                        </span>
+                        <span className="text-[10px] uppercase font-semibold px-1.5 py-0.5 rounded bg-gray-100 text-gray-700 border border-gray-200">
                           {g.period_type}
                         </span>
                         {user?.role === 'admin' && !assigneeFilter && (
@@ -658,6 +667,7 @@ export default function SalesDashboard({ user, initialAssigneeId = '', initialLe
         onSave={fetchAllData}
         editingGoal={editingGoal}
         lakshyaType={subCategory.replace('_lakshya', '')}
+        employees={employees}
       />
 
       <SalesTargetModal

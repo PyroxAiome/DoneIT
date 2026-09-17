@@ -121,6 +121,8 @@ const initDatabase = async () => {
     await pool.query('ALTER TABLE sales_leads ADD COLUMN IF NOT EXISTS additional_customers TEXT DEFAULT \'[]\'');
     await pool.query('ALTER TABLE sales_leads ADD COLUMN IF NOT EXISTS additional_consultants TEXT DEFAULT \'[]\'');
     await pool.query('ALTER TABLE sales_goals ADD COLUMN IF NOT EXISTS lakshya_type TEXT DEFAULT \'order\'');
+    await pool.query('ALTER TABLE sales_goals ADD COLUMN IF NOT EXISTS goal_scope TEXT DEFAULT \'company\'');
+    await pool.query('ALTER TABLE sales_goals ADD COLUMN IF NOT EXISTS assigned_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL');
     await pool.query('ALTER TABLE sales_targets ADD COLUMN IF NOT EXISTS lakshya_type TEXT DEFAULT \'order\'');
     await pool.query('ALTER TABLE sales_targets ADD COLUMN IF NOT EXISTS actual_count INTEGER DEFAULT 0');
   } catch (e) {
@@ -473,6 +475,9 @@ const initDatabase = async () => {
       period_end TEXT,
       status TEXT DEFAULT 'active' CHECK(status IN ('active','completed','archived')),
       creator_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      lakshya_type TEXT DEFAULT 'order',
+      goal_scope TEXT DEFAULT 'company' CHECK(goal_scope IN ('company','individual')),
+      assigned_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );

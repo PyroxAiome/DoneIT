@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { api } from '../lib/api';
-import { X, Target, Check, AlertCircle } from 'lucide-react';
+import { X, Target, Check, AlertCircle, Building2, User } from 'lucide-react';
 
-export default function SalesGoalModal({ isOpen, onClose, onSave, editingGoal, lakshyaType = 'order' }) {
+export default function SalesGoalModal({ isOpen, onClose, onSave, editingGoal, lakshyaType = 'order', employees = [] }) {
   const [form, setForm] = useState({
     name: '',
     description: '',
@@ -12,10 +12,23 @@ export default function SalesGoalModal({ isOpen, onClose, onSave, editingGoal, l
     period_start: '',
     period_end: '',
     status: 'active',
-    lakshya_type: lakshyaType
+    lakshya_type: lakshyaType,
+    goal_scope: 'company',
+    assigned_user_id: ''
   });
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [employeeList, setEmployeeList] = useState(employees);
+
+  useEffect(() => {
+    if (isOpen) {
+      if (employees && employees.length > 0) {
+        setEmployeeList(employees);
+      } else {
+        api.getEmployees().then(setEmployeeList).catch(() => {});
+      }
+    }
+  }, [isOpen, employees]);
 
   useEffect(() => {
     if (editingGoal) {
@@ -28,7 +41,9 @@ export default function SalesGoalModal({ isOpen, onClose, onSave, editingGoal, l
         period_start: editingGoal.period_start || '',
         period_end: editingGoal.period_end || '',
         status: editingGoal.status || 'active',
-        lakshya_type: editingGoal.lakshya_type || lakshyaType || 'order'
+        lakshya_type: editingGoal.lakshya_type || lakshyaType || 'order',
+        goal_scope: editingGoal.goal_scope || (editingGoal.assigned_user_id ? 'individual' : 'company'),
+        assigned_user_id: editingGoal.assigned_user_id ? String(editingGoal.assigned_user_id) : ''
       });
     } else {
       setForm({
@@ -40,7 +55,9 @@ export default function SalesGoalModal({ isOpen, onClose, onSave, editingGoal, l
         period_start: '',
         period_end: '',
         status: 'active',
-        lakshya_type: lakshyaType || 'order'
+        lakshya_type: lakshyaType || 'order',
+        goal_scope: 'company',
+        assigned_user_id: ''
       });
     }
     setError('');
@@ -50,11 +67,22 @@ export default function SalesGoalModal({ isOpen, onClose, onSave, editingGoal, l
 
   const handleChange = (field) => (e) => setForm({ ...form, [field]: e.target.value });
 
+  const getGoalTitle = () => {
+    const scopeLabel = form.goal_scope === 'individual' ? 'Individual' : 'Company';
+    const typeLabel = lakshyaType === 'general' ? '' : (lakshyaType === 'billing' ? 'Billing ' : (lakshyaType === 'collection' ? 'Collection ' : 'Order '));
+    if (editingGoal) return `Edit ${scopeLabel} ${typeLabel}Goal`;
+    return `Create ${scopeLabel} ${typeLabel}Goal`;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     if (!form.name || !form.name.trim()) {
       setError('Goal name is required');
+      return;
+    }
+    if (form.goal_scope === 'individual' && !form.assigned_user_id) {
+      setError('Please select a salesperson for individual value goal');
       return;
     }
     setBusy(true);
@@ -63,7 +91,8 @@ export default function SalesGoalModal({ isOpen, onClose, onSave, editingGoal, l
         ...form,
         name: form.name.trim(),
         target_value: parseFloat(form.target_value) || 0,
-        target_leads: parseInt(form.target_leads, 10) || 0
+        target_leads: parseInt(form.target_leads, 10) || 0,
+        assigned_user_id: form.goal_scope === 'individual' && form.assigned_user_id ? parseInt(form.assigned_user_id, 10) : null
       };
       if (editingGoal) {
         await api.updateSalesGoal(editingGoal.id, payload);
@@ -80,12 +109,12 @@ export default function SalesGoalModal({ isOpen, onClose, onSave, editingGoal, l
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-xs" onClick={onClose}>
       <div className="card max-w-lg w-full bg-white rounded-2xl shadow-xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between p-4 border-b border-gray-100 bg-emerald-50/50">
-          <div className="flex items-center gap-2 text-emerald-800">
-            <Target className="w-5 h-5 text-emerald-600" />
-            <h3 className="font-semibold">{editingGoal ? 'Edit Lakshya (Goal)' : 'Create New Lakshya (Goal)'}</h3>
+        <div className="flex items-center justify-between p-4 border-b border-gray-100 bg-amber-50/60">
+          <div className="flex items-center gap-2 text-amber-900">
+            <Target className="w-5 h-5 text-amber-600" />
+            <h3 className="font-bold text-sm sm:text-base">{getGoalTitle()}</h3>
           </div>
           <button onClick={onClose} className="p-1 hover:bg-gray-200/50 rounded-lg transition-colors">
             <X className="w-5 h-5 text-gray-500" />
@@ -93,38 +122,92 @@ export default function SalesGoalModal({ isOpen, onClose, onSave, editingGoal, l
         </div>
 
         {error && (
-          <div className="m-4 flex items-center gap-2 text-red-600 text-sm bg-red-50 border border-red-200 rounded-xl px-3 py-2">
+          <div className="m-4 flex items-center gap-2 text-red-600 text-xs sm:text-sm bg-red-50 border border-red-200 rounded-xl px-3 py-2">
             <AlertCircle className="w-4 h-4 shrink-0" />
             {error}
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="p-5 space-y-4 max-h-[80vh] overflow-y-auto">
+        <form onSubmit={handleSubmit} className="p-5 space-y-4 max-h-[80vh] overflow-y-auto text-xs sm:text-sm">
+          
+          {/* Goal Scope Toggle (Company Goal vs Individual Salesperson Goal) */}
           <div>
-            <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider block mb-1">Goal Name *</label>
+            <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wider block mb-1.5">Goal Scope Target *</label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setForm({ ...form, goal_scope: 'company', assigned_user_id: '' })}
+                className={`py-2 px-3 rounded-xl border font-semibold flex items-center justify-center gap-2 transition-all text-xs ${
+                  form.goal_scope === 'company'
+                    ? 'bg-amber-100 text-amber-900 border-amber-400 shadow-xs'
+                    : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
+                }`}
+              >
+                <Building2 className="w-4 h-4" />
+                Company Goal
+              </button>
+              <button
+                type="button"
+                onClick={() => setForm({ ...form, goal_scope: 'individual' })}
+                className={`py-2 px-3 rounded-xl border font-semibold flex items-center justify-center gap-2 transition-all text-xs ${
+                  form.goal_scope === 'individual'
+                    ? 'bg-purple-100 text-purple-900 border-purple-400 shadow-xs'
+                    : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
+                }`}
+              >
+                <User className="w-4 h-4" />
+                Individual Sales Person Goal
+              </button>
+            </div>
+          </div>
+
+          {/* Salesperson Dropdown if Individual Goal */}
+          {form.goal_scope === 'individual' && (
+            <div className="p-3 bg-purple-50/70 border border-purple-200 rounded-xl space-y-1 animate-in fade-in duration-150">
+              <label className="text-[11px] font-bold text-purple-950 uppercase tracking-wider block mb-1">
+                Assign to Salesperson *
+              </label>
+              <select
+                value={form.assigned_user_id}
+                onChange={handleChange('assigned_user_id')}
+                className="input-field bg-white"
+                required
+              >
+                <option value="">-- Select Sales Executive / Manager --</option>
+                {employeeList.map(emp => (
+                  <option key={emp.id} value={emp.id}>
+                    {emp.name} ({emp.role || 'Sales'})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          <div>
+            <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wider block mb-1">Goal Name *</label>
             <input
               type="text"
               value={form.name}
               onChange={handleChange('name')}
-              placeholder="e.g. Q3 2026 — ₹5Cr Revenue Target"
+              placeholder={form.goal_scope === 'individual' ? "e.g. Satyam Q3 Target — ₹50 Lakhs" : "e.g. Company Q3 2026 — ₹5 Cr Target"}
               className="input-field"
               required
             />
           </div>
 
           <div>
-            <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider block mb-1">Description</label>
+            <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wider block mb-1">Description</label>
             <textarea
               value={form.description}
               onChange={handleChange('description')}
               placeholder="Brief summary of the target, regions, or focus area..."
-              className="input-field min-h-[70px]"
+              className="input-field min-h-[60px]"
             />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider block mb-1">Target Revenue (₹)</label>
+              <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wider block mb-1">Target Revenue (₹)</label>
               <input
                 type="number"
                 value={form.target_value}
@@ -134,7 +217,7 @@ export default function SalesGoalModal({ isOpen, onClose, onSave, editingGoal, l
               />
             </div>
             <div>
-              <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider block mb-1">Target Lead Conversions</label>
+              <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wider block mb-1">Target Lead Conversions</label>
               <input
                 type="number"
                 value={form.target_leads}
@@ -147,7 +230,7 @@ export default function SalesGoalModal({ isOpen, onClose, onSave, editingGoal, l
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
-              <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider block mb-1">Period Type</label>
+              <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wider block mb-1">Period Type</label>
               <select value={form.period_type} onChange={handleChange('period_type')} className="input-field">
                 <option value="monthly">Monthly</option>
                 <option value="quarterly">Quarterly</option>
@@ -156,7 +239,7 @@ export default function SalesGoalModal({ isOpen, onClose, onSave, editingGoal, l
               </select>
             </div>
             <div>
-              <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider block mb-1">Start Date</label>
+              <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wider block mb-1">Start Date</label>
               <input
                 type="date"
                 value={form.period_start}
@@ -165,7 +248,7 @@ export default function SalesGoalModal({ isOpen, onClose, onSave, editingGoal, l
               />
             </div>
             <div>
-              <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider block mb-1">End Date</label>
+              <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wider block mb-1">End Date</label>
               <input
                 type="date"
                 value={form.period_end}
@@ -177,7 +260,7 @@ export default function SalesGoalModal({ isOpen, onClose, onSave, editingGoal, l
 
           {editingGoal && (
             <div>
-              <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider block mb-1">Goal Status</label>
+              <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wider block mb-1">Goal Status</label>
               <select value={form.status} onChange={handleChange('status')} className="input-field">
                 <option value="active">Active</option>
                 <option value="completed">Completed</option>
@@ -187,10 +270,10 @@ export default function SalesGoalModal({ isOpen, onClose, onSave, editingGoal, l
           )}
 
           <div className="flex justify-end gap-2 pt-3 border-t border-gray-100">
-            <button type="button" onClick={onClose} className="btn-primary text-sm">Cancel</button>
-            <button type="submit" disabled={busy} className="btn-amber text-sm flex items-center gap-2 disabled:opacity-50">
+            <button type="button" onClick={onClose} className="btn-primary text-xs font-semibold px-4 py-2 rounded-xl">Cancel</button>
+            <button type="submit" disabled={busy} className="btn-amber bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold px-5 py-2.5 rounded-xl flex items-center gap-2 shadow-xs disabled:opacity-50">
               {busy ? <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" /> : <Check className="w-4 h-4" />}
-              {busy ? 'Saving...' : (editingGoal ? 'Save Goal' : 'Create Goal')}
+              {busy ? 'Saving...' : (editingGoal ? 'Save Goal' : getGoalTitle())}
             </button>
           </div>
         </form>
