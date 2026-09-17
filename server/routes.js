@@ -1116,6 +1116,10 @@ router.put('/tasks/:id', auth, async (req, res) => {
         req.body.status = 'under_review';
         verificationRequired = true;
       } else {
+        const verificationComment = (req.body.verification_comment || req.body.comment_text || '').trim();
+        if (!verificationComment) {
+          return res.status(400).json({ error: 'A verification review comment is required to complete this task. Please provide review notes before verifying.' });
+        }
         req.body.verified_at = new Date();
         req.body.completed_by = req.user.id;
       }
@@ -1356,10 +1360,21 @@ router.put('/tasks/:id', auth, async (req, res) => {
     updated.verificationRequired = verificationRequired;
     await notifyRelevantUsers(req.user.id, msg, updated.id);
 
+    const verificationComment = (req.body.verification_comment || req.body.comment_text || '').trim();
+    if (verificationComment && updated.status === 'completed') {
+      await db.query(
+        'INSERT INTO admin_comments (task_id, admin_id, comment_text) VALUES ($1, $2, $3)',
+        [id, req.user.id, `[Verification Review] ${verificationComment}`]
+      );
+    }
+
     if (verificationRequired && updated.verifier_id && Number(updated.verifier_id) !== Number(req.user.id)) {
       await createNotification(updated.verifier_id, req.user.id, `${req.user.name} submitted task "${updated.title}" for your verification & review`, updated.id);
     } else if (updated.status === 'completed' && isVerifierOrAdmin && updated.assignee_id && Number(updated.assignee_id) !== Number(req.user.id)) {
-      await createNotification(updated.assignee_id, req.user.id, `${req.user.name} verified and approved task: "${updated.title}" as completed!`, updated.id);
+      const notifMsg = verificationComment 
+        ? `${req.user.name} verified & completed task "${updated.title}" with review: "${verificationComment.substring(0, 50)}${verificationComment.length > 50 ? '...' : ''}"`
+        : `${req.user.name} verified and approved task: "${updated.title}" as completed!`;
+      await createNotification(updated.assignee_id, req.user.id, notifMsg, updated.id);
     }
 
     res.json(updated);

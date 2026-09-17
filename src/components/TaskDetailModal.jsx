@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { api } from '../lib/api';
 import { useAuth } from '../App';
+import VerificationReviewModal from './VerificationReviewModal';
 import { X, Send, Edit3, Trash2, Check, X as XIcon, MessageSquare, FileText, Reply, Calendar, ThumbsUp, ThumbsDown, GitMerge } from 'lucide-react';
 
 const formatDescription = (desc) => {
@@ -71,6 +72,7 @@ export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated, 
    const [tageeId, setTageeId] = useState('');
    const [depText, setDepText] = useState('');
    const [replyTexts, setReplyTexts] = useState({});
+   const [showVerificationReviewModal, setShowVerificationReviewModal] = useState(false);
 
    useEffect(() => {
      if (isOpen && task?.id) {
@@ -406,20 +408,9 @@ export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated, 
               <div className="flex items-center gap-2 shrink-0">
                 {(user?.role === 'admin' || ((taskData?.verifier_id || task.verifier_id) && Number(taskData?.verifier_id || task.verifier_id) === Number(user?.id))) && (
                   <button
-                    onClick={async () => {
-                      setSaving(true);
-                      try {
-                        const updated = await api.updateTask(task.id, { status: 'completed' });
-                        setTaskData(updated);
-                        onTaskUpdated?.();
-                      } catch (err) {
-                        alert(err.message);
-                      } finally {
-                        setSaving(false);
-                      }
-                    }}
+                    onClick={() => setShowVerificationReviewModal(true)}
                     disabled={saving}
-                    className="btn-amber bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-4 py-2 rounded-xl flex items-center justify-center gap-1.5 shrink-0 shadow-xs whitespace-nowrap"
+                    className="btn-amber bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-4 py-2 rounded-xl flex items-center justify-center gap-1.5 shrink-0 shadow-xs whitespace-nowrap cursor-pointer"
                   >
                     <Check className="w-4 h-4" />
                     Verify & Mark Completed
@@ -1385,6 +1376,25 @@ export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated, 
           )}
         </div>
       </div>
+
+      <VerificationReviewModal
+        isOpen={showVerificationReviewModal}
+        onClose={() => setShowVerificationReviewModal(false)}
+        task={taskData || task}
+        onConfirm={async (verification_comment) => {
+          setSaving(true);
+          try {
+            const updated = await api.updateTask(task.id, { status: 'completed', verification_comment });
+            setTaskData(updated);
+            api.getComments(task.id).then(setComments).catch(() => {});
+            onTaskUpdated?.();
+          } catch (err) {
+            alert(err.message || 'Failed to complete verification.');
+          } finally {
+            setSaving(false);
+          }
+        }}
+      />
     </div>
   );
 }
