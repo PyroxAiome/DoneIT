@@ -79,7 +79,6 @@ export default function TaskCard({ task, compact, onEdit, onDelete, onSelect, on
   const colors = priorityColorMap[task.priority] || priorityColorMap.medium;
   const [showMenu, setShowMenu] = useState(false);
   const [fbCount, setFbCount] = useState(0);
-  const [showVerificationReviewModal, setShowVerificationReviewModal] = useState(false);
   const isOverdue = task.due_date && new Date(task.due_date) < new Date() && task.status !== 'completed';
   const statusActions = ['todo', 'in_progress', 'under_review', 'completed'].filter(s => s !== task.status);
 
@@ -89,9 +88,11 @@ export default function TaskCard({ task, compact, onEdit, onDelete, onSelect, on
 
   const handleStatusChange = async (newStatus) => {
     if (newStatus === 'completed' && (user?.role === 'admin' || Number(task.verifier_id) === Number(user?.id))) {
-      setShowVerificationReviewModal(true);
-      setShowMenu(false);
-      return;
+      if (onViewDetail) {
+        onViewDetail(task);
+        setShowMenu(false);
+        return;
+      }
     }
     try {
       const result = await api.updateTask(task.id, { status: newStatus });
@@ -414,16 +415,6 @@ export default function TaskCard({ task, compact, onEdit, onDelete, onSelect, on
           <MessageSquare className="w-2.5 h-2.5 sm:w-3 sm:h-3" /> {fbCount}
         </span>
       </div>
-
-      <VerificationReviewModal
-        isOpen={showVerificationReviewModal}
-        onClose={() => setShowVerificationReviewModal(false)}
-        task={task}
-        onConfirm={async (verification_comment) => {
-          await api.updateTask(task.id, { status: 'completed', verification_comment });
-          if (onEdit) onEdit();
-        }}
-      />
     </div>
   );
 }

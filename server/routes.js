@@ -1116,10 +1116,6 @@ router.put('/tasks/:id', auth, async (req, res) => {
         req.body.status = 'under_review';
         verificationRequired = true;
       } else {
-        const verificationComment = (req.body.verification_comment || req.body.comment_text || '').trim();
-        if (!verificationComment) {
-          return res.status(400).json({ error: 'A verification review comment is required to complete this task. Please provide review notes before verifying.' });
-        }
         req.body.verified_at = new Date();
         req.body.completed_by = req.user.id;
       }
