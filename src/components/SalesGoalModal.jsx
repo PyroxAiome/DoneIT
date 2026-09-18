@@ -2,17 +2,20 @@ import { useState, useEffect } from 'react';
 import { api } from '../lib/api';
 import { X, Target, Check, AlertCircle, Building2, User } from 'lucide-react';
 
-const PRODUCT_CATEGORIES = [
-  { id: 'general', label: 'General / All Categories' },
-  { id: 'software', label: 'Software Development & Automation' },
-  { id: 'electronics', label: 'Electronics & Hardware Systems' },
-  { id: 'commercial', label: 'Commercial Infrastructure' },
-  { id: 'legal', label: 'Legal & Compliance Consultancy' },
-  { id: 'sales_marketing', label: 'Sales & Marketing Execution' },
-  { id: 'hvac', label: 'HVAC & Climate Control' },
-  { id: 'real_estate', label: 'Real Estate Development' },
-  { id: 'hospitality', label: 'Hospitality & Leisure' },
-  { id: 'other', label: 'Other Category' }
+const PRODUCTS = [
+  { value: 'general', label: '🌐 All Product Lines' },
+  { value: 'home_automation', label: '🏠 Home Automation' },
+  { value: 'fire_ready', label: '🔥 Fire-ready' },
+  { value: 'firesafety', label: '🧯 Firesafety' },
+  { value: 'other', label: '📌 Other' }
+];
+
+const PRIORITIES = [
+  { value: 'active', label: '🟢 Active' },
+  { value: 'highly_active', label: '⚡ Highly Active' },
+  { value: 'regular', label: '🔷 Regular' },
+  { value: 'dormant', label: '🌙 Dormant' },
+  { value: 'lost', label: '❌ Lost' }
 ];
 
 const REGIONS = [
@@ -31,7 +34,7 @@ export default function SalesGoalModal({ isOpen, onClose, onSave, editingGoal, l
     target_value: '',
     product_category: 'general',
     region: '',
-    priority: 'medium',
+    priority: 'active',
     period_type: 'monthly',
     period_start: '',
     period_end: '',
@@ -62,7 +65,7 @@ export default function SalesGoalModal({ isOpen, onClose, onSave, editingGoal, l
         target_value: editingGoal.target_value || '',
         product_category: editingGoal.product_category || 'general',
         region: editingGoal.region || '',
-        priority: editingGoal.priority || 'medium',
+        priority: editingGoal.priority || 'active',
         period_type: editingGoal.period_type || 'monthly',
         period_start: editingGoal.period_start || '',
         period_end: editingGoal.period_end || '',
@@ -78,7 +81,7 @@ export default function SalesGoalModal({ isOpen, onClose, onSave, editingGoal, l
         target_value: '',
         product_category: 'general',
         region: '',
-        priority: 'medium',
+        priority: 'active',
         period_type: 'monthly',
         period_start: '',
         period_end: '',
@@ -220,7 +223,7 @@ export default function SalesGoalModal({ isOpen, onClose, onSave, editingGoal, l
                 type="text"
                 value={form.name}
                 onChange={handleChange('name')}
-                placeholder={form.goal_scope === 'individual' ? "e.g. Satyam Q3 Sales Goal" : "e.g. Q3 2026 — ₹5 Cr Revenue Target"}
+                placeholder={form.goal_scope === 'individual' ? "e.g. Satyam Q3 Target — Home Automation" : "e.g. Q3 2026 — ₹5 Cr Revenue Target"}
                 className="input-field"
                 required
               />
@@ -237,13 +240,13 @@ export default function SalesGoalModal({ isOpen, onClose, onSave, editingGoal, l
             </div>
           </div>
 
-          {/* Product Line / Category, Region & Priority */}
+          {/* Product Line, Region & Priority Level */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
-              <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wider block mb-1">Product Line / Category</label>
+              <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wider block mb-1">Product Line</label>
               <select value={form.product_category} onChange={handleChange('product_category')} className="input-field">
-                {PRODUCT_CATEGORIES.map(cat => (
-                  <option key={cat.id} value={cat.id}>{cat.label}</option>
+                {PRODUCTS.map(prod => (
+                  <option key={prod.value} value={prod.value}>{prod.label}</option>
                 ))}
               </select>
             </div>
@@ -259,10 +262,9 @@ export default function SalesGoalModal({ isOpen, onClose, onSave, editingGoal, l
             <div>
               <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wider block mb-1">Priority Level</label>
               <select value={form.priority} onChange={handleChange('priority')} className="input-field">
-                <option value="low">Low Priority</option>
-                <option value="medium">Medium Priority</option>
-                <option value="high">High Priority</option>
-                <option value="critical">Critical / Hot Goal</option>
+                {PRIORITIES.map(prio => (
+                  <option key={prio.value} value={prio.value}>{prio.label}</option>
+                ))}
               </select>
             </div>
           </div>
