@@ -110,6 +110,7 @@ export default function SalesLeadDetailModal({ leadId, isOpen, onClose, user, on
 
   // Activity form state
   const [showActivityForm, setShowActivityForm] = useState(false);
+  const [editingActivityId, setEditingActivityId] = useState(null);
   const [activityForm, setActivityForm] = useState({
     activity_type: 'call', negative_reason: '', title: '', description: '', probability_change: 0, activity_date: new Date().toISOString().split('T')[0]
   });
@@ -249,11 +250,7 @@ export default function SalesLeadDetailModal({ leadId, isOpen, onClose, user, on
     setError('');
     try {
       const trimmedNote = (editHistoryNoteText || '').trim();
-      if (!trimmedNote) {
-        await api.deleteSalesStageHistory(lead.id, historyId);
-      } else {
-        await api.updateSalesStageHistoryNote(lead.id, historyId, trimmedNote);
-      }
+      await api.updateSalesStageHistoryNote(lead.id, historyId, trimmedNote);
       setEditingHistoryId(null);
       setEditHistoryNoteText('');
       fetchLeadDetails();
@@ -352,13 +349,31 @@ export default function SalesLeadDetailModal({ leadId, isOpen, onClose, user, on
     }
   };
 
-  // ── Activity Handler ──
+  // ── Activity Handlers ──
+  const handleEditActivity = (act) => {
+    setEditingActivityId(act.id);
+    setActivityForm({
+      activity_type: act.activity_type || 'call',
+      negative_reason: act.negative_reason || '',
+      title: act.title || '',
+      description: act.description || '',
+      probability_change: act.probability_change || 0,
+      activity_date: act.activity_date || (act.created_at ? act.created_at.split('T')[0] : new Date().toISOString().split('T')[0])
+    });
+    setShowActivityForm(true);
+  };
+
   const handleSaveActivity = async (e) => {
     e.preventDefault();
     if (!activityForm.description.trim()) return;
     try {
-      await api.createSalesActivity(lead.id, activityForm);
+      if (editingActivityId) {
+        await api.updateSalesActivity(lead.id, editingActivityId, activityForm);
+      } else {
+        await api.createSalesActivity(lead.id, activityForm);
+      }
       setShowActivityForm(false);
+      setEditingActivityId(null);
       setActivityForm({ activity_type: 'call', negative_reason: '', title: '', description: '', probability_change: 0, activity_date: new Date().toISOString().split('T')[0] });
       fetchLeadDetails();
       window.dispatchEvent(new CustomEvent('sales-updated'));
@@ -1080,7 +1095,11 @@ export default function SalesLeadDetailModal({ leadId, isOpen, onClose, user, on
                   <div className="flex items-center justify-between">
                     <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider">Activities & Event Timeline</h3>
                     <button
-                      onClick={() => setShowActivityForm(!showActivityForm)}
+                      onClick={() => {
+                        setEditingActivityId(null);
+                        setActivityForm({ activity_type: 'call', negative_reason: '', title: '', description: '', probability_change: 0, activity_date: new Date().toISOString().split('T')[0] });
+                        setShowActivityForm(!showActivityForm);
+                      }}
                       className="btn-amber text-xs px-3 py-1.5 flex items-center gap-1"
                     >
                       <Plus className="w-3.5 h-3.5" />
@@ -1091,7 +1110,7 @@ export default function SalesLeadDetailModal({ leadId, isOpen, onClose, user, on
                   {/* Log Activity Form */}
                   {showActivityForm && (
                     <form onSubmit={handleSaveActivity} className="p-4 bg-gray-50 border border-gray-200 rounded-xl space-y-3 animate-in fade-in">
-                      <h4 className="text-xs font-semibold text-gray-900">Log Activity or Probability Event</h4>
+                      <h4 className="text-xs font-semibold text-gray-900">{editingActivityId ? 'Edit Logged Activity / Event' : 'Log Activity or Probability Event'}</h4>
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                         <div>
                           <label className="text-[11px] text-gray-600 block mb-1">Activity Type *</label>
@@ -1151,8 +1170,8 @@ export default function SalesLeadDetailModal({ leadId, isOpen, onClose, user, on
                       </div>
 
                       <div className="flex justify-end gap-2 pt-2">
-                        <button type="button" onClick={() => setShowActivityForm(false)} className="btn-primary text-xs">Cancel</button>
-                        <button type="submit" className="btn-amber text-xs">Log Activity</button>
+                        <button type="button" onClick={() => { setShowActivityForm(false); setEditingActivityId(null); }} className="btn-primary text-xs">Cancel</button>
+                        <button type="submit" className="btn-amber text-xs">{editingActivityId ? 'Update Activity' : 'Log Activity'}</button>
                       </div>
                     </form>
                   )}
@@ -1165,20 +1184,28 @@ export default function SalesLeadDetailModal({ leadId, isOpen, onClose, user, on
                       {lead.activities?.map(act => (
                         <div key={act.id} className="relative text-xs space-y-1">
                           <div className={`absolute -left-[23px] top-0.5 w-3 h-3 rounded-full border-2 border-white ${act.activity_type === 'negative_event' ? 'bg-red-500' : 'bg-amber-500'}`} />
-                          <div className="flex items-center gap-2">
-                            <span className="font-semibold text-gray-900">
-                              {ACTIVITY_TYPES.find(a => a.value === act.activity_type)?.label || act.activity_type}
-                            </span>
-                            {act.negative_reason && (
-                              <span className="text-[10px] font-bold bg-red-100 text-red-700 px-1.5 py-0.5 rounded border border-red-200">
-                                {NEGATIVE_REASONS.find(nr => nr.value === act.negative_reason)?.label || act.negative_reason}
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-semibold text-gray-900">
+                                {ACTIVITY_TYPES.find(a => a.value === act.activity_type)?.label || act.activity_type}
                               </span>
-                            )}
-                            {act.probability_change !== 0 && (
-                              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${act.probability_change > 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}`}>
-                                {act.probability_change > 0 ? `+${act.probability_change}%` : `${act.probability_change}%`}
-                              </span>
-                            )}
+                              {act.negative_reason && (
+                                <span className="text-[10px] font-bold bg-red-100 text-red-700 px-1.5 py-0.5 rounded border border-red-200">
+                                  {NEGATIVE_REASONS.find(nr => nr.value === act.negative_reason)?.label || act.negative_reason}
+                                </span>
+                              )}
+                              {act.probability_change !== 0 && (
+                                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${act.probability_change > 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}`}>
+                                  {act.probability_change > 0 ? `+${act.probability_change}%` : `${act.probability_change}%`}
+                                </span>
+                              )}
+                            </div>
+                            <button
+                              onClick={() => handleEditActivity(act)}
+                              className="text-amber-700 hover:text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-200/80 px-2 py-0.5 rounded transition-colors flex items-center gap-1 text-[11px] font-semibold shrink-0"
+                            >
+                              <Edit3 className="w-3 h-3" /> Edit
+                            </button>
                           </div>
                           <p className="text-gray-700 whitespace-pre-wrap leading-relaxed mt-1">{act.description}</p>
                           <div className="text-[10px] text-gray-400">

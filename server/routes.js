@@ -4094,16 +4094,6 @@ router.put('/sales/leads/:id/stage-history/:historyId', auth, salesAccessOnly, a
   }
 });
 
-// Delete Stage Transition History Record Endpoint
-router.delete('/sales/leads/:id/stage-history/:historyId', auth, salesAccessOnly, async (req, res) => {
-  try {
-    const { id, historyId } = req.params;
-    await db.query('DELETE FROM sales_stage_history WHERE id = $1 AND lead_id = $2', [historyId, id]);
-    res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
 
 router.delete('/sales/leads/:id', auth, adminOnly, async (req, res) => {
   try {
@@ -4683,6 +4673,37 @@ router.post('/sales/leads/:id/activities', auth, salesAccessOnly, async (req, re
     }
 
     res.status(201).json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.put('/sales/leads/:id/activities/:activityId', auth, salesAccessOnly, async (req, res) => {
+  try {
+    const { id, activityId } = req.params;
+    const { activity_type, negative_reason, title, description, probability_change, activity_date } = req.body;
+
+    if (!activity_type || !description || !description.trim()) {
+      return res.status(400).json({ error: 'Activity type and description are required' });
+    }
+
+    const changeVal = parseInt(probability_change || 0, 10);
+    const dateVal = activity_date || new Date().toISOString().split('T')[0];
+
+    const { rows } = await db.query(`
+      UPDATE sales_lead_activities
+      SET activity_type = $1,
+          negative_reason = $2,
+          title = $3,
+          description = $4,
+          probability_change = $5,
+          activity_date = $6
+      WHERE id = $7 AND lead_id = $8
+      RETURNING *
+    `, [activity_type, negative_reason || '', title || '', description.trim(), changeVal, dateVal, activityId, id]);
+
+    if (!rows[0]) return res.status(404).json({ error: 'Activity record not found' });
+    res.json(rows[0]);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

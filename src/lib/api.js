@@ -504,9 +504,6 @@ export const api = {
       body: JSON.stringify({ notes }),
     }),
 
-  deleteSalesStageHistory: (id, historyId) =>
-    request(`/sales/leads/${id}/stage-history/${historyId}`, { method: 'DELETE' }),
-
   getSalesLeadContacts: (id) => request(`/sales/leads/${id}/contacts`),
 
   createSalesLeadContact: (id, data) =>
@@ -544,6 +541,12 @@ export const api = {
   createSalesActivity: (id, data) =>
     request(`/sales/leads/${id}/activities`, {
       method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  updateSalesActivity: (id, activityId, data) =>
+    request(`/sales/leads/${id}/activities/${activityId}`, {
+      method: 'PUT',
       body: JSON.stringify(data),
     }),
 
