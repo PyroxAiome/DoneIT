@@ -504,6 +504,9 @@ export const api = {
       body: JSON.stringify({ notes }),
     }),
 
+  deleteSalesStageHistory: (id, historyId) =>
+    request(`/sales/leads/${id}/stage-history/${historyId}`, { method: 'DELETE' }),
+
   getSalesLeadContacts: (id) => request(`/sales/leads/${id}/contacts`),
 
   createSalesLeadContact: (id, data) =>

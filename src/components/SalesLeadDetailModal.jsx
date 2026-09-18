@@ -248,7 +248,12 @@ export default function SalesLeadDetailModal({ leadId, isOpen, onClose, user, on
     setSavingHistoryNote(true);
     setError('');
     try {
-      await api.updateSalesStageHistoryNote(lead.id, historyId, editHistoryNoteText);
+      const trimmedNote = (editHistoryNoteText || '').trim();
+      if (!trimmedNote) {
+        await api.deleteSalesStageHistory(lead.id, historyId);
+      } else {
+        await api.updateSalesStageHistoryNote(lead.id, historyId, trimmedNote);
+      }
       setEditingHistoryId(null);
       setEditHistoryNoteText('');
       fetchLeadDetails();
@@ -516,7 +521,7 @@ export default function SalesLeadDetailModal({ leadId, isOpen, onClose, user, on
         ) : (
           <>
             {/* Clean Tabs Navigation Bar (Matching TaskDetailModal) */}
-            <div className="flex border-b border-gray-100 bg-white px-5 gap-1 overflow-x-auto">
+            <div className="flex border-b border-gray-100 bg-white px-5 gap-1 overflow-x-auto shrink-0 sticky top-0 z-10">
               <button
                 onClick={() => setActiveTab('pipeline')}
                 className={`py-3 px-4 text-xs font-semibold border-b-2 transition-colors flex items-center gap-1.5 whitespace-nowrap ${activeTab === 'pipeline' ? 'border-amber-600 text-amber-700' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
@@ -752,73 +757,77 @@ export default function SalesLeadDetailModal({ leadId, isOpen, onClose, user, on
                   {/* Audit History of Stage Transitions */}
                   <div>
                     <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Audit History of Stage Transitions</h3>
-                    {lead.history?.length === 0 ? (
-                      <p className="text-xs text-gray-400 italic">No transition history recorded yet.</p>
-                    ) : (
-                      <div className="relative border-l-2 border-gray-200 ml-3 space-y-4 pl-4">
-                        {lead.history?.map((h, i) => (
-                          <div key={h.id || i} className="relative text-xs space-y-1">
-                            <div className="absolute -left-[23px] top-0.5 w-3 h-3 rounded-full bg-amber-500 border-2 border-white" />
-                            <div className="flex items-center justify-between">
-                              <div className="font-semibold text-gray-900 flex items-center gap-1.5 flex-wrap">
-                                <span>{h.from_stage ? `${STAGE_LABELS[h.from_stage] || h.from_stage} ➔ ` : ''}{STAGE_LABELS[h.to_stage] || h.to_stage}</span>
-                                {h.was_skipped && (
-                                  <span className="text-[10px] text-red-600 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded font-bold">
-                                    🔴 Skipped Step
-                                  </span>
-                                )}
-                              </div>
-                              <button
-                                onClick={() => handleStartEditHistoryNote(h)}
-                                className="text-amber-700 hover:text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-200/80 px-2 py-0.5 rounded transition-colors flex items-center gap-1 text-[11px] font-semibold shrink-0"
-                              >
-                                <Edit3 className="w-3 h-3" /> Edit Note
-                              </button>
-                            </div>
-                            <div className="text-[11px] text-gray-500">
-                              By <strong>{h.changed_by_name || 'System'}</strong> on {new Date(h.created_at).toLocaleString()}
-                            </div>
-
-                            {editingHistoryId === h.id ? (
-                              <div className="mt-2 p-3 bg-amber-50/50 border border-amber-200 rounded-xl space-y-2 animate-in fade-in">
-                                <label className="text-[11px] font-semibold text-amber-900 block">Edit Stage Move Note:</label>
-                                <textarea
-                                  value={editHistoryNoteText}
-                                  onChange={(e) => setEditHistoryNoteText(e.target.value)}
-                                  placeholder="Enter updated stage move notes..."
-                                  className="input-field text-xs bg-white min-h-[65px] focus:ring-amber-500"
-                                />
-                                <div className="flex items-center justify-end gap-2 pt-1">
-                                  <button
-                                    type="button"
-                                    onClick={() => setEditingHistoryId(null)}
-                                    className="btn-primary text-xs py-1 px-3"
-                                  >
-                                    Cancel
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleSaveHistoryNote(h.id)}
-                                    disabled={savingHistoryNote}
-                                    className="btn-amber text-xs py-1 px-3 flex items-center gap-1 disabled:opacity-50"
-                                  >
-                                    {savingHistoryNote ? 'Saving...' : 'Save Note'}
-                                  </button>
+                    {(() => {
+                      const visibleHistory = (lead.history || []).filter(h => h.notes && h.notes.trim() !== '');
+                      if (visibleHistory.length === 0) {
+                        return <p className="text-xs text-gray-400 italic">No transition history recorded yet.</p>;
+                      }
+                      return (
+                        <div className="relative border-l-2 border-gray-200 ml-3 space-y-4 pl-4">
+                          {visibleHistory.map((h, i) => (
+                            <div key={h.id || i} className="relative text-xs space-y-1">
+                              <div className="absolute -left-[23px] top-0.5 w-3 h-3 rounded-full bg-amber-500 border-2 border-white" />
+                              <div className="flex items-center justify-between">
+                                <div className="font-semibold text-gray-900 flex items-center gap-1.5 flex-wrap">
+                                  <span>{h.from_stage ? `${STAGE_LABELS[h.from_stage] || h.from_stage} ➔ ` : ''}{STAGE_LABELS[h.to_stage] || h.to_stage}</span>
+                                  {h.was_skipped && (
+                                    <span className="text-[10px] text-red-600 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded font-bold">
+                                      🔴 Skipped Step
+                                    </span>
+                                  )}
                                 </div>
+                                <button
+                                  onClick={() => handleStartEditHistoryNote(h)}
+                                  className="text-amber-700 hover:text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-200/80 px-2 py-0.5 rounded transition-colors flex items-center gap-1 text-[11px] font-semibold shrink-0"
+                                >
+                                  <Edit3 className="w-3 h-3" /> Edit Note
+                                </button>
                               </div>
-                            ) : (
-                              h.notes ? (
-                                <p className="text-gray-700 bg-gray-50 p-2.5 rounded-lg italic border border-gray-100 text-xs">
-                                  "{h.notes}"
-                                </p>
+                              <div className="text-[11px] text-gray-500">
+                                By <strong>{h.changed_by_name || 'System'}</strong> on {new Date(h.created_at).toLocaleString()}
+                              </div>
+
+                              {editingHistoryId === h.id ? (
+                                <div className="mt-2 p-3 bg-amber-50/50 border border-amber-200 rounded-xl space-y-2 animate-in fade-in">
+                                  <label className="text-[11px] font-semibold text-amber-900 block">Edit Stage Move Note:</label>
+                                  <textarea
+                                    value={editHistoryNoteText}
+                                    onChange={(e) => setEditHistoryNoteText(e.target.value)}
+                                    placeholder="Enter updated stage move notes (clear text to remove note)..."
+                                    className="input-field text-xs bg-white min-h-[65px] focus:ring-amber-500"
+                                  />
+                                  <div className="flex items-center justify-end gap-2 pt-1">
+                                    <button
+                                      type="button"
+                                      onClick={() => setEditingHistoryId(null)}
+                                      className="btn-primary text-xs py-1 px-3"
+                                    >
+                                      Cancel
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleSaveHistoryNote(h.id)}
+                                      disabled={savingHistoryNote}
+                                      className="btn-amber text-xs py-1 px-3 flex items-center gap-1 disabled:opacity-50"
+                                    >
+                                      {savingHistoryNote ? 'Saving...' : 'Save Note'}
+                                    </button>
+                                  </div>
+                                </div>
                               ) : (
-                                <p className="text-gray-400 italic text-[11px]">No notes added.</p>
-                              )
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    )}
+                                h.notes ? (
+                                  <p className="text-gray-700 bg-gray-50 p-2.5 rounded-lg italic border border-gray-100 text-xs whitespace-pre-wrap leading-relaxed">
+                                    "{h.notes}"
+                                  </p>
+                                ) : (
+                                  <p className="text-gray-400 italic text-[11px]">No notes added.</p>
+                                )
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
               )}
@@ -1171,7 +1180,7 @@ export default function SalesLeadDetailModal({ leadId, isOpen, onClose, user, on
                               </span>
                             )}
                           </div>
-                          <p className="text-gray-700">{act.description}</p>
+                          <p className="text-gray-700 whitespace-pre-wrap leading-relaxed mt-1">{act.description}</p>
                           <div className="text-[10px] text-gray-400">
                             Logged by {act.logged_by_name || 'System'} on {act.activity_date || new Date(act.created_at).toLocaleDateString()}
                           </div>

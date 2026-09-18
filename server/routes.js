@@ -4094,6 +4094,17 @@ router.put('/sales/leads/:id/stage-history/:historyId', auth, salesAccessOnly, a
   }
 });
 
+// Delete Stage Transition History Record Endpoint
+router.delete('/sales/leads/:id/stage-history/:historyId', auth, salesAccessOnly, async (req, res) => {
+  try {
+    const { id, historyId } = req.params;
+    await db.query('DELETE FROM sales_stage_history WHERE id = $1 AND lead_id = $2', [historyId, id]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.delete('/sales/leads/:id', auth, adminOnly, async (req, res) => {
   try {
     const { id } = req.params;
