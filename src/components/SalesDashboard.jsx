@@ -337,35 +337,38 @@ export default function SalesDashboard({ user, initialAssigneeId = '', initialLe
           </div>
         </div>
 
-          {goals.length === 0 ? (
-            <p className="text-xs text-gray-500 italic py-2">
-              No {subCategory.replace('_lakshya', '')} goals created yet.
-            </p>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              {goals.map(g => {
-                const isSelected = selectedGoalId === g.id;
-                const targetVal = parseFloat(g.target_value) || 0;
-                
-                const goalLeads = leads.filter(l => l.goal_id === g.id);
-                const currentVal = assigneeFilter
-                  ? goalLeads.reduce((sum, l) => sum + (parseFloat(l.lead_value) || 0), 0)
-                  : (parseFloat(g.current_value) || 0);
-                const totalLeadsCount = assigneeFilter ? goalLeads.length : (g.total_leads || 0);
-                const wonLeadsCount = assigneeFilter
-                  ? goalLeads.filter(l => l.current_stage === 'order' || l.current_stage === 'billing').length
-                  : (g.won_leads || 0);
+          {(() => {
+            const companyGoals = goals.filter(g => g.goal_scope === 'company' || (!g.goal_scope && !g.assigned_user_id));
+            const individualGoals = goals.filter(g => g.goal_scope === 'individual' || g.assigned_user_id);
 
-                const pct = targetVal > 0 ? Math.min(100, Math.round((currentVal / targetVal) * 100)) : 0;
+            const renderGoalCard = (g) => {
+              const isSelected = selectedGoalId === g.id;
+              const targetVal = parseFloat(g.target_value) || 0;
+              
+              const goalLeads = leads.filter(l => l.goal_id === g.id);
+              const currentVal = assigneeFilter
+                ? goalLeads.reduce((sum, l) => sum + (parseFloat(l.lead_value) || 0), 0)
+                : (parseFloat(g.current_value) || 0);
+              const totalLeadsCount = assigneeFilter ? goalLeads.length : (g.total_leads || 0);
+              const wonLeadsCount = assigneeFilter
+                ? goalLeads.filter(l => l.current_stage === 'order' || l.current_stage === 'billing').length
+                : (g.won_leads || 0);
 
-                return (
-                  <div
-                    key={g.id}
-                    onClick={() => setSelectedGoalId(isSelected ? null : g.id)}
-                    className={`p-3.5 rounded-xl border cursor-pointer transition-all ${isSelected ? 'bg-amber-50/70 border-amber-400 ring-2 ring-amber-400/30' : 'bg-gray-50 border-gray-200 hover:bg-white hover:shadow-xs'}`}
-                  >
+              const pct = targetVal > 0 ? Math.min(100, Math.round((currentVal / targetVal) * 100)) : 0;
+
+              return (
+                <div
+                  key={g.id}
+                  onClick={() => setSelectedGoalId(isSelected ? null : g.id)}
+                  className={`p-3 rounded-xl border cursor-pointer transition-all min-w-[280px] max-w-[320px] shrink-0 flex flex-col justify-between ${
+                    isSelected
+                      ? 'bg-amber-50/80 border-amber-400 ring-2 ring-amber-400/30 shadow-xs'
+                      : 'bg-gray-50/80 border-gray-200 hover:bg-white hover:shadow-xs'
+                  }`}
+                >
+                  <div>
                     <div className="flex items-center justify-between mb-1 gap-2">
-                      <h4 className="font-semibold text-xs text-gray-900 truncate flex-1">{g.name}</h4>
+                      <h4 className="font-semibold text-xs text-gray-900 truncate flex-1" title={g.name}>{g.name}</h4>
                       <div className="flex items-center gap-1 shrink-0 flex-wrap justify-end" onClick={(e) => e.stopPropagation()}>
                         <span className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded ${
                           g.goal_scope === 'individual' || g.assigned_user_id
@@ -380,7 +383,7 @@ export default function SalesDashboard({ user, initialAssigneeId = '', initialLe
                           {g.period_type}
                         </span>
                         {user?.role === 'admin' && !assigneeFilter && (
-                          <div className="flex items-center gap-0.5 ml-1">
+                          <div className="flex items-center gap-0.5 ml-0.5">
                             <button
                               onClick={() => { setEditingGoal(g); setShowGoalModal(true); }}
                               className="p-1 hover:bg-amber-100 rounded text-gray-500 hover:text-amber-700 transition-colors"
@@ -436,28 +439,72 @@ export default function SalesDashboard({ user, initialAssigneeId = '', initialLe
                         📝 {g.specifications}
                       </p>
                     )}
+                  </div>
 
-                    <div className="space-y-1.5 text-xs text-gray-600 mt-2">
-                      <div className="flex items-center justify-between">
-                        <span>Revenue Progress:</span>
-                        <strong className="text-amber-700 font-bold">{formatCurrency(currentVal)} / {formatCurrency(targetVal)}</strong>
-                      </div>
+                  <div className="space-y-1.5 text-xs text-gray-600 mt-2">
+                    <div className="flex items-center justify-between">
+                      <span>Revenue Progress:</span>
+                      <strong className="text-amber-700 font-bold">{formatCurrency(currentVal)} / {formatCurrency(targetVal)}</strong>
+                    </div>
 
-                      {/* Progress Bar */}
-                      <div className="w-full bg-gray-200 h-1.5 rounded-full overflow-hidden">
-                        <div className="bg-amber-500 h-full transition-all" style={{ width: `${pct}%` }} />
-                      </div>
+                    {/* Progress Bar */}
+                    <div className="w-full bg-gray-200 h-1.5 rounded-full overflow-hidden">
+                      <div className="bg-amber-500 h-full transition-all" style={{ width: `${pct}%` }} />
+                    </div>
 
-                      <div className="flex items-center justify-between text-[11px] text-gray-500 pt-1">
-                        <span>{totalLeadsCount} Leads • {wonLeadsCount} Won</span>
-                        <span className="font-bold text-amber-700">{pct}% Achieved</span>
-                      </div>
+                    <div className="flex items-center justify-between text-[11px] text-gray-500 pt-1">
+                      <span>{totalLeadsCount} Leads • {wonLeadsCount} Won</span>
+                      <span className="font-bold text-amber-700">{pct}% Achieved</span>
                     </div>
                   </div>
-                );
-              })}
-            </div>
-          )}
+                </div>
+              );
+            };
+
+            if (goals.length === 0) {
+              return (
+                <p className="text-xs text-gray-500 italic py-2">
+                  No {subCategory.replace('_lakshya', '')} goals created yet.
+                </p>
+              );
+            }
+
+            return (
+              <div className="space-y-4">
+                {/* Company Goals Section */}
+                <div>
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">
+                    <span>🏢 Company Goals ({companyGoals.length})</span>
+                  </div>
+                  {companyGoals.length === 0 ? (
+                    <p className="text-xs text-gray-400 italic bg-gray-50 p-2.5 rounded-lg border border-dashed border-gray-200">
+                      No company-wide goals defined.
+                    </p>
+                  ) : (
+                    <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-thin">
+                      {companyGoals.map(renderGoalCard)}
+                    </div>
+                  )}
+                </div>
+
+                {/* Individual Goals Section */}
+                <div>
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">
+                    <span>👤 Individual Sales Person Goals ({individualGoals.length})</span>
+                  </div>
+                  {individualGoals.length === 0 ? (
+                    <p className="text-xs text-gray-400 italic bg-gray-50 p-2.5 rounded-lg border border-dashed border-gray-200">
+                      No individual sales person goals assigned yet.
+                    </p>
+                  ) : (
+                    <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-thin">
+                      {individualGoals.map(renderGoalCard)}
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
 
           {selectedGoalId && (
             <div className="bg-amber-50 border border-amber-300 p-2.5 rounded-lg flex items-center justify-between text-xs text-amber-900 animate-in fade-in">
