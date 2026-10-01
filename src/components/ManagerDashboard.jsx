@@ -293,6 +293,9 @@ export default function ManagerDashboard({ user }) {
   };
 
   const workBaseTasks = tasks.filter(t => {
+    // Main workspace views strictly exclude project tasks
+    if (t.project_id) return false;
+
     if (activeTab === 'to_verify') {
       // To Verify shows BOTH project tasks and normal tasks where user is verifier
       const isVerifierTask = (Number(t.verifier_id) === Number(user.id) || Number(t.completed_by) === Number(user.id)) && Number(t.assignee_id) !== Number(user.id);

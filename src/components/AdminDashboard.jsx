@@ -324,6 +324,9 @@ export default function AdminDashboard({ user }) {
   };
 
   const workBaseTasks = tasks.filter(t => {
+    // Main workspace views strictly exclude project tasks (managed in Projects tab)
+    if (t.project_id) return false;
+
     if (selectedEmp) {
       const isMine = isAssignedToEmp(t, selectedEmp.id);
 
