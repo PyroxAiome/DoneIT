@@ -410,11 +410,11 @@ export default function AdminDashboard({ user }) {
     return 0;
   });
 
-  const empAllTasksCount = selectedEmp ? tasks.filter(t => isAssignedToEmp(t, selectedEmp.id)).length : 0;
-  const empActiveTasksCount = selectedEmp ? tasks.filter(t => isAssignedToEmp(t, selectedEmp.id) && t.status !== 'completed').length : 0;
-  const empCompletedTasksCount = selectedEmp ? tasks.filter(t => isAssignedToEmp(t, selectedEmp.id) && t.status === 'completed').length : 0;
-  const empCreatedForOthersCount = selectedEmp ? tasks.filter(t => Number(t.creator_id) === Number(selectedEmp.id) && !isAssignedToEmp(t, selectedEmp.id) && (!t.parent_id || t.id === t.parent_id)).length : 0;
-  const empVerifiedTasksCount = selectedEmp ? tasks.filter(t => t.status === 'completed' && (Number(t.completed_by) === Number(selectedEmp.id) || Number(t.verifier_id) === Number(selectedEmp.id)) && !isAssignedToEmp(t, selectedEmp.id)).length : 0;
+  const empAllTasksCount = selectedEmp ? tasks.filter(t => !t.project_id && isAssignedToEmp(t, selectedEmp.id)).length : 0;
+  const empActiveTasksCount = selectedEmp ? tasks.filter(t => !t.project_id && isAssignedToEmp(t, selectedEmp.id) && t.status !== 'completed').length : 0;
+  const empCompletedTasksCount = selectedEmp ? tasks.filter(t => !t.project_id && isAssignedToEmp(t, selectedEmp.id) && t.status === 'completed').length : 0;
+  const empCreatedForOthersCount = selectedEmp ? tasks.filter(t => !t.project_id && Number(t.creator_id) === Number(selectedEmp.id) && !isAssignedToEmp(t, selectedEmp.id) && (!t.parent_id || t.id === t.parent_id)).length : 0;
+  const empVerifiedTasksCount = selectedEmp ? tasks.filter(t => !t.project_id && t.status === 'completed' && (Number(t.completed_by) === Number(selectedEmp.id) || Number(t.verifier_id) === Number(selectedEmp.id)) && !isAssignedToEmp(t, selectedEmp.id)).length : 0;
 
   const metricCards = stats ? [
     { label: 'Total Tasks', value: stats.totalTasks, icon: ListTodo, color: 'text-gray-500' },
@@ -605,34 +605,8 @@ export default function AdminDashboard({ user }) {
 
       {(activeTab === 'work' || activeTab === 'all' || activeTab === 'completed' || activeTab === 'assigned_by_me' || activeTab === 'verified' || selectedEmp) && (
         <div className="space-y-4">
-          {selectedEmp && (
-            <div className="bg-amber-50 border border-amber-200/80 rounded-xl p-3 sm:p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={clearEmployeeFilter}
-                  className="p-1.5 bg-white hover:bg-amber-100 text-amber-800 rounded-lg border border-amber-200 shadow-xs transition-colors cursor-pointer"
-                  title="Back to Team"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h2 className="text-base font-bold text-gray-800">{selectedEmp.name}'s Profile Workspace</h2>
-                    <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-200">
-                      {selectedEmp.role ? selectedEmp.role.replace('_', ' ') : 'Employee'}
-                    </span>
-                  </div>
-                  <p className="text-xs text-gray-500 font-medium">Viewing tasks, daily updates, logical explanations & activity logs</p>
-                </div>
-              </div>
-              <button
-                onClick={clearEmployeeFilter}
-                className="text-xs font-semibold text-amber-800 hover:text-amber-900 bg-white px-3 py-1.5 rounded-lg border border-amber-200 hover:bg-amber-100/50 transition-colors shrink-0 flex items-center gap-1 cursor-pointer"
-              >
-                <X className="w-3.5 h-3.5" /> Back to Team List
-              </button>
-            </div>
-          )}
+
+
 
           {/* Work Pillars: General Tasks, Vishwas, Avishkar, Nirantar, Saksham */}
           <div className="flex items-center gap-2 p-1.5 bg-gray-100/90 rounded-xl border border-gray-200/80 w-fit flex-wrap shadow-xs">

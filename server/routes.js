@@ -351,12 +351,12 @@ router.get('/employees', auth, async (req, res) => {
         (
           SELECT COUNT(DISTINCT t.id)
           FROM tasks t
-          WHERE t.assignee_id = u.id
+          WHERE t.assignee_id = u.id AND t.project_id IS NULL
         ) as task_count,
         (
           SELECT COUNT(DISTINCT t.id)
           FROM tasks t
-          WHERE t.assignee_id = u.id AND t.status = 'completed'
+          WHERE t.assignee_id = u.id AND t.status = 'completed' AND t.project_id IS NULL
         ) as completed_task_count,
         COALESCE(
           (
@@ -368,7 +368,7 @@ router.get('/employees', auth, async (req, res) => {
               END
             ), 0)
             FROM tasks t
-            WHERE t.assignee_id = u.id
+            WHERE t.assignee_id = u.id AND t.project_id IS NULL
           ), 0
         ) as avg_progress,
         (

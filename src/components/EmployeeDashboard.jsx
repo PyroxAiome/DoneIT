@@ -5,7 +5,7 @@ import TaskModal from './TaskModal';
 import ConfirmDeleteModal from './ConfirmDeleteModal';
 import TaskDetailModal from './TaskDetailModal';
 import TaskVerificationModal from './TaskVerificationModal';
-import { Search, ListTodo, Filter, Plus, CheckCircle, Users, X, FolderGit2, ShieldCheck } from 'lucide-react';
+import { Search, ListTodo, Plus, CheckCircle, Users, X, FolderGit2, ShieldCheck } from 'lucide-react';
 import ProjectsList from './ProjectsList';
 import ProjectDetail from './ProjectDetail';
 import TaskKanbanBoard from './TaskKanbanBoard';
@@ -97,6 +97,9 @@ export default function EmployeeDashboard({ user }) {
       if (['projects', 'all', 'work', 'to_verify', 'completed', 'assigned_by_me', 'verified', 'team'].includes(tabId)) {
         setActiveTab(tabId);
         if (tabId !== 'projects') setSelectedProject(null);
+      } else {
+        // Unrecognized tab — default to 'work' to prevent blank screen
+        setActiveTab('work');
       }
       if (parts[1] === 'employee' && parts[2]) {
         // Interns cannot view other employees
@@ -301,11 +304,11 @@ export default function EmployeeDashboard({ user }) {
     return 0;
   });
 
-  const empAllTasksCount = selectedEmp ? tasks.filter(t => isAssignedToEmp(t, selectedEmp.id)).length : 0;
-  const empActiveTasksCount = selectedEmp ? tasks.filter(t => isAssignedToEmp(t, selectedEmp.id) && t.status !== 'completed').length : 0;
-  const empCompletedTasksCount = selectedEmp ? tasks.filter(t => isAssignedToEmp(t, selectedEmp.id) && t.status === 'completed').length : 0;
-  const empCreatedForOthersCount = selectedEmp ? tasks.filter(t => Number(t.creator_id) === Number(selectedEmp.id) && !isAssignedToEmp(t, selectedEmp.id) && (!t.parent_id || t.id === t.parent_id)).length : 0;
-  const empVerifiedTasksCount = selectedEmp ? tasks.filter(t => t.status === 'completed' && (Number(t.completed_by) === Number(selectedEmp.id) || Number(t.verifier_id) === Number(selectedEmp.id)) && !isAssignedToEmp(t, selectedEmp.id)).length : 0;
+  const empAllTasksCount = selectedEmp ? tasks.filter(t => !t.project_id && isAssignedToEmp(t, selectedEmp.id)).length : 0;
+  const empActiveTasksCount = selectedEmp ? tasks.filter(t => !t.project_id && isAssignedToEmp(t, selectedEmp.id) && t.status !== 'completed').length : 0;
+  const empCompletedTasksCount = selectedEmp ? tasks.filter(t => !t.project_id && isAssignedToEmp(t, selectedEmp.id) && t.status === 'completed').length : 0;
+  const empCreatedForOthersCount = selectedEmp ? tasks.filter(t => !t.project_id && Number(t.creator_id) === Number(selectedEmp.id) && !isAssignedToEmp(t, selectedEmp.id) && (!t.parent_id || t.id === t.parent_id)).length : 0;
+  const empVerifiedTasksCount = selectedEmp ? tasks.filter(t => !t.project_id && t.status === 'completed' && (Number(t.completed_by) === Number(selectedEmp.id) || Number(t.verifier_id) === Number(selectedEmp.id)) && !isAssignedToEmp(t, selectedEmp.id)).length : 0;
 
   const [quota, setQuota] = useState(null);
 
@@ -569,7 +572,7 @@ export default function EmployeeDashboard({ user }) {
         </div>
       )}
 
-      {(activeTab === 'work' || activeTab === 'to_verify' || activeTab === 'completed' || selectedEmp) && activeTab !== 'projects' && activeTab !== 'repeated_tasks' && (
+      {(activeTab === 'work' || activeTab === 'to_verify' || activeTab === 'completed' || activeTab === 'all' || activeTab === 'assigned_by_me' || activeTab === 'verified' || selectedEmp) && activeTab !== 'projects' && activeTab !== 'repeated_tasks' && (
         <>
           {/* Work Pillars: General Tasks, Vishwas, Avishkar, Nirantar, Saksham */}
           <div className="flex items-center gap-2 p-1.5 bg-gray-100/90 rounded-xl border border-gray-200/80 w-fit flex-wrap mb-3 shadow-xs">
@@ -710,44 +713,6 @@ export default function EmployeeDashboard({ user }) {
                 className="input-field pl-9"
                 placeholder="Search tasks..."
               />
-            </div>
-            
-            {(activeTab === 'work' || activeTab === 'all' || activeTab === 'to_verify' || selectedEmp) && (
-              <div className="flex items-center gap-1.5">
-                <Filter className="w-4 h-4 text-gray-400" />
-                {statusOptions.map((s) => (
-                  <button
-                    key={s}
-                    onClick={() => setStatusFilter(s)}
-                    className={`text-[10px] sm:text-xs px-1.5 sm:px-2.5 py-0.5 sm:py-1 rounded-lg border transition-colors font-semibold ${
-                      statusFilter === s
-                        ? 'bg-gray-800 text-white border-gray-700'
-                        : 'bg-white border-gray-200 text-gray-500 hover:text-gray-700 hover:bg-gray-50'
-                    }`}
-                  >
-                    {s ? s.replace('_', ' ') : 'All'}
-                  </button>
-                ))}
-              </div>
-            )}
-
-            <div className="flex items-center gap-1.5">
-              <span className="text-[10px] uppercase font-semibold text-gray-400">Category:</span>
-              <select
-                value={categoryFilter}
-                onChange={(e) => setCategoryFilter(e.target.value)}
-                className="text-[10px] sm:text-xs bg-white border border-gray-200 rounded-lg px-1.5 sm:px-2.5 py-0.5 sm:py-1 text-gray-500 hover:text-gray-700 focus:outline-none focus:ring-1 focus:ring-amber-500 font-semibold"
-              >
-                <option value="">All Categories</option>
-                <option value="General">General</option>
-                <option value="Software">Software</option>
-                <option value="Electronics">Electronics</option>
-                <option value="Mechanical">Mechanical</option>
-                <option value="Production">Production</option>
-                <option value="Commercial">Commercial</option>
-                <option value="Legal">Legal</option>
-                <option value="Sales & Marketing">Sales & Marketing</option>
-              </select>
             </div>
           </div>
 
