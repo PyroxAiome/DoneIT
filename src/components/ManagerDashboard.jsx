@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import ProjectsList from './ProjectsList';
 import ProjectDetail from './ProjectDetail';
+import TaskKanbanBoard from './TaskKanbanBoard';
 
 const tabs = [
   { id: 'projects', label: 'Projects', icon: FolderGit2 },
@@ -947,17 +948,15 @@ export default function ManagerDashboard({ user }) {
             <div className="flex justify-center py-12">
               <div className="animate-spin w-6 h-6 border-2 border-gray-300 border-t-gray-600 rounded-full" />
             </div>
-          ) : displayedTasks.length === 0 ? (
-            <div className="card text-center py-12">
-              <LayoutGrid className="w-10 h-10 text-gray-300 mx-auto mb-3" />
-              <p className="text-gray-500 text-sm">No tasks found</p>
-            </div>
           ) : (
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-              {displayedTasks.map((task) => (
-                <TaskCard key={task.id} task={task} onEdit={fetchAll} onDelete={setDeleteTask} onSelect={(t) => { setEditTask(t); setShowTaskModal(true); }} onViewDetail={setDetailTask} onVerificationNeeded={setVerificationTask} />
-              ))}
-            </div>
+            <TaskKanbanBoard
+              tasks={displayedTasks}
+              onRefresh={fetchAll}
+              onViewDetail={setDetailTask}
+              onEditTask={(t) => { setEditTask(t); setShowTaskModal(true); }}
+              onDeleteTask={setDeleteTask}
+              selectedEmp={selectedEmp}
+            />
           )}
         </>
       )}

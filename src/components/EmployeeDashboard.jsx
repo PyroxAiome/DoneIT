@@ -8,6 +8,7 @@ import TaskVerificationModal from './TaskVerificationModal';
 import { Search, ListTodo, Filter, Plus, CheckCircle, Users, X, FolderGit2, ShieldCheck } from 'lucide-react';
 import ProjectsList from './ProjectsList';
 import ProjectDetail from './ProjectDetail';
+import TaskKanbanBoard from './TaskKanbanBoard';
 
 const tabs = [
   { id: 'projects', label: 'Projects', icon: FolderGit2 },
@@ -751,33 +752,21 @@ export default function EmployeeDashboard({ user }) {
             <div className="flex justify-center py-12">
               <div className="animate-spin w-6 h-6 border-2 border-gray-300 border-t-gray-600 rounded-full" />
             </div>
-          ) : displayedTasks.length === 0 ? (
-            <div className="card text-center py-12">
-              <ListTodo className="w-10 h-10 text-gray-300 mx-auto mb-3" />
-              <p className="text-gray-500 text-sm">No tasks yet</p>
-            </div>
           ) : (
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-              {displayedTasks.map((task) => (
-                <TaskCard
-                  key={task.id}
-                  task={task}
-                  readOnly={isReadOnly}
-                  onEdit={fetchTasksOnly}
-                  onDelete={setDeleteTarget}
-                  onViewDetail={setDetailTask}
-                  onSelect={(t) => { 
-                    if (user?.role === 'intern') {
-                      setDetailTask(t);
-                    } else {
-                      setEditTask(t); 
-                      setShowTaskModal(true); 
-                    }
-                  }}
-                  onVerificationNeeded={setVerificationTask}
-                />
-              ))}
-            </div>
+            <TaskKanbanBoard
+              tasks={displayedTasks}
+              onRefresh={fetchTasksOnly}
+              onViewDetail={setDetailTask}
+              onEditTask={(t) => {
+                if (user?.role === 'intern') {
+                  setDetailTask(t);
+                } else {
+                  setEditTask(t);
+                  setShowTaskModal(true);
+                }
+              }}
+              onDeleteTask={setDeleteTarget}
+            />
           )}
         </>
       )}

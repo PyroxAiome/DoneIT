@@ -13,6 +13,7 @@ import {
 import ProjectsList from './ProjectsList';
 import ProjectDetail from './ProjectDetail';
 import SalesDashboard from './SalesDashboard';
+import TaskKanbanBoard from './TaskKanbanBoard';
 
 const tabs = [
   { id: 'overview', label: 'Overview', icon: LayoutDashboard },
@@ -893,23 +894,15 @@ export default function AdminDashboard({ user }) {
             <div className="flex justify-center py-12">
               <div className="animate-spin w-6 h-6 border-2 border-gray-300 border-t-gray-600 rounded-full" />
             </div>
-          ) : displayedTasks.length === 0 ? (
-            <div className="card text-center py-12">
-              <Briefcase className="w-10 h-10 text-gray-300 mx-auto mb-3" />
-              <p className="text-gray-500 text-sm">{employeeFilter ? 'No tasks for this team member' : 'No tasks found'}</p>
-            </div>
-          ) : compact ? (
-            <div className="space-y-1.5">
-              {displayedTasks.map((task) => (
-                <TaskCard key={task.id} task={task} compact onEdit={fetchAll} onDelete={setDeleteTask} onSelect={handleEditTask} onViewDetail={setDetailTask} />
-              ))}
-            </div>
           ) : (
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-              {displayedTasks.map((task) => (
-                <TaskCard key={task.id} task={task} onEdit={fetchAll} onDelete={setDeleteTask} onSelect={handleEditTask} onViewDetail={setDetailTask} />
-              ))}
-            </div>
+            <TaskKanbanBoard
+              tasks={displayedTasks}
+              onRefresh={fetchAll}
+              onViewDetail={setDetailTask}
+              onEditTask={handleEditTask}
+              onDeleteTask={setDeleteTask}
+              selectedEmp={selectedEmp}
+            />
           )}
         </div>
       )}
