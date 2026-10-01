@@ -826,39 +826,7 @@ export default function ManagerDashboard({ user }) {
               <input value={searchText} onChange={(e) => setSearchText(e.target.value)} className="input-field pl-9" placeholder="Search tasks..." />
             </div>
             
-            {(activeTab === 'work' || activeTab === 'all' || activeTab === 'to_verify' || selectedEmp) && (
-              <div className="flex items-center gap-1.5">
-                <span className="text-[10px] uppercase font-semibold text-gray-400">Status:</span>
-                <select
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
-                  className={getStatusSelectClass(statusFilter)}
-                >
-                  <option value="" className="text-gray-500 font-normal">All Statuses</option>
-                  <option value="todo" className="text-gray-600 font-semibold bg-gray-50">To Do</option>
-                  <option value="in_progress" className="text-blue-600 font-semibold bg-blue-50">In Progress</option>
-                  <option value="under_review" className="text-purple-600 font-semibold bg-purple-50">Under Review</option>
-                  <option value="completed" className="text-emerald-600 font-semibold bg-emerald-50">Completed</option>
-                </select>
-              </div>
-            )}
 
-            {(activeTab === 'work' || activeTab === 'all' || selectedEmp) && (
-              <div className="flex items-center gap-1.5">
-                <span className="text-[10px] uppercase font-semibold text-gray-400">Priority:</span>
-                <select
-                  value={priorityFilter}
-                  onChange={(e) => setPriorityFilter(e.target.value)}
-                  className={getPrioritySelectClass(priorityFilter)}
-                >
-                  <option value="" className="text-gray-500 font-normal">All Priorities</option>
-                  <option value="low" className="text-slate-700 font-semibold bg-slate-100">Low</option>
-                  <option value="medium" className="text-blue-700 font-semibold bg-blue-50">Medium</option>
-                  <option value="high" className="text-orange-700 font-semibold bg-orange-50">High</option>
-                  <option value="urgent" className="text-red-700 font-semibold bg-red-50">Urgent</option>
-                </select>
-              </div>
-            )}
 
             <div className="flex items-center gap-1.5">
               <span className="text-[10px] uppercase font-semibold text-gray-400">Category:</span>

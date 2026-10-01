@@ -709,24 +709,7 @@ export default function EmployeeDashboard({ user }) {
               />
             </div>
             
-            {(activeTab === 'work' || activeTab === 'all' || activeTab === 'to_verify' || selectedEmp) && (
-              <div className="flex items-center gap-1.5">
-                <Filter className="w-4 h-4 text-gray-400" />
-                {statusOptions.map((s) => (
-                  <button
-                    key={s}
-                    onClick={() => setStatusFilter(s)}
-                    className={`text-[10px] sm:text-xs px-1.5 sm:px-2.5 py-0.5 sm:py-1 rounded-lg border transition-colors font-semibold ${
-                      statusFilter === s
-                        ? 'bg-gray-800 text-white border-gray-700'
-                        : 'bg-white border-gray-200 text-gray-500 hover:text-gray-700 hover:bg-gray-50'
-                    }`}
-                  >
-                    {s ? s.replace('_', ' ') : 'All'}
-                  </button>
-                ))}
-              </div>
-            )}
+
 
             <div className="flex items-center gap-1.5">
               <span className="text-[10px] uppercase font-semibold text-gray-400">Category:</span>
