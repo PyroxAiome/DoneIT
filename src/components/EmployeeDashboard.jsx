@@ -41,7 +41,7 @@ export default function EmployeeDashboard({ user }) {
   const [searchText, setSearchText] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
-  const [pillarFilter, setPillarFilter] = useState('general');
+  const [pillarFilter, setPillarFilter] = useState('all');
   const [employeeFilter, setEmployeeFilter] = useState(null);
   const [selectedEmp, setSelectedEmp] = useState(null);
   const [detailTask, setDetailTask] = useState(null);
@@ -51,14 +51,19 @@ export default function EmployeeDashboard({ user }) {
   const [verificationTask, setVerificationTask] = useState(null);
   const [selectedProject, setSelectedProject] = useState(null);
 
-  const fetchTasksOnly = () => {
-    setLoading(true);
+  const fetchTasksOnly = (isSilent = false) => {
+    if (!isSilent) setLoading(true);
     const params = {};
     if (employeeFilter) params.assignee_id = employeeFilter;
     if (statusFilter) params.status = statusFilter;
     if (categoryFilter) params.category = categoryFilter;
     if (search) params.search = search;
-    api.getTasks(params).then(setTasks).catch(() => {}).finally(() => setLoading(false));
+    api.getTasks(params)
+      .then(setTasks)
+      .catch(() => {})
+      .finally(() => {
+        if (!isSilent) setLoading(false);
+      });
   };
 
   useEffect(() => {
@@ -155,7 +160,7 @@ export default function EmployeeDashboard({ user }) {
     window.location.hash = 'team';
     setStatusFilter('');
     setCategoryFilter('');
-    setPillarFilter('general');
+    setPillarFilter('all');
   };
 
   const checkSalesProfileAccess = (emp) => {
@@ -173,7 +178,7 @@ export default function EmployeeDashboard({ user }) {
     if (!checkSalesProfileAccess(emp)) return;
     setStatusFilter('');
     setCategoryFilter('');
-    setPillarFilter('general');
+    setPillarFilter('all');
     window.location.hash = `all/employee/${emp.id}`;
   };
 
@@ -181,7 +186,7 @@ export default function EmployeeDashboard({ user }) {
     if (!checkSalesProfileAccess(emp)) return;
     setStatusFilter('');
     setCategoryFilter('');
-    setPillarFilter('general');
+    setPillarFilter('all');
     const targetTab = status === 'completed' ? 'completed' : 'work';
     window.location.hash = `${targetTab}/employee/${emp.id}`;
     if (status !== 'completed') {
@@ -577,6 +582,23 @@ export default function EmployeeDashboard({ user }) {
           {/* Work Pillars: General Tasks, Vishwas, Avishkar, Nirantar, Saksham */}
           <div className="flex items-center gap-2 p-1.5 bg-gray-100/90 rounded-xl border border-gray-200/80 w-fit flex-wrap mb-3 shadow-xs">
             <button
+              onClick={() => setPillarFilter('all')}
+              className={`px-3.5 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-all duration-150 flex items-center gap-2 cursor-pointer ${
+                pillarFilter === 'all'
+                  ? 'bg-amber-500 text-white shadow-xs'
+                  : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200/80 shadow-xs'
+              }`}
+            >
+              <span className="flex items-center gap-1.5">🌐 All Pillars</span>
+              <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
+                pillarFilter === 'all'
+                  ? 'bg-amber-600 text-white'
+                  : 'bg-gray-100 text-gray-600'
+              }`}>
+                {workBaseTasks.length}
+              </span>
+            </button>
+            <button
               onClick={() => setPillarFilter('general')}
               className={`px-3.5 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-all duration-150 flex items-center gap-2 cursor-pointer ${
                 pillarFilter === 'general'
@@ -723,7 +745,7 @@ export default function EmployeeDashboard({ user }) {
           ) : (
             <TaskKanbanBoard
               tasks={displayedTasks}
-              onRefresh={fetchTasksOnly}
+              onRefresh={() => fetchTasksOnly(true)}
               onViewDetail={setDetailTask}
               onEditTask={(t) => {
                 if (user?.role === 'intern') {

@@ -67,7 +67,7 @@ export default function ManagerDashboard({ user }) {
   const [searchText, setSearchText] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
-  const [pillarFilter, setPillarFilter] = useState('general');
+  const [pillarFilter, setPillarFilter] = useState('all');
   const [priorityFilter, setPriorityFilter] = useState('');
   const [dateRangeFilter, setDateRangeFilter] = useState('');
   const [customFromDate, setCustomFromDate] = useState('');
@@ -82,8 +82,8 @@ export default function ManagerDashboard({ user }) {
   const [myTasksOnly, setMyTasksOnly] = useState(false);
   const [selectedProject, setSelectedProject] = useState(null);
 
-  const fetchTasksOnly = () => {
-    setLoading(true);
+  const fetchTasksOnly = (isSilent = false) => {
+    if (!isSilent) setLoading(true);
     const params = {};
     if (statusFilter) params.status = statusFilter;
     if (categoryFilter) params.category = categoryFilter;
@@ -100,11 +100,13 @@ export default function ManagerDashboard({ user }) {
     api.getTasks(params)
       .then(setTasks)
       .catch(() => {})
-      .finally(() => setLoading(false));
+      .finally(() => {
+        if (!isSilent) setLoading(false);
+      });
   };
 
-  const fetchAll = () => {
-    setLoading(true);
+  const fetchAll = (isSilent = false) => {
+    if (!isSilent) setLoading(true);
     const params = {};
     if (statusFilter) params.status = statusFilter;
     if (categoryFilter) params.category = categoryFilter;
@@ -134,7 +136,9 @@ export default function ManagerDashboard({ user }) {
           setSelectedEmp(null);
         }
       }
-    }).finally(() => setLoading(false));
+    }).finally(() => {
+      if (!isSilent) setLoading(false);
+    });
   };
 
   useEffect(() => {
@@ -213,7 +217,7 @@ export default function ManagerDashboard({ user }) {
     setStatusFilter('');
     setPriorityFilter('');
     setCategoryFilter('');
-    setPillarFilter('general');
+    setPillarFilter('all');
     setDateRangeFilter('');
     setCustomFromDate('');
     setCustomToDate('');
@@ -235,7 +239,7 @@ export default function ManagerDashboard({ user }) {
     setStatusFilter('');
     setPriorityFilter('');
     setCategoryFilter('');
-    setPillarFilter('general');
+    setPillarFilter('all');
     window.location.hash = `all/employee/${emp.id}`;
   };
 
@@ -244,7 +248,7 @@ export default function ManagerDashboard({ user }) {
     setStatusFilter('');
     setPriorityFilter('');
     setCategoryFilter('');
-    setPillarFilter('general');
+    setPillarFilter('all');
     const targetTab = status === 'completed' ? 'completed' : 'work';
     window.location.hash = `${targetTab}/employee/${emp.id}`;
     if (status !== 'completed') {
@@ -257,7 +261,7 @@ export default function ManagerDashboard({ user }) {
     setStatusFilter('');
     setPriorityFilter('');
     setCategoryFilter('');
-    setPillarFilter('general');
+    setPillarFilter('all');
     setDateRangeFilter(dateRange);
     setCustomFromDate('');
     setCustomToDate('');
@@ -696,6 +700,23 @@ export default function ManagerDashboard({ user }) {
           {/* Work Pillars: General Tasks, Vishwas, Avishkar, Nirantar, Saksham */}
           <div className="flex items-center gap-2 p-1.5 bg-gray-100/90 rounded-xl border border-gray-200/80 w-fit flex-wrap mb-3 shadow-xs">
             <button
+              onClick={() => setPillarFilter('all')}
+              className={`px-3.5 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-all duration-150 flex items-center gap-2 cursor-pointer ${
+                pillarFilter === 'all'
+                  ? 'bg-amber-500 text-white shadow-xs'
+                  : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200/80 shadow-xs'
+              }`}
+            >
+              <span className="flex items-center gap-1.5">🌐 All Pillars</span>
+              <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
+                pillarFilter === 'all'
+                  ? 'bg-amber-600 text-white'
+                  : 'bg-gray-100 text-gray-600'
+              }`}>
+                {workBaseTasks.length}
+              </span>
+            </button>
+            <button
               onClick={() => setPillarFilter('general')}
               className={`px-3.5 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-all duration-150 flex items-center gap-2 cursor-pointer ${
                 pillarFilter === 'general'
@@ -954,7 +975,7 @@ export default function ManagerDashboard({ user }) {
           ) : (
             <TaskKanbanBoard
               tasks={displayedTasks}
-              onRefresh={fetchAll}
+              onRefresh={() => fetchTasksOnly(true)}
               onViewDetail={setDetailTask}
               onEditTask={(t) => { setEditTask(t); setShowTaskModal(true); }}
               onDeleteTask={setDeleteTask}
