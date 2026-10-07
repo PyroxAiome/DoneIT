@@ -1061,19 +1061,36 @@ router.put('/tasks/:id', auth, async (req, res) => {
     const currentTask = currentTaskRows[0];
     if (!currentTask) return res.status(404).json({ error: 'Task not found' });
 
-    if (req.user.role === 'intern') {
-      const allowedForIntern = ['status', 'progress_percent', 'logical_explanation'];
-      const attemptedFields = Object.keys(req.body);
-      const hasDisallowed = attemptedFields.some(f => !allowedForIntern.includes(f));
-      if (hasDisallowed) {
-        return res.status(403).json({ 
-          error: 'Interns can only update task status, progress, and explanations. Task definition cannot be edited by interns.' 
-        });
-      }
-    }
+    // Authorization check for non-admin/non-manager roles (employee, intern, site_manager, etc.)
+    if (!['admin', 'manager'].includes(req.user.role)) {
+      const uId = Number(req.user.id);
+      const isAssignee = Number(currentTask.assignee_id) === uId;
+      const isCreator = Number(currentTask.creator_id) === uId;
+      const isVerifier = Number(currentTask.verifier_id) === uId;
+      const isCompleter = Number(currentTask.completed_by) === uId;
+      const isHiringLead = Number(currentTask.hiring_lead_id) === uId;
+      let groupAssigneeIds = [];
+      try {
+        groupAssigneeIds = typeof currentTask.group_assignee_ids === 'string' 
+          ? JSON.parse(currentTask.group_assignee_ids) 
+          : (currentTask.group_assignee_ids || []);
+      } catch {}
+      const isGroupAssignee = Array.isArray(groupAssigneeIds) && groupAssigneeIds.map(Number).includes(uId);
 
-    if (req.user.role === 'employee' && currentTask.assignee_id !== req.user.id) {
-      return res.status(403).json({ error: 'Not authorized to update this task' });
+      if (!isAssignee && !isCreator && !isVerifier && !isCompleter && !isHiringLead && !isGroupAssignee) {
+        return res.status(403).json({ error: 'Not authorized: You can only update tasks assigned to you or created by you.' });
+      }
+
+      if (req.user.role === 'intern') {
+        const allowedForIntern = ['status', 'progress_percent', 'logical_explanation'];
+        const attemptedFields = Object.keys(req.body);
+        const hasDisallowed = attemptedFields.some(f => !allowedForIntern.includes(f));
+        if (hasDisallowed) {
+          return res.status(403).json({ 
+            error: 'Interns can only update task status, progress, and explanations. Task definition cannot be edited by interns.' 
+          });
+        }
+      }
     }
 
     const { rows: creatorRows } = await db.query('SELECT role, department FROM users WHERE id = $1', [currentTask.creator_id]);

@@ -55,8 +55,33 @@ export default function TaskKanbanBoard({
     return true;
   });
 
+  const canManageTask = (t) => {
+    if (!user) return false;
+    // Admins and Managers can manage tasks in their workspace
+    if (user.role === 'admin' || user.role === 'manager' || user.role === 'site_manager') return true;
+    
+    // If inspecting another employee's profile as a general employee/intern
+    if (selectedEmp && Number(selectedEmp.id) !== Number(user.id)) return false;
+
+    // Regular employees/interns can ONLY manage tasks assigned to them, created by them, or where they are verifier/hiring_lead
+    const uId = Number(user.id);
+    if (Number(t.assignee_id) === uId) return true;
+    if (Number(t.creator_id) === uId) return true;
+    if (Number(t.verifier_id) === uId) return true;
+    if (Number(t.completed_by) === uId) return true;
+    if (Number(t.hiring_lead_id) === uId) return true;
+    if (t.group_assignee_ids && Array.isArray(t.group_assignee_ids) && t.group_assignee_ids.map(Number).includes(uId)) return true;
+
+    return false;
+  };
+
   // Handle stage move (modifies status strictly without affecting pillar)
   const handleStageMove = async (task, newStageKey) => {
+    if (!canManageTask(task)) {
+      alert("Permission Denied: You can only move or update tasks assigned to you or created by you.");
+      return;
+    }
+
     let backendStatus = newStageKey;
     if (newStageKey === 'todo') backendStatus = 'pending';
 
@@ -243,71 +268,79 @@ export default function TaskKanbanBoard({
                         </div>
 
                         {/* Stage Controls & Transfer Pillar Actions */}
-                        <div className="flex items-center justify-between gap-1 pt-2 border-t border-gray-100" onClick={e => e.stopPropagation()}>
-                          {/* Quick Stage Progression Buttons */}
-                          <div className="flex items-center gap-1">
-                            {stage.key !== 'todo' && (
-                              <button
-                                onClick={() => handleStageMove(t, stage.key === 'completed' ? 'under_review' : stage.key === 'under_review' ? 'in_progress' : 'todo')}
-                                className="p-1 hover:bg-gray-100 rounded text-gray-500 transition-colors"
-                                title="Move to Previous Stage"
-                              >
-                                <ArrowLeft className="w-3.5 h-3.5" />
-                              </button>
-                            )}
-                            {stage.key !== 'completed' && (
-                              <button
-                                onClick={() => handleStageMove(t, stage.key === 'todo' ? 'in_progress' : stage.key === 'in_progress' ? 'under_review' : 'completed')}
-                                className="p-1 hover:bg-amber-100 rounded text-amber-700 font-semibold transition-colors flex items-center gap-0.5 text-[10px]"
-                                title="Advance Stage"
-                              >
-                                <span>Move</span>
-                                <ArrowRight className="w-3.5 h-3.5" />
-                              </button>
-                            )}
-                          </div>
-
-                          {/* Explicit Pillar Transfer (General ↔ Vishwas ↔ Avishkar) */}
-                          {canTransferPillar && (
-                            <div>
-                              {transferPillarTaskId === t.id ? (
-                                <div className="flex items-center gap-1 animate-in fade-in">
-                                  <select
-                                    value={targetPillar}
-                                    onChange={e => setTargetPillar(e.target.value)}
-                                    className="text-[10px] p-0.5 bg-white border border-amber-300 rounded"
-                                  >
-                                    <option value="">Pillar</option>
-                                    {PILLAR_TRANSFERRABLE.filter(p => p !== (t.pillar || 'general')).map(p => (
-                                      <option key={p} value={p}>{p}</option>
-                                    ))}
-                                  </select>
-                                  <button
-                                    onClick={() => handleTransferPillar(t.id)}
-                                    disabled={!targetPillar}
-                                    className="text-[9px] bg-amber-600 text-white px-1.5 py-0.5 rounded font-bold disabled:opacity-50"
-                                  >
-                                    Go
-                                  </button>
-                                  <button
-                                    onClick={() => setTransferPillarTaskId(null)}
-                                    className="text-[9px] text-gray-400 hover:text-gray-600 px-0.5"
-                                  >
-                                    ✕
-                                  </button>
-                                </div>
-                              ) : (
+                        {canManageTask(t) ? (
+                          <div className="flex items-center justify-between gap-1 pt-2 border-t border-gray-100" onClick={e => e.stopPropagation()}>
+                            {/* Quick Stage Progression Buttons */}
+                            <div className="flex items-center gap-1">
+                              {stage.key !== 'todo' && (
                                 <button
-                                  onClick={() => { setTransferPillarTaskId(t.id); setTargetPillar(''); }}
-                                  className="text-[9px] font-semibold text-gray-500 hover:text-amber-800 hover:bg-amber-50 px-1.5 py-0.5 rounded border border-gray-200 transition-colors"
-                                  title="Transfer task between General ↔ Vishwas ↔ Avishkar"
+                                  onClick={() => handleStageMove(t, stage.key === 'completed' ? 'under_review' : stage.key === 'under_review' ? 'in_progress' : 'todo')}
+                                  className="p-1 hover:bg-gray-100 rounded text-gray-500 transition-colors"
+                                  title="Move to Previous Stage"
                                 >
-                                  ⇄ Pillar
+                                  <ArrowLeft className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                              {stage.key !== 'completed' && (
+                                <button
+                                  onClick={() => handleStageMove(t, stage.key === 'todo' ? 'in_progress' : stage.key === 'in_progress' ? 'under_review' : 'completed')}
+                                  className="p-1 hover:bg-amber-100 rounded text-amber-700 font-semibold transition-colors flex items-center gap-0.5 text-[10px]"
+                                  title="Advance Stage"
+                                >
+                                  <span>Move</span>
+                                  <ArrowRight className="w-3.5 h-3.5" />
                                 </button>
                               )}
                             </div>
-                          )}
-                        </div>
+
+                            {/* Explicit Pillar Transfer (General ↔ Vishwas ↔ Avishkar) */}
+                            {canTransferPillar && (
+                              <div>
+                                {transferPillarTaskId === t.id ? (
+                                  <div className="flex items-center gap-1 animate-in fade-in">
+                                    <select
+                                      value={targetPillar}
+                                      onChange={e => setTargetPillar(e.target.value)}
+                                      className="text-[10px] p-0.5 bg-white border border-amber-300 rounded"
+                                    >
+                                      <option value="">Pillar</option>
+                                      {PILLAR_TRANSFERRABLE.filter(p => p !== (t.pillar || 'general')).map(p => (
+                                        <option key={p} value={p}>{p}</option>
+                                      ))}
+                                    </select>
+                                    <button
+                                      onClick={() => handleTransferPillar(t.id)}
+                                      disabled={!targetPillar}
+                                      className="text-[9px] bg-amber-600 text-white px-1.5 py-0.5 rounded font-bold disabled:opacity-50"
+                                    >
+                                      Go
+                                    </button>
+                                    <button
+                                      onClick={() => setTransferPillarTaskId(null)}
+                                      className="text-[9px] text-gray-400 hover:text-gray-600 px-0.5"
+                                    >
+                                      ✕
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <button
+                                    onClick={() => { setTransferPillarTaskId(t.id); setTargetPillar(''); }}
+                                    className="text-[9px] font-semibold text-gray-500 hover:text-amber-800 hover:bg-amber-50 px-1.5 py-0.5 rounded border border-gray-200 transition-colors"
+                                    title="Transfer task between General ↔ Vishwas ↔ Avishkar"
+                                  >
+                                    ⇄ Pillar
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="flex items-center justify-end pt-1.5 border-t border-gray-100">
+                            <span className="text-[9px] font-semibold text-gray-400 uppercase bg-gray-50 px-1.5 py-0.5 rounded border border-gray-200/60">
+                              Read Only
+                            </span>
+                          </div>
+                        )}
                       </div>
                     );
                   })
