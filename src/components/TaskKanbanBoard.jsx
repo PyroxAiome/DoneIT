@@ -193,9 +193,9 @@ export default function TaskKanbanBoard({
             });
 
           return (
-            <div key={stage.key} className="bg-gray-100/70 border border-gray-200 rounded-xl p-3 flex flex-col space-y-3 min-h-[500px]">
+            <div key={stage.key} className="bg-gray-100/70 border border-gray-200 rounded-xl p-3 flex flex-col space-y-3 min-h-[520px] max-h-[calc(100vh-280px)]">
               {/* Column Header */}
-              <div className={`p-2.5 rounded-lg border flex items-center justify-between ${stage.headerBg}`}>
+              <div className={`p-2.5 rounded-lg border flex items-center justify-between ${stage.headerBg} shrink-0`}>
                 <div className="flex items-center gap-2 min-w-0">
                   <StageIcon className="w-4 h-4 shrink-0 text-gray-700" />
                   <h3 className="font-bold text-xs text-gray-900 truncate">{stage.label}</h3>
@@ -205,8 +205,8 @@ export default function TaskKanbanBoard({
                 </span>
               </div>
 
-              {/* Column Cards Container */}
-              <div className="space-y-3 flex-1">
+              {/* Column Cards Container (Vertically Scrollable) */}
+              <div className="space-y-3 flex-1 overflow-y-auto pr-1">
                 {stageTasks.length === 0 ? (
                   <div className="p-4 text-center text-xs text-gray-400 italic border border-dashed border-gray-300 rounded-lg bg-white/40">
                     No tasks in {stage.label}
