@@ -60,9 +60,31 @@ export default function TaskKanbanBoard({
     let backendStatus = newStageKey;
     if (newStageKey === 'todo') backendStatus = 'pending';
 
+    const isAuthorizedVerifier = user?.role === 'admin' || 
+      (task.verifier_id && Number(task.verifier_id) === Number(user?.id)) ||
+      (task.completed_by && Number(task.completed_by) === Number(user?.id));
+
+    // If attempting to move a task from under_review or move to completed:
+    if (newStageKey === 'completed' || task.status === 'under_review') {
+      if (newStageKey === 'completed') {
+        if (!isAuthorizedVerifier) {
+          alert(`Verification Required: Only the assigned verifier (${task.verifier_name || 'Admin'}) or an Admin can review and approve a task in Under Review.`);
+          return;
+        }
+        // For authorized Verifiers/Admins, open the Task Detail Modal for formal verification review & sign-off
+        if (onViewDetail) {
+          onViewDetail(task);
+          return;
+        }
+      }
+    }
+
     setMovingTaskId(task.id);
     try {
-      await api.updateTask(task.id, { status: backendStatus });
+      const result = await api.updateTask(task.id, { status: backendStatus });
+      if (result && result.verificationRequired) {
+        alert(`Task submitted for Under Review. It requires verification by ${task.verifier_name || 'Admin'} before it can be marked Completed.`);
+      }
       if (onRefresh) onRefresh();
     } catch (err) {
       alert(err.message || 'Failed to update task status');

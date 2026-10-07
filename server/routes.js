@@ -1113,6 +1113,9 @@ router.put('/tasks/:id', auth, async (req, res) => {
     } else if (isNewCompletionAttempt) {
       // Task is being marked completed for the first time (status was NOT already 'completed')
       if (!isVerifierOrAdmin) {
+        if (currentTask.status === 'under_review') {
+          return res.status(403).json({ error: 'Only the assigned verifier or an Admin can approve and complete a task in Under Review.' });
+        }
         req.body.status = 'under_review';
         verificationRequired = true;
       } else {
