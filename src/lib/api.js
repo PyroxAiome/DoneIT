@@ -582,4 +582,21 @@ export const api = {
   },
 
   getSalesQuota: () => request('/sales/leads/quota'),
+  
+  // Employee Admin Feedback / Notes
+  getEmployeeAdminNotes: (employeeId) => request(`/employees/${employeeId}/admin-notes`),
+  createEmployeeAdminNote: (employeeId, data) =>
+    request(`/employees/${employeeId}/admin-notes`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  updateEmployeeAdminNote: (employeeId, noteId, data) =>
+    request(`/employees/${employeeId}/admin-notes/${noteId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+  deleteEmployeeAdminNote: (employeeId, noteId) =>
+    request(`/employees/${employeeId}/admin-notes/${noteId}`, {
+      method: 'DELETE',
+    }),
 };

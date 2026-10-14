@@ -8,7 +8,7 @@ import TaskVerificationModal from './TaskVerificationModal';
 import {
   BarChart3, Users, CheckCircle, Plus, Search, Filter,
   ListTodo, User, LayoutGrid, X, FolderGit2, ShieldCheck, TrendingUp,
-  LayoutDashboard, Clock
+  LayoutDashboard, Clock, MessageSquare
 } from 'lucide-react';
 import ProjectsList from './ProjectsList';
 import ProjectDetail from './ProjectDetail';
@@ -22,6 +22,7 @@ const tabs = [
   { id: 'to_verify', label: 'To Verify', icon: Clock },
   { id: 'sales', label: 'Sales', icon: TrendingUp },
   { id: 'completed', label: 'Completed', icon: CheckCircle },
+  { id: 'feedback', label: 'Admin Feedback', icon: MessageSquare },
   { id: 'team', label: 'Team', icon: Users },
 ];
 
@@ -89,6 +90,30 @@ export default function ManagerDashboard({ user }) {
   const [salesPersonFilter, setSalesPersonFilter] = useState('');
   const [salesLeadFilter, setSalesLeadFilter] = useState(null);
   const userHasSales = user?.role === 'admin' || user?.role === 'manager' || user?.role === 'sales_manager' || user?.role === 'sales_executive' || !!user?.can_access_sales;
+
+  // Admin Feedback state
+  const [feedbackNotes, setFeedbackNotes] = useState([]);
+  const [loadingFeedback, setLoadingFeedback] = useState(false);
+  const [feedbackCategoryFilter, setFeedbackCategoryFilter] = useState('all');
+
+  const fetchFeedback = async () => {
+    if (!user?.id) return;
+    setLoadingFeedback(true);
+    try {
+      const data = await api.getEmployeeAdminNotes(user.id);
+      setFeedbackNotes(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error('Error fetching admin feedback:', err);
+    } finally {
+      setLoadingFeedback(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'feedback') {
+      fetchFeedback();
+    }
+  }, [activeTab, user?.id]);
 
   const fetchTasksOnly = (isSilent = false) => {
     if (!isSilent) setLoading(true);
@@ -169,7 +194,7 @@ export default function ManagerDashboard({ user }) {
       const parts = hash.substring(1).split('/');
       const tabId = parts[0];
 
-      if (['overview', 'projects', 'all', 'work', 'sales', 'to_verify', 'completed', 'assigned_by_me', 'verified', 'team'].includes(tabId)) {
+      if (['overview', 'projects', 'all', 'work', 'sales', 'to_verify', 'completed', 'assigned_by_me', 'verified', 'team', 'feedback'].includes(tabId)) {
         setActiveTab(tabId);
         if (tabId !== 'projects') setSelectedProject(null);
         if (tabId !== 'sales') setSalesPersonFilter('');
@@ -791,7 +816,7 @@ export default function ManagerDashboard({ user }) {
         />
       )}
 
-      {(activeTab === 'work' || activeTab === 'to_verify' || activeTab === 'completed' || selectedEmp) && activeTab !== 'projects' && activeTab !== 'sales' && (
+      {(activeTab === 'work' || activeTab === 'to_verify' || activeTab === 'completed' || selectedEmp) && activeTab !== 'projects' && activeTab !== 'sales' && activeTab !== 'feedback' && (
         <>
           {selectedEmp && (
             <div className="bg-amber-50 border border-amber-200/80 rounded-xl p-3 sm:p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs mb-4">
@@ -1091,6 +1116,149 @@ export default function ManagerDashboard({ user }) {
             />
           )}
         </>
+      )}
+
+      {/* ── ADMIN FEEDBACK VIEW (ONE-WAY PRIVATE GUIDANCE) ── */}
+      {activeTab === 'feedback' && (
+        <div className="space-y-6">
+          <div className="bg-amber-50/70 border border-amber-200/80 rounded-2xl p-4 sm:p-5 flex items-start gap-3.5 shadow-2xs">
+            <div className="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-xs">
+              <MessageSquare className="w-5 h-5" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h3 className="text-sm sm:text-base font-bold text-gray-900">
+                Feedback & Notes from Leadership
+              </h3>
+              <p className="text-xs text-gray-600 mt-1 leading-relaxed">
+                This is a private space where company leadership (Admins, CEO, Directors) share performance feedback, appreciation, and constructive guidance directly with you.
+              </p>
+            </div>
+          </div>
+
+          {/* Filters & Count */}
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <h4 className="text-sm font-bold text-gray-900 flex items-center gap-2">
+              <span>My Leadership Notes</span>
+              <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-700">
+                {feedbackNotes.length}
+              </span>
+            </h4>
+
+            <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-xl text-xs">
+              <button
+                onClick={() => setFeedbackCategoryFilter('all')}
+                className={`px-2.5 py-1 rounded-lg font-medium transition-all cursor-pointer ${
+                  feedbackCategoryFilter === 'all' ? 'bg-white text-gray-900 shadow-2xs font-semibold' : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                All ({feedbackNotes.length})
+              </button>
+              <button
+                onClick={() => setFeedbackCategoryFilter('appreciation')}
+                className={`px-2.5 py-1 rounded-lg font-medium transition-all cursor-pointer ${
+                  feedbackCategoryFilter === 'appreciation' ? 'bg-white text-emerald-800 shadow-2xs font-semibold' : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                Appreciation ({feedbackNotes.filter(n => n.category === 'appreciation').length})
+              </button>
+              <button
+                onClick={() => setFeedbackCategoryFilter('improvement')}
+                className={`px-2.5 py-1 rounded-lg font-medium transition-all cursor-pointer ${
+                  feedbackCategoryFilter === 'improvement' ? 'bg-white text-rose-800 shadow-2xs font-semibold' : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                Improvement ({feedbackNotes.filter(n => n.category === 'improvement').length})
+              </button>
+              <button
+                onClick={() => setFeedbackCategoryFilter('general')}
+                className={`px-2.5 py-1 rounded-lg font-medium transition-all cursor-pointer ${
+                  feedbackCategoryFilter === 'general' ? 'bg-white text-blue-800 shadow-2xs font-semibold' : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                General ({feedbackNotes.filter(n => n.category === 'general').length})
+              </button>
+            </div>
+          </div>
+
+          {loadingFeedback ? (
+            <div className="p-8 text-center bg-white rounded-2xl border border-gray-200">
+              <div className="w-6 h-6 border-2 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+              <p className="text-xs text-gray-500">Loading your feedback notes...</p>
+            </div>
+          ) : feedbackNotes.filter(n => feedbackCategoryFilter === 'all' || n.category === feedbackCategoryFilter).length === 0 ? (
+            <div className="p-12 text-center bg-white rounded-2xl border border-gray-200 space-y-2.5">
+              <div className="w-12 h-12 bg-amber-50 text-amber-500 rounded-full flex items-center justify-center mx-auto mb-1">
+                <MessageSquare className="w-6 h-6" />
+              </div>
+              <p className="text-sm font-semibold text-gray-800">No feedback notes yet</p>
+              <p className="text-xs text-gray-400 max-w-sm mx-auto">
+                Any performance feedback, praise, or guidance shared by company leadership will be listed here.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3.5">
+              {feedbackNotes
+                .filter(n => feedbackCategoryFilter === 'all' || n.category === feedbackCategoryFilter)
+                .map((note) => {
+                  const categoryBadge = {
+                    appreciation: {
+                      label: '🌟 Appreciation',
+                      cls: 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                    },
+                    improvement: {
+                      label: '⚠️ Areas of Focus / Improvement',
+                      cls: 'bg-rose-50 text-rose-800 border-rose-200'
+                    },
+                    general: {
+                      label: '📌 General Guidance',
+                      cls: 'bg-blue-50 text-blue-800 border-blue-200'
+                    }
+                  }[note.category] || { label: '📌 Note', cls: 'bg-gray-100 text-gray-700 border-gray-200' };
+
+                  return (
+                    <div
+                      key={note.id}
+                      className="bg-white border border-gray-200 rounded-2xl p-4 sm:p-5 shadow-2xs hover:shadow-xs transition-all space-y-3"
+                    >
+                      <div className="flex items-center justify-between flex-wrap gap-2">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-8 h-8 rounded-full bg-amber-100 text-amber-900 border border-amber-200 flex items-center justify-center font-bold text-xs">
+                            {(note.admin_name || 'A').charAt(0).toUpperCase()}
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs sm:text-sm font-bold text-gray-900">
+                                {note.admin_name || 'Admin'}
+                              </span>
+                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${categoryBadge.cls}`}>
+                                {categoryBadge.label}
+                              </span>
+                            </div>
+                            <p className="text-[10px] text-gray-400 mt-0.5">
+                              {new Date(note.created_at).toLocaleDateString('en-US', {
+                                month: 'short',
+                                day: 'numeric',
+                                year: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })}
+                              {note.updated_at && note.updated_at !== note.created_at && (
+                                <span className="italic ml-1">(edited)</span>
+                              )}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <p className="text-xs sm:text-sm text-gray-800 leading-relaxed whitespace-pre-wrap pl-1">
+                        {note.note_text}
+                      </p>
+                    </div>
+                  );
+                })}
+            </div>
+          )}
+        </div>
       )}
 
       <TaskModal isOpen={showTaskModal} onClose={() => { setShowTaskModal(false); setEditTask(null); setDefaultAssigneeId(null); }} onSaved={fetchAll} task={editTask} employees={employees} onVerificationNeeded={setVerificationTask} initialPillar={pillarFilter} defaultAssigneeId={defaultAssigneeId} />

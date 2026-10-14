@@ -657,6 +657,16 @@ const initDatabase = async () => {
       reply_text TEXT NOT NULL,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
+
+    CREATE TABLE IF NOT EXISTS employee_admin_notes (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      admin_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      note_text TEXT NOT NULL,
+      category VARCHAR(50) DEFAULT 'general',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
   `);
 
   // ── Create Indexes ─────────────────────────────────────────────
@@ -686,6 +696,8 @@ const initDatabase = async () => {
     CREATE INDEX IF NOT EXISTS idx_sales_lead_problems ON sales_lead_problems(lead_id);
     CREATE INDEX IF NOT EXISTS idx_sales_problem_replies ON sales_lead_problem_replies(problem_id);
     CREATE INDEX IF NOT EXISTS idx_notifications_lead_id ON notifications(lead_id);
+    CREATE INDEX IF NOT EXISTS idx_employee_admin_notes_user_id ON employee_admin_notes(user_id);
+    CREATE INDEX IF NOT EXISTS idx_employee_admin_notes_admin_id ON employee_admin_notes(admin_id);
   `);
 
   // ── Seed / Ensure Default Master Items ──────────────────────────

@@ -9,7 +9,7 @@ import {
   LayoutDashboard, Briefcase, Users, Plus, Search, Grid3X3, List,
   UserPlus, Trash2, Filter, ListTodo, CheckCircle,
   MessageSquare, X, Shield, Edit2, FolderGit2, ShieldCheck, TrendingUp,
-  User, AlertTriangle, ExternalLink, ShieldAlert, Building2
+  User, AlertTriangle, ExternalLink, ShieldAlert, Building2, ArrowLeft
 } from 'lucide-react';
 import ProjectsList from './ProjectsList';
 import ProjectDetail from './ProjectDetail';
@@ -109,7 +109,90 @@ export default function AdminDashboard({ user }) {
   const [targetLeadId, setTargetLeadId] = useState(null);
   const [salesLeads, setSalesLeads] = useState([]);
   const [selectedLeadIdForModal, setSelectedLeadIdForModal] = useState(null);
-  const [missedLeadFilter, setMissedLeadFilter] = useState('all');
+
+  // Admin Feedback & Comments state
+  const [empFeedbackList, setEmpFeedbackList] = useState([]);
+  const [loadingFeedback, setLoadingFeedback] = useState(false);
+  const [feedbackText, setFeedbackText] = useState('');
+  const [feedbackCategory, setFeedbackCategory] = useState('general');
+  const [submittingFeedback, setSubmittingFeedback] = useState(false);
+  const [editingFeedbackId, setEditingFeedbackId] = useState(null);
+  const [editFeedbackText, setEditFeedbackText] = useState('');
+  const [editFeedbackCategory, setEditFeedbackCategory] = useState('general');
+  const [savingEditFeedback, setSavingEditFeedback] = useState(false);
+  const [feedbackFilter, setFeedbackFilter] = useState('all');
+  const [feedbackError, setFeedbackError] = useState('');
+  const [feedbackSuccess, setFeedbackSuccess] = useState('');
+
+  const fetchEmployeeFeedback = async (empId) => {
+    if (!empId) return;
+    setLoadingFeedback(true);
+    setFeedbackError('');
+    try {
+      const data = await api.getEmployeeAdminNotes(empId);
+      setEmpFeedbackList(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error('Error fetching employee feedback:', err);
+    } finally {
+      setLoadingFeedback(false);
+    }
+  };
+
+  const handleCreateFeedback = async (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    if (!feedbackText.trim() || !selectedEmp) return;
+    setSubmittingFeedback(true);
+    setFeedbackError('');
+    setFeedbackSuccess('');
+    try {
+      const newNote = await api.createEmployeeAdminNote(selectedEmp.id, {
+        note_text: feedbackText.trim(),
+        category: feedbackCategory
+      });
+      setEmpFeedbackList(prev => [newNote, ...prev]);
+      setFeedbackText('');
+      setFeedbackCategory('general');
+      setFeedbackSuccess(`Feedback sent successfully to ${selectedEmp.name || 'employee'}.`);
+      setTimeout(() => setFeedbackSuccess(''), 4000);
+    } catch (err) {
+      setFeedbackError(err.message || 'Failed to submit feedback');
+    } finally {
+      setSubmittingFeedback(false);
+    }
+  };
+
+  const handleUpdateFeedback = async (noteId) => {
+    if (!editFeedbackText.trim() || !selectedEmp) return;
+    setSavingEditFeedback(true);
+    setFeedbackError('');
+    try {
+      const updatedNote = await api.updateEmployeeAdminNote(selectedEmp.id, noteId, {
+        note_text: editFeedbackText.trim(),
+        category: editFeedbackCategory
+      });
+      setEmpFeedbackList(prev => prev.map(n => n.id === noteId ? updatedNote : n));
+      setEditingFeedbackId(null);
+      setEditFeedbackText('');
+    } catch (err) {
+      setFeedbackError(err.message || 'Failed to update feedback');
+    } finally {
+      setSavingEditFeedback(false);
+    }
+  };
+
+  const handleDeleteFeedback = async (noteId) => {
+    if (!selectedEmp) return;
+    if (!window.confirm('Are you sure you want to delete this feedback note? This action cannot be undone.')) {
+      return;
+    }
+    setFeedbackError('');
+    try {
+      await api.deleteEmployeeAdminNote(selectedEmp.id, noteId);
+      setEmpFeedbackList(prev => prev.filter(n => n.id !== noteId));
+    } catch (err) {
+      setFeedbackError(err.message || 'Failed to delete feedback note');
+    }
+  };
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -211,7 +294,7 @@ export default function AdminDashboard({ user }) {
       }
       const parts = hash.substring(1).split('/');
       const tabId = parts[0];
-      if (['overview', 'projects', 'all', 'work', 'sales', 'to_verify', 'completed', 'assigned_by_me', 'verified', 'team', 'admin'].includes(tabId)) {
+      if (['overview', 'projects', 'all', 'work', 'sales', 'to_verify', 'completed', 'assigned_by_me', 'verified', 'team', 'admin', 'missed-pipelines', 'feedback'].includes(tabId)) {
         setActiveTab(tabId);
         if (tabId !== 'projects') {
           setSelectedProject(null);
@@ -225,7 +308,10 @@ export default function AdminDashboard({ user }) {
         setEmployeeFilter(empId);
         if (employees && employees.length > 0) {
           const emp = employees.find(e => e.id === empId);
-          if (emp) setSelectedEmp(emp);
+          if (emp) {
+            setSelectedEmp(emp);
+            fetchEmployeeFeedback(emp.id);
+          }
         }
       } else {
         setEmployeeFilter(null);
@@ -513,21 +599,17 @@ export default function AdminDashboard({ user }) {
     };
   });
 
-  const filteredMissedLeads = missedDemoAndSpecLeads.filter(lead => {
-    if (missedLeadFilter === 'demo') return lead.missedDemo;
-    if (missedLeadFilter === 'spec_tender') return lead.missedSpecTender;
-    return true;
-  });
-
   const metricCards = stats ? [
     { label: 'Total Tasks', value: stats.totalTasks, icon: ListTodo, color: 'text-gray-500' },
     { label: 'Team Members', value: stats.totalTeamMembers ?? (Number(stats.totalEmployees) + Number(stats.totalManagers)), icon: Users, color: 'text-blue-500' },
-    { label: 'Avg Completion', value: `${stats.avgCompletion || 0}%`, icon: CheckCircle, color: 'text-emerald-500' },
     {
-      label: 'Missed Demo / Spec',
+      label: 'Missed Demo and Spec of Tender Pipelines',
       value: missedDemoAndSpecLeads.length,
       icon: AlertTriangle,
       color: missedDemoAndSpecLeads.length > 0 ? 'text-amber-500' : 'text-gray-400',
+      onClick: () => {
+        window.location.hash = 'missed-pipelines';
+      }
     },
   ] : [];
 
@@ -611,6 +693,20 @@ export default function AdminDashboard({ user }) {
                 {empVerifiedTasksCount}
               </span>
             </button>
+            <button
+              onClick={() => { window.location.hash = `feedback/employee/${selectedEmp.id}`; }}
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all cursor-pointer ${
+                activeTab === 'feedback' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              <MessageSquare className="w-4 h-4 text-amber-500" />
+              Admin Feedback
+              {empFeedbackList.length > 0 && (
+                <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${activeTab === 'feedback' ? 'bg-amber-100 text-amber-800' : 'bg-gray-300 text-gray-700'}`}>
+                  {empFeedbackList.length}
+                </span>
+              )}
+            </button>
             {(selectedEmp.role === 'sales_manager' || selectedEmp.role === 'sales_executive' || selectedEmp.can_access_sales) && (
               <button
                 onClick={() => {
@@ -660,199 +756,163 @@ export default function AdminDashboard({ user }) {
       {activeTab === 'overview' && (
         <div className="space-y-6">
           {stats && (
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
               {metricCards.map((m) => (
-                <div key={m.label} className="card flex items-center gap-3">
-                  <m.icon className={`w-5 h-5 ${m.color}`} />
-                  <div>
-                    <p className="text-xs text-gray-500">{m.label}</p>
-                    <p className="text-xl font-semibold text-gray-900">{m.value}</p>
+                <div
+                  key={m.label}
+                  onClick={m.onClick}
+                  className={`bg-white border border-gray-200/90 rounded-2xl p-6 shadow-xs flex items-center justify-between gap-4 transition-all ${
+                    m.onClick ? 'cursor-pointer hover:shadow-md hover:border-amber-400 hover:-translate-y-0.5 ring-1 ring-transparent hover:ring-amber-200 group' : ''
+                  }`}
+                  title={m.onClick ? 'Click to view full list' : undefined}
+                >
+                  <div className="flex items-center gap-4 min-w-0">
+                    <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 shadow-2xs ${
+                      m.color === 'text-amber-500' ? 'bg-amber-50 border border-amber-200 text-amber-600' :
+                      m.color === 'text-blue-500' ? 'bg-blue-50 border border-blue-200 text-blue-600' :
+                      'bg-gray-50 border border-gray-200 text-gray-600'
+                    }`}>
+                      <m.icon className="w-7 h-7" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs sm:text-sm font-semibold text-gray-500 truncate" title={m.label}>{m.label}</p>
+                      <p className="text-2xl sm:text-3xl font-extrabold text-gray-900 mt-1">{m.value}</p>
+                    </div>
                   </div>
+                  {m.onClick && (
+                    <span className="text-xs font-bold text-amber-800 bg-amber-50 group-hover:bg-amber-100 border border-amber-200 px-3 py-1.5 rounded-xl shrink-0 transition-colors flex items-center gap-1">
+                      View All →
+                    </span>
+                  )}
                 </div>
               ))}
             </div>
           )}
+        </div>
+      )}
 
-          {stats?.statusBreakdown && (
-            <div className="card">
-              <h3 className="text-sm font-medium text-gray-700 mb-3">Status Breakdown</h3>
-              <div className="flex gap-2 flex-wrap">
-                {stats.statusBreakdown.map((s) => {
-                  const total = stats.statusBreakdown.reduce((a, b) => a + b.cnt, 0);
-                  const pct = total > 0 ? (s.cnt / total) * 100 : 0;
-                  return (
-                    <div key={s.status} className="flex-1 min-w-[80px]">
-                      <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                        <div className={`h-full rounded-full ${s.status === 'completed' ? 'bg-emerald-500' : s.status === 'in_progress' ? 'bg-blue-500' : s.status === 'under_review' ? 'bg-purple-500' : 'bg-gray-400'}`}
-                          style={{ width: `${pct}%` }} />
-                      </div>
-                      <p className="text-[10px] text-gray-500 mt-1 text-center">{s.status.replace('_', ' ')} ({s.cnt})</p>
-                    </div>
-                  );
-                })}
+      {activeTab === 'missed-pipelines' && (
+        <div className="space-y-6 animate-in fade-in">
+          {/* Top navigation / Back link */}
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <button
+              onClick={() => { window.location.hash = 'overview'; }}
+              className="inline-flex items-center gap-2 text-xs font-semibold text-gray-700 hover:text-gray-900 bg-white hover:bg-gray-50 border border-gray-200 px-3.5 py-2 rounded-xl shadow-2xs transition-colors cursor-pointer"
+            >
+              <ArrowLeft className="w-4 h-4" /> Back to Overview
+            </button>
+            <span className="text-xs font-bold px-3 py-1 rounded-full bg-amber-100 text-amber-800 border border-amber-300">
+              {missedDemoAndSpecLeads.length} Flagged Prospects
+            </span>
+          </div>
+
+          {/* Header Banner */}
+          <div className="bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-white p-5 sm:p-6 rounded-2xl border border-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-amber-500/15 border border-amber-300 flex items-center justify-center text-amber-600 shrink-0 shadow-2xs">
+                <AlertTriangle className="w-6 h-6" />
               </div>
+              <div>
+                <h2 className="text-lg sm:text-xl font-bold text-gray-900">Missed Demo and Spec of Tender Pipelines</h2>
+                <p className="text-xs text-gray-600 mt-1">
+                  General Inquiries sales prospects that bypassed mandatory Demo or Spec of Tender steps on the pipeline board.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Prospects List */}
+          {missedDemoAndSpecLeads.length === 0 ? (
+            <div className="p-12 text-center bg-white border border-gray-200 rounded-2xl shadow-xs space-y-2">
+              <ShieldCheck className="w-12 h-12 text-emerald-500 mx-auto opacity-80" />
+              <h3 className="text-sm font-bold text-gray-900">All Pipelines on Track</h3>
+              <p className="text-xs text-gray-500">No General Inquiries prospects currently have missed Demo or Spec of Tender steps.</p>
+            </div>
+          ) : (
+            <div className="bg-white border border-gray-200 rounded-2xl shadow-xs overflow-hidden divide-y divide-gray-100">
+              {missedDemoAndSpecLeads.map((lead) => {
+                const stageLabel = STAGE_LABELS[lead.current_stage] || (lead.current_stage ? lead.current_stage.replace('_', ' ') : 'Unknown');
+                const leadValFormatted = formatLeadValue(lead.lead_value);
+                return (
+                  <div
+                    key={lead.id}
+                    className="p-4 sm:p-5 hover:bg-amber-50/20 transition-colors flex flex-col md:flex-row md:items-center justify-between gap-4 group"
+                  >
+                    <div className="space-y-1.5 min-w-0 flex-1">
+                      <div className="flex items-center gap-2.5 flex-wrap">
+                        <h4
+                          onClick={() => setSelectedLeadIdForModal(lead.id)}
+                          className="font-bold text-gray-900 text-sm sm:text-base hover:text-amber-600 transition-colors cursor-pointer truncate"
+                          title="Click to view details"
+                        >
+                          {lead.title}
+                        </h4>
+                        <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                          Stage: {stageLabel}
+                        </span>
+                        {lead.missedDemo && (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300">
+                            <AlertTriangle className="w-3 h-3 text-amber-600" />
+                            Missed Demo
+                          </span>
+                        )}
+                        {lead.missedSpecTender && (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-purple-100 text-purple-800 border border-purple-300">
+                            <ShieldAlert className="w-3 h-3 text-purple-600" />
+                            Missed Spec of Tender
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-4 text-xs text-gray-500 flex-wrap pt-0.5">
+                        {(lead.client_company || lead.client_name) && (
+                          <span className="flex items-center gap-1 text-gray-700 font-medium">
+                            <Building2 className="w-3.5 h-3.5 text-gray-400" />
+                            {lead.client_company || lead.client_name}
+                          </span>
+                        )}
+                        {lead.assignee_name && (
+                          <span className="flex items-center gap-1 text-gray-600">
+                            <User className="w-3.5 h-3.5 text-gray-400" />
+                            Sales Rep: <strong className="font-semibold text-gray-800">{lead.assignee_name}</strong>
+                          </span>
+                        )}
+                        {lead.lead_value > 0 && (
+                          <span className="flex items-center gap-1 text-emerald-700 font-semibold">
+                            Value: {leadValFormatted}
+                          </span>
+                        )}
+                        {lead.city && (
+                          <span className="text-gray-400">
+                            &middot; {lead.city}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2.5 self-start md:self-center shrink-0">
+                      <button
+                        onClick={() => setSelectedLeadIdForModal(lead.id)}
+                        className="px-3.5 py-2 text-xs font-semibold text-gray-700 bg-white hover:bg-amber-50 hover:text-amber-900 border border-gray-300 hover:border-amber-300 rounded-xl shadow-2xs transition-all cursor-pointer"
+                      >
+                        View Details
+                      </button>
+                      <button
+                        onClick={() => {
+                          setTargetLeadId(lead.id);
+                          setActiveTab('sales');
+                          window.location.hash = 'sales';
+                        }}
+                        className="px-3.5 py-2 text-xs font-semibold text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-300 rounded-xl shadow-2xs transition-all flex items-center gap-1 cursor-pointer"
+                      >
+                        Open in Pipeline <ExternalLink className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
-
-          {/* General Inquiries: Missed Demo & Spec of Tender Steps Audit */}
-          <div className="bg-white border border-gray-200 rounded-2xl shadow-xs overflow-hidden">
-            <div className="p-4 sm:p-5 bg-gradient-to-r from-amber-50/80 via-white to-orange-50/40 border-b border-gray-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-600 shrink-0">
-                  <AlertTriangle className="w-5 h-5" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h3 className="font-bold text-gray-900 text-sm sm:text-base">
-                      General Inquiries — Missed Demo & Spec of Tender Steps
-                    </h3>
-                    <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
-                      missedDemoAndSpecLeads.length > 0 ? 'bg-amber-100 text-amber-800 border border-amber-200' : 'bg-gray-100 text-gray-600'
-                    }`}>
-                      {missedDemoAndSpecLeads.length} {missedDemoAndSpecLeads.length === 1 ? 'Lead' : 'Leads'}
-                    </span>
-                  </div>
-                  <p className="text-xs text-gray-500 mt-0.5">
-                    Sales prospects in General Inquiries that advanced on the Kanban board without completing mandatory Demo or Spec of Tender steps.
-                  </p>
-                </div>
-              </div>
-
-              {/* Filter Pills */}
-              <div className="flex items-center gap-1.5 self-start sm:self-center bg-gray-100 p-1 rounded-xl">
-                <button
-                  onClick={() => setMissedLeadFilter('all')}
-                  className={`text-xs px-2.5 py-1 rounded-lg font-semibold transition-all cursor-pointer ${
-                    missedLeadFilter === 'all'
-                      ? 'bg-white text-gray-900 shadow-xs'
-                      : 'text-gray-500 hover:text-gray-900'
-                  }`}
-                >
-                  All ({missedDemoAndSpecLeads.length})
-                </button>
-                <button
-                  onClick={() => setMissedLeadFilter('demo')}
-                  className={`text-xs px-2.5 py-1 rounded-lg font-semibold transition-all cursor-pointer ${
-                    missedLeadFilter === 'demo'
-                      ? 'bg-white text-amber-800 shadow-xs'
-                      : 'text-gray-500 hover:text-gray-900'
-                  }`}
-                >
-                  Missed Demo ({missedDemoAndSpecLeads.filter(l => l.missedDemo).length})
-                </button>
-                <button
-                  onClick={() => setMissedLeadFilter('spec_tender')}
-                  className={`text-xs px-2.5 py-1 rounded-lg font-semibold transition-all cursor-pointer ${
-                    missedLeadFilter === 'spec_tender'
-                      ? 'bg-white text-purple-800 shadow-xs'
-                      : 'text-gray-500 hover:text-gray-900'
-                  }`}
-                >
-                  Missed Spec to Tender ({missedDemoAndSpecLeads.filter(l => l.missedSpecTender).length})
-                </button>
-              </div>
-            </div>
-
-            {filteredMissedLeads.length === 0 ? (
-              <div className="p-8 text-center bg-emerald-50/20">
-                <ShieldCheck className="w-10 h-10 text-emerald-500 mx-auto mb-2 opacity-80" />
-                <p className="text-sm font-semibold text-gray-800">
-                  {missedDemoAndSpecLeads.length === 0
-                    ? 'All General Inquiries are following standard pipeline steps'
-                    : 'No leads found for selected filter'}
-                </p>
-                <p className="text-xs text-gray-500 mt-1">
-                  {missedDemoAndSpecLeads.length === 0
-                    ? 'No sales prospects have bypassed Demo or Spec of Tender stages.'
-                    : 'Switch back to "All" to view all flagged prospects.'}
-                </p>
-              </div>
-            ) : (
-              <div className="divide-y divide-gray-100 max-h-[460px] overflow-y-auto">
-                {filteredMissedLeads.map((lead) => {
-                  const stageLabel = STAGE_LABELS[lead.current_stage] || (lead.current_stage ? lead.current_stage.replace('_', ' ') : 'Unknown');
-                  const leadValFormatted = formatLeadValue(lead.lead_value);
-                  return (
-                    <div
-                      key={lead.id}
-                      className="p-4 hover:bg-amber-50/30 transition-colors flex flex-col md:flex-row md:items-center justify-between gap-3 group"
-                    >
-                      <div className="space-y-1.5 min-w-0 flex-1">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <h4
-                            onClick={() => setSelectedLeadIdForModal(lead.id)}
-                            className="font-bold text-gray-900 text-sm hover:text-amber-600 transition-colors cursor-pointer truncate"
-                            title="Click to view details"
-                          >
-                            {lead.title}
-                          </h4>
-                          <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
-                            Current: {stageLabel}
-                          </span>
-                          {lead.missedDemo && (
-                            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300">
-                              <AlertTriangle className="w-3 h-3 text-amber-600" />
-                              Missed Demo
-                            </span>
-                          )}
-                          {lead.missedSpecTender && (
-                            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 border border-purple-300">
-                              <ShieldAlert className="w-3 h-3 text-purple-600" />
-                              Missed Spec of Tender
-                            </span>
-                          )}
-                        </div>
-
-                        <div className="flex items-center gap-4 text-xs text-gray-500 flex-wrap">
-                          {(lead.client_company || lead.client_name) && (
-                            <span className="flex items-center gap-1 text-gray-700 font-medium">
-                              <Building2 className="w-3.5 h-3.5 text-gray-400" />
-                              {lead.client_company || lead.client_name}
-                            </span>
-                          )}
-                          {lead.assignee_name && (
-                            <span className="flex items-center gap-1 text-gray-600">
-                              <User className="w-3.5 h-3.5 text-gray-400" />
-                              Sales Rep: <strong className="font-semibold text-gray-800">{lead.assignee_name}</strong>
-                            </span>
-                          )}
-                          {lead.lead_value > 0 && (
-                            <span className="flex items-center gap-1 text-emerald-700 font-semibold">
-                              Value: {leadValFormatted}
-                            </span>
-                          )}
-                          {lead.city && (
-                            <span className="text-gray-400">
-                              &middot; {lead.city}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-2 self-start md:self-center shrink-0">
-                        <button
-                          onClick={() => setSelectedLeadIdForModal(lead.id)}
-                          className="px-3 py-1.5 text-xs font-semibold text-gray-700 bg-white hover:bg-gray-50 border border-gray-200 rounded-lg shadow-2xs transition-all cursor-pointer"
-                        >
-                          View Details
-                        </button>
-                        <button
-                          onClick={() => {
-                            setTargetLeadId(lead.id);
-                            setActiveTab('sales');
-                            window.location.hash = 'sales';
-                          }}
-                          className="px-3 py-1.5 text-xs font-semibold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-lg shadow-2xs transition-all flex items-center gap-1 cursor-pointer"
-                        >
-                          Open in Pipeline <ExternalLink className="w-3 h-3" />
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
         </div>
       )}
 
@@ -882,7 +942,7 @@ export default function AdminDashboard({ user }) {
         />
       )}
 
-      {(activeTab === 'work' || activeTab === 'all' || activeTab === 'to_verify' || activeTab === 'completed' || activeTab === 'assigned_by_me' || activeTab === 'verified' || selectedEmp) && activeTab !== 'sales' && activeTab !== 'projects' && activeTab !== 'overview' && activeTab !== 'team' && activeTab !== 'admin' && (
+      {(activeTab === 'work' || activeTab === 'all' || activeTab === 'to_verify' || activeTab === 'completed' || activeTab === 'assigned_by_me' || activeTab === 'verified' || selectedEmp) && activeTab !== 'sales' && activeTab !== 'projects' && activeTab !== 'overview' && activeTab !== 'team' && activeTab !== 'admin' && activeTab !== 'missed-pipelines' && activeTab !== 'feedback' && (
         <div className="space-y-4">
 
 
@@ -1163,6 +1223,331 @@ export default function AdminDashboard({ user }) {
         </div>
       )}
 
+      {/* ── SELECTED EMPLOYEE: ADMIN FEEDBACK TAB ── */}
+      {selectedEmp && activeTab === 'feedback' && (
+        <div className="space-y-6">
+          {/* Information & Privacy Alert */}
+          <div className="bg-amber-50/70 border border-amber-200/80 rounded-2xl p-4 sm:p-5 flex items-start gap-3.5 shadow-2xs">
+            <div className="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-xs">
+              <MessageSquare className="w-5 h-5" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h3 className="text-sm sm:text-base font-bold text-gray-900">
+                Personal Leadership Feedback for {selectedEmp.name}
+              </h3>
+              <p className="text-xs text-gray-600 mt-1 leading-relaxed">
+                One-way private performance guidance and notes. Visible exclusively to Admins and {selectedEmp.name}. 
+                When you post a note, a private notification is sent directly to this team member.
+              </p>
+            </div>
+          </div>
+
+          {/* Feedback Form Card */}
+          <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-xs">
+            <h4 className="text-xs font-bold text-gray-800 uppercase tracking-wider mb-3 flex items-center gap-2">
+              <Plus className="w-4 h-4 text-amber-500" />
+              Add Performance Note / Comment
+            </h4>
+
+            {feedbackSuccess && (
+              <div className="mb-4 p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs rounded-xl flex items-center gap-2 font-medium">
+                <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+                {feedbackSuccess}
+              </div>
+            )}
+
+            {feedbackError && (
+              <div className="mb-4 p-3 bg-rose-50 border border-rose-200 text-rose-800 text-xs rounded-xl flex items-center gap-2 font-medium">
+                <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                {feedbackError}
+              </div>
+            )}
+
+            <form onSubmit={handleCreateFeedback} className="space-y-3.5">
+              <div>
+                <label className="block text-[11px] font-semibold text-gray-600 uppercase tracking-wider mb-1.5">
+                  Category
+                </label>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => setFeedbackCategory('general')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
+                      feedbackCategory === 'general'
+                        ? 'bg-blue-50 text-blue-800 border-blue-300 ring-2 ring-blue-400/20'
+                        : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
+                    }`}
+                  >
+                    📌 General Guidance
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFeedbackCategory('appreciation')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
+                      feedbackCategory === 'appreciation'
+                        ? 'bg-emerald-50 text-emerald-800 border-emerald-300 ring-2 ring-emerald-400/20'
+                        : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
+                    }`}
+                  >
+                    🌟 Appreciation / Good Work
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFeedbackCategory('improvement')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
+                      feedbackCategory === 'improvement'
+                        ? 'bg-rose-50 text-rose-800 border-rose-300 ring-2 ring-rose-400/20'
+                        : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
+                    }`}
+                  >
+                    ⚠️ Needs Improvement / Delay
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-gray-600 uppercase tracking-wider mb-1.5">
+                  Feedback Note
+                </label>
+                <textarea
+                  value={feedbackText}
+                  onChange={(e) => setFeedbackText(e.target.value)}
+                  placeholder={`Write constructive guidance, appreciation, or areas of focus for ${selectedEmp.name}...`}
+                  rows={3}
+                  className="input-field text-xs sm:text-sm resize-y min-h-[90px]"
+                />
+              </div>
+
+              <div className="flex items-center justify-between pt-1">
+                <span className="text-[11px] text-gray-400 italic">
+                  Pressing Send will deliver this note to {selectedEmp.name ? selectedEmp.name.split(' ')[0] : 'the employee'}'s private dashboard.
+                </span>
+                <button
+                  type="submit"
+                  disabled={submittingFeedback || !feedbackText.trim()}
+                  className="btn-amber text-xs py-2 px-4 flex items-center gap-1.5 font-semibold shadow-xs disabled:opacity-50 cursor-pointer"
+                >
+                  {submittingFeedback ? (
+                    <div className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                  ) : (
+                    <Plus className="w-4 h-4" />
+                  )}
+                  {submittingFeedback ? 'Sending...' : `Send Feedback to ${selectedEmp.name ? selectedEmp.name.split(' ')[0] : 'Employee'}`}
+                </button>
+              </div>
+            </form>
+          </div>
+
+          {/* Feedback History Section */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <h4 className="text-sm font-bold text-gray-900 flex items-center gap-2">
+                <span>Feedback History</span>
+                <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-700">
+                  {empFeedbackList.length}
+                </span>
+              </h4>
+
+              {/* Category Filter */}
+              <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-xl text-xs">
+                <button
+                  onClick={() => setFeedbackFilter('all')}
+                  className={`px-2.5 py-1 rounded-lg font-medium transition-all cursor-pointer ${
+                    feedbackFilter === 'all' ? 'bg-white text-gray-900 shadow-2xs font-semibold' : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  All ({empFeedbackList.length})
+                </button>
+                <button
+                  onClick={() => setFeedbackFilter('appreciation')}
+                  className={`px-2.5 py-1 rounded-lg font-medium transition-all cursor-pointer ${
+                    feedbackFilter === 'appreciation' ? 'bg-white text-emerald-800 shadow-2xs font-semibold' : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  Appreciation ({empFeedbackList.filter(n => n.category === 'appreciation').length})
+                </button>
+                <button
+                  onClick={() => setFeedbackFilter('improvement')}
+                  className={`px-2.5 py-1 rounded-lg font-medium transition-all cursor-pointer ${
+                    feedbackFilter === 'improvement' ? 'bg-white text-rose-800 shadow-2xs font-semibold' : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  Improvement ({empFeedbackList.filter(n => n.category === 'improvement').length})
+                </button>
+                <button
+                  onClick={() => setFeedbackFilter('general')}
+                  className={`px-2.5 py-1 rounded-lg font-medium transition-all cursor-pointer ${
+                    feedbackFilter === 'general' ? 'bg-white text-blue-800 shadow-2xs font-semibold' : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  General ({empFeedbackList.filter(n => n.category === 'general').length})
+                </button>
+              </div>
+            </div>
+
+            {loadingFeedback ? (
+              <div className="p-8 text-center bg-white rounded-2xl border border-gray-200">
+                <div className="w-6 h-6 border-2 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+                <p className="text-xs text-gray-500">Loading feedback notes...</p>
+              </div>
+            ) : empFeedbackList.filter(n => feedbackFilter === 'all' || n.category === feedbackFilter).length === 0 ? (
+              <div className="p-10 text-center bg-white rounded-2xl border border-gray-200 space-y-2">
+                <MessageSquare className="w-8 h-8 text-gray-300 mx-auto" />
+                <p className="text-sm font-semibold text-gray-700">No feedback notes found</p>
+                <p className="text-xs text-gray-400 max-w-sm mx-auto">
+                  {feedbackFilter === 'all'
+                    ? `No feedback has been recorded for ${selectedEmp.name} yet. Use the form above to share performance comments.`
+                    : `No ${feedbackFilter} notes found for ${selectedEmp.name}.`}
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {empFeedbackList
+                  .filter(n => feedbackFilter === 'all' || n.category === feedbackFilter)
+                  .map((note) => {
+                    const isEditing = editingFeedbackId === note.id;
+
+                    const categoryBadge = {
+                      appreciation: {
+                        label: '🌟 Appreciation',
+                        cls: 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                      },
+                      improvement: {
+                        label: '⚠️ Needs Improvement',
+                        cls: 'bg-rose-50 text-rose-800 border-rose-200'
+                      },
+                      general: {
+                        label: '📌 General',
+                        cls: 'bg-blue-50 text-blue-800 border-blue-200'
+                      }
+                    }[note.category] || { label: '📌 Note', cls: 'bg-gray-100 text-gray-700 border-gray-200' };
+
+                    return (
+                      <div
+                        key={note.id}
+                        className="bg-white border border-gray-200 rounded-2xl p-4 sm:p-5 shadow-2xs hover:shadow-xs transition-all space-y-3"
+                      >
+                        <div className="flex items-center justify-between flex-wrap gap-2">
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-8 h-8 rounded-full bg-amber-100 text-amber-900 border border-amber-200 flex items-center justify-center font-bold text-xs">
+                              {(note.admin_name || 'A').charAt(0).toUpperCase()}
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs sm:text-sm font-bold text-gray-900">
+                                  {note.admin_name || 'Admin'}
+                                </span>
+                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${categoryBadge.cls}`}>
+                                  {categoryBadge.label}
+                                </span>
+                              </div>
+                              <p className="text-[10px] text-gray-400 mt-0.5">
+                                {new Date(note.created_at).toLocaleDateString('en-US', {
+                                  month: 'short',
+                                  day: 'numeric',
+                                  year: 'numeric',
+                                  hour: '2-digit',
+                                  minute: '2-digit'
+                                })}
+                                {note.updated_at && note.updated_at !== note.created_at && (
+                                  <span className="italic ml-1">(edited)</span>
+                                )}
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* Action Buttons: Edit (all admins), Delete (ONLY Main Admin is_super_admin) */}
+                          <div className="flex items-center gap-1">
+                            {!isEditing && (
+                              <button
+                                onClick={() => {
+                                  setEditingFeedbackId(note.id);
+                                  setEditFeedbackText(note.note_text);
+                                  setEditFeedbackCategory(note.category || 'general');
+                                }}
+                                className="p-1.5 text-gray-400 hover:text-amber-700 hover:bg-amber-50 rounded-lg transition-colors cursor-pointer"
+                                title="Edit feedback"
+                              >
+                                <Edit2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+
+                            {/* Only Main Admin can delete feedback */}
+                            {user?.is_super_admin && !isEditing && (
+                              <button
+                                onClick={() => handleDeleteFeedback(note.id)}
+                                className="p-1.5 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                                title="Delete feedback (Main Admin only)"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Note Body or Edit Mode */}
+                        {isEditing ? (
+                          <div className="space-y-3 pt-2 border-t border-gray-100">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-[10px] font-bold text-gray-500 uppercase">Category:</span>
+                              {['general', 'appreciation', 'improvement'].map((cat) => (
+                                <button
+                                  key={cat}
+                                  type="button"
+                                  onClick={() => setEditFeedbackCategory(cat)}
+                                  className={`px-2 py-0.5 rounded text-[11px] font-semibold border transition-all cursor-pointer ${
+                                    editFeedbackCategory === cat
+                                      ? 'bg-amber-500 text-white border-amber-600'
+                                      : 'bg-gray-100 text-gray-600 border-gray-200 hover:bg-gray-200'
+                                  }`}
+                                >
+                                  {cat === 'general' ? '📌 General' : cat === 'appreciation' ? '🌟 Appreciation' : '⚠️ Improvement'}
+                                </button>
+                              ))}
+                            </div>
+
+                            <textarea
+                              value={editFeedbackText}
+                              onChange={(e) => setEditFeedbackText(e.target.value)}
+                              rows={3}
+                              className="input-field text-xs sm:text-sm"
+                            />
+
+                            <div className="flex items-center justify-end gap-2">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditingFeedbackId(null);
+                                  setEditFeedbackText('');
+                                }}
+                                className="px-3 py-1.5 text-xs text-gray-600 hover:text-gray-900 border border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer"
+                              >
+                                Cancel
+                              </button>
+                              <button
+                                type="button"
+                                disabled={savingEditFeedback || !editFeedbackText.trim()}
+                                onClick={() => handleUpdateFeedback(note.id)}
+                                className="btn-amber text-xs py-1.5 px-3 flex items-center gap-1 font-semibold disabled:opacity-50 cursor-pointer"
+                              >
+                                {savingEditFeedback ? 'Saving...' : 'Save Changes'}
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <p className="text-xs sm:text-sm text-gray-800 leading-relaxed whitespace-pre-wrap pl-1">
+                            {note.note_text}
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {(activeTab === 'team' && !selectedEmp) && (
         <div className="space-y-4">
           <div className="flex justify-end">
@@ -1354,6 +1739,8 @@ export default function AdminDashboard({ user }) {
         title="Delete Task" message={`Delete "${deleteTask?.title}"? This cannot be undone.`} />
       <ConfirmDeleteModal isOpen={!!deleteUser} onClose={() => setDeleteUser(null)} onConfirm={handleDeleteUser}
         title="Delete User" message={`Remove ${deleteUser?.name} and all their data? This cannot be undone.`} />
+
+
 
       {selectedLeadIdForModal && (
         <SalesLeadDetailModal

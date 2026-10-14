@@ -435,7 +435,7 @@ export default function SalesLeadDetailModal({ leadId, isOpen, onClose, user, on
   const totalContactsCount = primaryCustCount + addCustCount + primaryConsCount + addConsCount + managedContactsCount;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/30 backdrop-blur-sm" onClick={onClose}>
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-gray-900/30 backdrop-blur-sm" onClick={onClose}>
       <div className="bg-white border border-gray-200 rounded-2xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
 
         {/* Clean Light Modal Header (Matching TaskDetailModal) */}
@@ -569,18 +569,11 @@ export default function SalesLeadDetailModal({ leadId, isOpen, onClose, user, on
                 Timeline / Activities ({lead.activities?.length || 0})
               </button>
               <button
-                onClick={() => setActiveTab('strategy')}
-                className={`py-3 px-4 text-xs font-semibold border-b-2 transition-colors flex items-center gap-1.5 whitespace-nowrap ${activeTab === 'strategy' ? 'border-amber-600 text-amber-700' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+                onClick={() => setActiveTab('strategy_problems')}
+                className={`py-3 px-4 text-xs font-semibold border-b-2 transition-colors flex items-center gap-1.5 whitespace-nowrap ${['strategy_problems', 'strategy', 'problems'].includes(activeTab) ? 'border-amber-600 text-amber-700' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
               >
                 <Compass className="w-4 h-4" />
-                Strategy For This Project
-              </button>
-              <button
-                onClick={() => setActiveTab('problems')}
-                className={`py-3 px-4 text-xs font-semibold border-b-2 transition-colors flex items-center gap-1.5 whitespace-nowrap ${activeTab === 'problems' ? 'border-amber-600 text-amber-700' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
-              >
-                <AlertTriangle className="w-4 h-4 text-amber-600" />
-                Problems & Leverage ({problems.length})
+                Strategy, Problem and Leverages ({problems.length})
               </button>
             </div>
 
@@ -780,6 +773,26 @@ export default function SalesLeadDetailModal({ leadId, isOpen, onClose, user, on
                       </div>
                     </div>
                   )}
+
+                  {/* Strategy display (view only in Pipeline) */}
+                  <div className="p-4 bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-white border border-amber-200 rounded-2xl space-y-2.5">
+                    <div className="flex items-center gap-2">
+                      <Compass className="w-4 h-4 text-amber-600" />
+                      <h4 className="text-xs font-bold text-amber-950 uppercase tracking-wider">
+                        Strategy For This Project
+                      </h4>
+                    </div>
+
+                    {lead?.strategy && lead.strategy.trim() ? (
+                      <div className="text-slate-800 whitespace-pre-wrap leading-relaxed text-xs p-3.5 bg-white rounded-xl border border-amber-200/60 font-medium">
+                        {lead.strategy}
+                      </div>
+                    ) : (
+                      <div className="p-3 bg-white/70 rounded-xl border border-amber-100 text-xs text-slate-500 italic">
+                        No project strategy has been documented yet.
+                      </div>
+                    )}
+                  </div>
 
                   {/* Audit History of Stage Transitions */}
                   <div>
@@ -1240,139 +1253,136 @@ export default function SalesLeadDetailModal({ leadId, isOpen, onClose, user, on
                 </div>
               )}
 
-              {/* ── TAB 5: STRATEGY FOR THIS PROJECT ── */}
-              {activeTab === 'strategy' && (
-                <div className="space-y-5 animate-in fade-in">
-                  <div className="flex items-center justify-between p-4 bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border border-amber-200/80 rounded-2xl">
-                    <div>
-                      <h3 className="text-sm font-bold text-amber-950 flex items-center gap-2">
+              {/* ── COMBINED TAB: STRATEGY, PROBLEM AND LEVERAGES ── */}
+              {['strategy_problems', 'strategy', 'problems'].includes(activeTab) && (
+                <div className="space-y-8 animate-in fade-in">
+                  {/* ── SECTION 1: STRATEGY FOR THIS PROJECT ── */}
+                  <div className="space-y-5">
+                    <div className="flex items-center justify-between p-4 bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border border-amber-200/80 rounded-2xl">
+                      <div className="flex items-center gap-2">
                         <Compass className="w-4 h-4 text-amber-600" />
-                        Strategy For This Project
-                      </h3>
-                      <p className="text-xs text-amber-800/80 mt-0.5">
-                        Strategic direction, account positioning, key negotiation plan, and internal action guidance.
-                      </p>
+                        <h3 className="text-sm font-bold text-amber-950">
+                          Strategy For This Project
+                        </h3>
+                      </div>
                     </div>
-                    {canEdit && user?.role === 'admin' ? (
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800 bg-amber-100 border border-amber-300 px-2.5 py-1 rounded-lg">
-                        ✏️ Admin Editable
-                      </span>
-                    ) : (
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-700 bg-slate-100 border border-slate-300 px-2.5 py-1 rounded-lg">
-                        🔒 Admin Managed (Read Only)
-                      </span>
+
+                    {strategySaved && (
+                      <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs rounded-xl flex items-center gap-2 font-medium">
+                        <Check className="w-4 h-4 text-emerald-600" />
+                        Project Strategy updated successfully!
+                      </div>
                     )}
-                  </div>
 
-                  {strategySaved && (
-                    <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs rounded-xl flex items-center gap-2 font-medium">
-                      <Check className="w-4 h-4 text-emerald-600" />
-                      Project Strategy updated successfully!
-                    </div>
-                  )}
-
-                  {/* Render Saved Strategy Card View when not editing */}
-                  {!isEditingStrategy && lead?.strategy && lead.strategy.trim() ? (
-                    <div className="p-5 bg-white border border-amber-200/80 rounded-2xl space-y-3 shadow-2xs relative">
-                      <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                        <div className="flex items-center gap-2">
-                          <Compass className="w-4 h-4 text-amber-600" />
-                          <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">Active Strategy Document</h4>
+                    {/* Render Saved Strategy Card View when not editing */}
+                    {!isEditingStrategy && lead?.strategy && lead.strategy.trim() ? (
+                      <div className="p-5 bg-white border border-amber-200/80 rounded-2xl space-y-3 shadow-2xs relative">
+                        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                          <div className="flex items-center gap-2">
+                            <Compass className="w-4 h-4 text-amber-600" />
+                            <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">Active Strategy Document</h4>
+                          </div>
+                          {canEdit && user?.role === 'admin' && (
+                            <button
+                              onClick={() => {
+                                setStrategyText(lead.strategy);
+                                setIsEditingStrategy(true);
+                              }}
+                              className="text-amber-700 hover:text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-200/80 px-2.5 py-1 rounded-lg transition-colors flex items-center gap-1.5 text-xs font-semibold cursor-pointer"
+                            >
+                              <Edit3 className="w-3.5 h-3.5" />
+                              Edit Strategy
+                            </button>
+                          )}
                         </div>
+                        <div className="text-slate-800 whitespace-pre-wrap leading-relaxed text-xs p-3.5 bg-amber-50/20 rounded-xl border border-amber-100/60 font-medium">
+                          {lead.strategy}
+                        </div>
+                      </div>
+                    ) : isEditingStrategy ? (
+                      <form onSubmit={handleSaveStrategy} className="space-y-4 p-4 bg-amber-50/20 border border-amber-200 rounded-2xl">
+                        <div>
+                          <div className="flex items-center justify-between mb-1.5">
+                            <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider block">
+                              Edit Strategy & Master Plan Notes
+                            </label>
+                            {lead?.strategy && (
+                              <button
+                                type="button"
+                                onClick={() => setIsEditingStrategy(false)}
+                                className="text-xs text-slate-500 hover:text-slate-800 font-medium cursor-pointer"
+                              >
+                                Cancel
+                              </button>
+                            )}
+                          </div>
+                          <textarea
+                            value={strategyText}
+                            onChange={(e) => setStrategyText(e.target.value)}
+                            placeholder="Write the master strategy for winning this project (e.g. key decision maker leverage, competitor positioning, target pricing, technical champion, timeline urgency)..."
+                            className="input-field min-h-[180px] bg-white text-xs leading-relaxed p-3.5 focus:ring-2 focus:ring-amber-500/30"
+                          />
+                        </div>
+                        <div className="flex items-center justify-end pt-1">
+                          <div className="flex items-center gap-2">
+                            {lead?.strategy && (
+                              <button
+                                type="button"
+                                onClick={() => setIsEditingStrategy(false)}
+                                className="btn-primary text-xs py-2 px-3 cursor-pointer"
+                              >
+                                Cancel
+                              </button>
+                            )}
+                            <button
+                              type="submit"
+                              disabled={savingStrategy}
+                              className="btn-amber text-xs py-2 px-4 flex items-center gap-2 font-semibold shadow-xs disabled:opacity-50 cursor-pointer"
+                            >
+                              {savingStrategy ? (
+                                <div className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                              ) : (
+                                <Check className="w-4 h-4" />
+                              )}
+                              {savingStrategy ? 'Saving Strategy...' : 'Save Strategy'}
+                            </button>
+                          </div>
+                        </div>
+                      </form>
+                    ) : (
+                      <div className="p-8 bg-white border border-slate-200 rounded-2xl text-center space-y-3">
+                        <Compass className="w-8 h-8 text-slate-300 mx-auto" />
+                        <p className="text-xs text-slate-500">No project strategy has been documented for this lead yet.</p>
                         {canEdit && user?.role === 'admin' && (
                           <button
                             onClick={() => {
-                              setStrategyText(lead.strategy);
+                              setStrategyText('');
                               setIsEditingStrategy(true);
                             }}
-                            className="text-amber-700 hover:text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-200/80 px-2.5 py-1 rounded-lg transition-colors flex items-center gap-1.5 text-xs font-semibold"
+                            className="btn-amber text-xs py-2 px-4 inline-flex items-center gap-1.5 font-semibold cursor-pointer"
                           >
-                            <Edit3 className="w-3.5 h-3.5" />
-                            Edit Strategy
+                            <Plus className="w-4 h-4" />
+                            Add Project Strategy
                           </button>
                         )}
                       </div>
-                      <div className="text-slate-800 whitespace-pre-wrap leading-relaxed text-xs p-3.5 bg-amber-50/20 rounded-xl border border-amber-100/60 font-medium">
-                        {lead.strategy}
-                      </div>
-                    </div>
-                  ) : isEditingStrategy ? (
-                    <form onSubmit={handleSaveStrategy} className="space-y-4 p-4 bg-amber-50/20 border border-amber-200 rounded-2xl">
-                      <div>
-                        <div className="flex items-center justify-between mb-1.5">
-                          <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider block">
-                            Edit Strategy & Master Plan Notes
-                          </label>
-                          {lead?.strategy && (
-                            <button
-                              type="button"
-                              onClick={() => setIsEditingStrategy(false)}
-                              className="text-xs text-slate-500 hover:text-slate-800 font-medium"
-                            >
-                              Cancel
-                            </button>
-                          )}
-                        </div>
-                        <textarea
-                          value={strategyText}
-                          onChange={(e) => setStrategyText(e.target.value)}
-                          placeholder="Write the master strategy for winning this project (e.g. key decision maker leverage, competitor positioning, target pricing, technical champion, timeline urgency)..."
-                          className="input-field min-h-[180px] bg-white text-xs leading-relaxed p-3.5 focus:ring-2 focus:ring-amber-500/30"
-                        />
-                      </div>
-                      <div className="flex items-center justify-between pt-1">
-                        <span className="text-[11px] text-slate-500 italic">
-                          Only Admins can write or update this strategy note.
-                        </span>
-                        <div className="flex items-center gap-2">
-                          {lead?.strategy && (
-                            <button
-                              type="button"
-                              onClick={() => setIsEditingStrategy(false)}
-                              className="btn-primary text-xs py-2 px-3"
-                            >
-                              Cancel
-                            </button>
-                          )}
-                          <button
-                            type="submit"
-                            disabled={savingStrategy}
-                            className="btn-amber text-xs py-2 px-4 flex items-center gap-2 font-semibold shadow-xs disabled:opacity-50"
-                          >
-                            {savingStrategy ? (
-                              <div className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                            ) : (
-                              <Check className="w-4 h-4" />
-                            )}
-                            {savingStrategy ? 'Saving Strategy...' : 'Save Strategy'}
-                          </button>
-                        </div>
-                      </div>
-                    </form>
-                  ) : (
-                    <div className="p-8 bg-white border border-slate-200 rounded-2xl text-center space-y-3">
-                      <Compass className="w-8 h-8 text-slate-300 mx-auto" />
-                      <p className="text-xs text-slate-500">No project strategy has been documented for this lead yet.</p>
-                      {canEdit && user?.role === 'admin' && (
-                        <button
-                          onClick={() => {
-                            setStrategyText('');
-                            setIsEditingStrategy(true);
-                          }}
-                          className="btn-amber text-xs py-2 px-4 inline-flex items-center gap-1.5 font-semibold"
-                        >
-                          <Plus className="w-4 h-4" />
-                          Add Project Strategy
-                        </button>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
+                    )}
+                  </div>
 
-              {/* ── TAB 5: PROBLEMS AND LEVERAGE ── */}
-              {activeTab === 'problems' && (
-                <div className="space-y-6">
+                  {/* Clean Divider between Strategy and Problems */}
+                  <div className="relative py-2">
+                    <div className="absolute inset-0 flex items-center">
+                      <div className="w-full border-t border-gray-200" />
+                    </div>
+                    <div className="relative flex justify-center">
+                      <span className="bg-white px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                        Problems, Blockers & Leverage Requests
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* ── SECTION 2: PROBLEMS AND LEVERAGES ── */}
+                  <div className="space-y-6">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-amber-50/40 p-4 rounded-2xl border border-amber-200/60">
                     <div>
                       <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
@@ -1613,6 +1623,7 @@ export default function SalesLeadDetailModal({ leadId, isOpen, onClose, user, on
                         ))}
                     </div>
                   )}
+                  </div>
                 </div>
               )}
             </div>

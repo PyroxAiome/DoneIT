@@ -40,29 +40,41 @@ export default function Header({ user, onLogout, onChangePassword, onViewTask })
   };
 
   const getFilteredNotifications = () => {
-    if (dateFilter === 'all') return notifications;
-    const now = new Date();
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-    const yesterdayStart = todayStart - 24 * 60 * 60 * 1000;
-    const sevenDaysAgo = todayStart - 7 * 24 * 60 * 60 * 1000;
+    let list = notifications;
+    if (dateFilter !== 'all') {
+      const now = new Date();
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+      const yesterdayStart = todayStart - 24 * 60 * 60 * 1000;
+      const sevenDaysAgo = todayStart - 7 * 24 * 60 * 60 * 1000;
 
-    return notifications.filter(n => {
-      if (!n.created_at) return true;
-      const dt = parseNotificationDate(n.created_at);
-      if (!dt || isNaN(dt.getTime())) return true;
-      const nTime = dt.getTime();
+      list = list.filter(n => {
+        if (!n.created_at) return true;
+        const dt = parseNotificationDate(n.created_at);
+        if (!dt || isNaN(dt.getTime())) return true;
+        const nTime = dt.getTime();
 
-      if (dateFilter === 'today') {
-        return nTime >= todayStart;
-      } else if (dateFilter === 'yesterday') {
-        return nTime >= yesterdayStart && nTime < todayStart;
-      } else if (dateFilter === 'week') {
-        return nTime >= sevenDaysAgo;
-      } else if (dateFilter === 'custom') {
-        if (!customDate) return true;
-        const nDateStr = dt.toISOString().slice(0, 10);
-        return nDateStr === customDate;
-      }
+        if (dateFilter === 'today') {
+          return nTime >= todayStart;
+        } else if (dateFilter === 'yesterday') {
+          return nTime >= yesterdayStart && nTime < todayStart;
+        } else if (dateFilter === 'week') {
+          return nTime >= sevenDaysAgo;
+        } else if (dateFilter === 'custom') {
+          if (!customDate) return true;
+          const nDateStr = dt.toISOString().slice(0, 10);
+          return nDateStr === customDate;
+        }
+        return true;
+      });
+    }
+
+    const seen = new Set();
+    return list.filter(n => {
+      if (!n || !n.id) return false;
+      const dedupeKey = `${n.id}_${n.message}_${n.task_id || 0}_${n.lead_id || 0}`;
+      if (seen.has(dedupeKey) || seen.has(n.id)) return false;
+      seen.add(dedupeKey);
+      seen.add(n.id);
       return true;
     });
   };
@@ -86,7 +98,18 @@ export default function Header({ user, onLogout, onChangePassword, onViewTask })
   useEffect(() => {
     const loadNotifications = () => {
       api.getNotifications()
-        .then(setNotifications)
+        .then(data => {
+          if (Array.isArray(data)) {
+            const seen = new Set();
+            const unique = data.filter(item => {
+              if (!item || !item.id) return false;
+              if (seen.has(item.id)) return false;
+              seen.add(item.id);
+              return true;
+            });
+            setNotifications(unique);
+          }
+        })
         .catch(() => {});
     };
 
@@ -98,7 +121,19 @@ export default function Header({ user, onLogout, onChangePassword, onViewTask })
     eventSource.onmessage = (event) => {
       try {
         const newNotification = JSON.parse(event.data);
-        setNotifications(prev => [newNotification, ...prev]);
+        setNotifications(prev => {
+          if (!newNotification || !newNotification.id) return prev;
+          if (prev.some(item => item.id === newNotification.id)) return prev;
+          // Avoid duplicate notification if identical message & target arrived within 60s
+          const isDuplicate = prev.some(item =>
+            item.message === newNotification.message &&
+            item.task_id === newNotification.task_id &&
+            item.lead_id === newNotification.lead_id &&
+            Math.abs(new Date(item.created_at || Date.now()) - new Date(newNotification.created_at || Date.now())) < 60000
+          );
+          if (isDuplicate) return prev;
+          return [newNotification, ...prev];
+        });
         loadPendingDeps();
       } catch (err) {
         console.error("Error parsing SSE message:", err);
@@ -148,6 +183,8 @@ export default function Header({ user, onLogout, onChangePassword, onViewTask })
       onViewTask({ id: n.task_id });
     } else if (n.lead_id) {
       window.dispatchEvent(new CustomEvent('open-sales-lead', { detail: { leadId: n.lead_id } }));
+    } else if (n.message && n.message.toLowerCase().includes('feedback')) {
+      window.location.hash = 'feedback';
     }
   };
 

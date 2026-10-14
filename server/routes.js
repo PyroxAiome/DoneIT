@@ -89,6 +89,21 @@ let sseClients = [];
 const createNotification = async (recipientId, updaterId, message, taskId = null, leadId = null) => {
   if (!recipientId || Number(recipientId) === Number(updaterId)) return;
   try {
+    // Deduplication check: prevent identical notification within 2 minutes or unread duplicate
+    const { rows: existing } = await db.query(`
+      SELECT id FROM notifications 
+      WHERE user_id = $1 AND message = $2 
+        AND COALESCE(task_id, 0) = COALESCE($3, 0)
+        AND COALESCE(lead_id, 0) = COALESCE($4, 0)
+        AND (created_at > NOW() - INTERVAL '2 minutes' OR is_read = 0)
+      LIMIT 1
+    `, [recipientId, message, taskId, leadId]);
+
+    if (existing && existing.length > 0) {
+      console.log(`[Notification Deduplication] Skipping duplicate notification for user ${recipientId}: "${message}"`);
+      return;
+    }
+
     const result = await db.query(
       "INSERT INTO notifications (user_id, message, task_id, lead_id) VALUES ($1, $2, $3, $4) RETURNING *",
       [recipientId, message, taskId || null, leadId || null]
@@ -526,6 +541,145 @@ router.delete('/users/:id', auth, adminOnly, async (req, res) => {
     const result = await db.query('DELETE FROM users WHERE id = $1', [id]);
     if (result.rowCount === 0) return res.status(404).json({ error: 'User not found' });
     res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── EMPLOYEE ADMIN NOTES / FEEDBACK ─────────────────────────────
+// View feedback notes: Allowed for Admins or the target employee themselves
+router.get('/employees/:id/admin-notes', auth, async (req, res) => {
+  try {
+    const targetUserId = parseInt(req.params.id, 10);
+    if (isNaN(targetUserId)) {
+      return res.status(400).json({ error: 'Invalid employee ID' });
+    }
+
+    // Privacy rule: Admins can view any employee's feedback; employees/managers can only view their own
+    if (req.user.role !== 'admin' && req.user.id !== targetUserId) {
+      return res.status(403).json({ error: 'Access denied: You can only view your own feedback' });
+    }
+
+    const { rows: notes } = await db.query(`
+      SELECT n.id, n.user_id, n.admin_id, n.note_text, n.category, n.created_at, n.updated_at,
+             u.name as admin_name, u.email as admin_email, u.avatar_url as admin_avatar, u.role as admin_role
+      FROM employee_admin_notes n
+      LEFT JOIN users u ON n.admin_id = u.id
+      WHERE n.user_id = $1
+      ORDER BY n.created_at DESC
+    `, [targetUserId]);
+
+    res.json(notes);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Create feedback note: Any Admin (Admin, CEO, Director) can post feedback
+router.post('/employees/:id/admin-notes', auth, adminOnly, async (req, res) => {
+  try {
+    const targetUserId = parseInt(req.params.id, 10);
+    const { note_text, category = 'general' } = req.body;
+
+    if (!note_text || !note_text.trim()) {
+      return res.status(400).json({ error: 'Feedback note text is required' });
+    }
+
+    // Verify recipient employee exists
+    const { rows: userRows } = await db.query('SELECT id, name FROM users WHERE id = $1', [targetUserId]);
+    if (userRows.length === 0) {
+      return res.status(404).json({ error: 'Target employee not found' });
+    }
+
+    const { rows: inserted } = await db.query(`
+      INSERT INTO employee_admin_notes (user_id, admin_id, note_text, category)
+      VALUES ($1, $2, $3, $4)
+      RETURNING *
+    `, [targetUserId, req.user.id, note_text.trim(), category || 'general']);
+
+    // Send private notification strictly to the recipient employee (never broadcasted to others)
+    await createNotification(
+      targetUserId,
+      req.user.id,
+      `${req.user.name} shared personal feedback with you.`
+    );
+
+    const { rows: fullNote } = await db.query(`
+      SELECT n.id, n.user_id, n.admin_id, n.note_text, n.category, n.created_at, n.updated_at,
+             u.name as admin_name, u.email as admin_email, u.avatar_url as admin_avatar, u.role as admin_role
+      FROM employee_admin_notes n
+      LEFT JOIN users u ON n.admin_id = u.id
+      WHERE n.id = $1
+    `, [inserted[0].id]);
+
+    res.status(201).json(fullNote[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Edit feedback note: Any Admin can edit
+router.put('/employees/:id/admin-notes/:noteId', auth, adminOnly, async (req, res) => {
+  try {
+    const targetUserId = parseInt(req.params.id, 10);
+    const noteId = parseInt(req.params.noteId, 10);
+    const { note_text, category } = req.body;
+
+    if (!note_text || !note_text.trim()) {
+      return res.status(400).json({ error: 'Feedback note text is required' });
+    }
+
+    const { rows: updated } = await db.query(`
+      UPDATE employee_admin_notes
+      SET note_text = $1, 
+          category = COALESCE($2, category),
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = $3 AND user_id = $4
+      RETURNING *
+    `, [note_text.trim(), category, noteId, targetUserId]);
+
+    if (updated.length === 0) {
+      return res.status(404).json({ error: 'Feedback note not found' });
+    }
+
+    const { rows: fullNote } = await db.query(`
+      SELECT n.id, n.user_id, n.admin_id, n.note_text, n.category, n.created_at, n.updated_at,
+             u.name as admin_name, u.email as admin_email, u.avatar_url as admin_avatar, u.role as admin_role
+      FROM employee_admin_notes n
+      LEFT JOIN users u ON n.admin_id = u.id
+      WHERE n.id = $1
+    `, [noteId]);
+
+    res.json(fullNote[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Delete feedback note: ONLY Main Admin (is_super_admin = true) can delete
+router.delete('/employees/:id/admin-notes/:noteId', auth, adminOnly, async (req, res) => {
+  try {
+    // Strictly verify if requesting user is the Main Admin (is_super_admin = true)
+    const { rows: reqUserRows } = await db.query('SELECT is_super_admin FROM users WHERE id = $1', [req.user.id]);
+    const isSuperAdmin = !!(reqUserRows[0] && reqUserRows[0].is_super_admin);
+
+    if (!isSuperAdmin) {
+      return res.status(403).json({ error: 'Permission denied: Only the Main Admin can delete feedback comments.' });
+    }
+
+    const targetUserId = parseInt(req.params.id, 10);
+    const noteId = parseInt(req.params.noteId, 10);
+
+    const { rowCount } = await db.query(`
+      DELETE FROM employee_admin_notes
+      WHERE id = $1 AND user_id = $2
+    `, [noteId, targetUserId]);
+
+    if (rowCount === 0) {
+      return res.status(404).json({ error: 'Feedback note not found' });
+    }
+
+    res.json({ success: true, message: 'Feedback note deleted successfully' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -1870,12 +2024,19 @@ router.delete('/tasks/:id/daily-logs/:logId/comments/:commentId', auth, async (r
 router.get('/notifications', auth, async (req, res) => {
   try {
     const { rows: list } = await db.query(`
-      SELECT n.*, t.title as task_title, l.title as lead_title
-      FROM notifications n
-      LEFT JOIN tasks t ON n.task_id = t.id
-      LEFT JOIN sales_leads l ON n.lead_id = l.id
-      WHERE n.user_id = $1 
-      ORDER BY n.created_at DESC 
+      SELECT * FROM (
+        SELECT n.*, t.title as task_title, l.title as lead_title,
+          ROW_NUMBER() OVER (
+            PARTITION BY n.user_id, n.message, COALESCE(n.task_id, 0), COALESCE(n.lead_id, 0), date_trunc('minute', n.created_at)
+            ORDER BY n.created_at DESC
+          ) as rn
+        FROM notifications n
+        LEFT JOIN tasks t ON n.task_id = t.id
+        LEFT JOIN sales_leads l ON n.lead_id = l.id
+        WHERE n.user_id = $1 
+      ) sub
+      WHERE rn = 1
+      ORDER BY created_at DESC 
       LIMIT 100
     `, [req.user.id]);
     res.json(list);
