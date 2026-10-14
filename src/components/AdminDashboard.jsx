@@ -830,87 +830,49 @@ export default function AdminDashboard({ user }) {
             </div>
           ) : (
             <div className="bg-white border border-gray-200 rounded-2xl shadow-xs overflow-hidden divide-y divide-gray-100">
-              {missedDemoAndSpecLeads.map((lead) => {
-                const stageLabel = STAGE_LABELS[lead.current_stage] || (lead.current_stage ? lead.current_stage.replace('_', ' ') : 'Unknown');
-                const leadValFormatted = formatLeadValue(lead.lead_value);
-                return (
-                  <div
-                    key={lead.id}
-                    className="p-4 sm:p-5 hover:bg-amber-50/20 transition-colors flex flex-col md:flex-row md:items-center justify-between gap-4 group"
-                  >
-                    <div className="space-y-1.5 min-w-0 flex-1">
-                      <div className="flex items-center gap-2.5 flex-wrap">
-                        <h4
-                          onClick={() => setSelectedLeadIdForModal(lead.id)}
-                          className="font-bold text-gray-900 text-sm sm:text-base hover:text-amber-600 transition-colors cursor-pointer truncate"
-                          title="Click to view details"
-                        >
-                          {lead.title}
-                        </h4>
-                        <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
-                          Stage: {stageLabel}
-                        </span>
-                        {lead.missedDemo && (
-                          <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300">
-                            <AlertTriangle className="w-3 h-3 text-amber-600" />
-                            Missed Demo
-                          </span>
-                        )}
-                        {lead.missedSpecTender && (
-                          <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-purple-100 text-purple-800 border border-purple-300">
-                            <ShieldAlert className="w-3 h-3 text-purple-600" />
-                            Missed Spec of Tender
-                          </span>
-                        )}
-                      </div>
+              {missedDemoAndSpecLeads.map((lead) => (
+                <div
+                  key={lead.id}
+                  className="p-4 sm:p-5 hover:bg-gray-50/60 transition-colors flex items-center justify-between gap-4"
+                >
+                  <div className="flex items-center gap-3 flex-wrap min-w-0">
+                    <h4
+                      onClick={() => setSelectedLeadIdForModal(lead.id)}
+                      className="font-bold text-gray-900 text-sm sm:text-base hover:text-amber-600 transition-colors cursor-pointer"
+                      title="Click to view details"
+                    >
+                      {lead.title}
+                    </h4>
 
-                      <div className="flex items-center gap-4 text-xs text-gray-500 flex-wrap pt-0.5">
-                        {(lead.client_company || lead.client_name) && (
-                          <span className="flex items-center gap-1 text-gray-700 font-medium">
-                            <Building2 className="w-3.5 h-3.5 text-gray-400" />
-                            {lead.client_company || lead.client_name}
-                          </span>
-                        )}
-                        {lead.assignee_name && (
-                          <span className="flex items-center gap-1 text-gray-600">
-                            <User className="w-3.5 h-3.5 text-gray-400" />
-                            Sales Rep: <strong className="font-semibold text-gray-800">{lead.assignee_name}</strong>
-                          </span>
-                        )}
-                        {lead.lead_value > 0 && (
-                          <span className="flex items-center gap-1 text-emerald-700 font-semibold">
-                            Value: {leadValFormatted}
-                          </span>
-                        )}
-                        {lead.city && (
-                          <span className="text-gray-400">
-                            &middot; {lead.city}
-                          </span>
-                        )}
-                      </div>
-                    </div>
+                    {lead.missedDemo && (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300">
+                        <AlertTriangle className="w-3 h-3 text-amber-600" />
+                        Missed Demo
+                      </span>
+                    )}
+                    {lead.missedSpecTender && (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-purple-100 text-purple-800 border border-purple-300">
+                        <ShieldAlert className="w-3 h-3 text-purple-600" />
+                        Missed Spec of Tender
+                      </span>
+                    )}
 
-                    <div className="flex items-center gap-2.5 self-start md:self-center shrink-0">
-                      <button
-                        onClick={() => setSelectedLeadIdForModal(lead.id)}
-                        className="px-3.5 py-2 text-xs font-semibold text-gray-700 bg-white hover:bg-amber-50 hover:text-amber-900 border border-gray-300 hover:border-amber-300 rounded-xl shadow-2xs transition-all cursor-pointer"
-                      >
-                        View Details
-                      </button>
-                      <button
-                        onClick={() => {
-                          setTargetLeadId(lead.id);
-                          setActiveTab('sales');
-                          window.location.hash = 'sales';
-                        }}
-                        className="px-3.5 py-2 text-xs font-semibold text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-300 rounded-xl shadow-2xs transition-all flex items-center gap-1 cursor-pointer"
-                      >
-                        Open in Pipeline <ExternalLink className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
+                    <span className="text-xs text-gray-500 flex items-center gap-1.5 sm:ml-2">
+                      <User className="w-3.5 h-3.5 text-gray-400" />
+                      Sales Person: <strong className="font-semibold text-gray-800">{lead.assignee_name || 'Unassigned'}</strong>
+                    </span>
                   </div>
-                );
-              })}
+
+                  <div className="shrink-0">
+                    <button
+                      onClick={() => setSelectedLeadIdForModal(lead.id)}
+                      className="px-4 py-2 text-xs font-semibold text-gray-700 bg-white hover:bg-amber-50 hover:text-amber-900 border border-gray-300 hover:border-amber-300 rounded-xl shadow-2xs transition-all cursor-pointer"
+                    >
+                      View Details
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </div>
