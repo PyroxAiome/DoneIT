@@ -458,7 +458,7 @@ router.post('/users', auth, adminOnly, async (req, res) => {
 router.put('/users/:id', auth, adminOnly, async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, email, password, role, department, mentor_id } = req.body;
+    const { name, email, password, role, department, mentor_id, can_access_sales } = req.body;
     if (!name || !email || !role) {
       return res.status(400).json({ error: 'Name, email, and role are required' });
     }
@@ -472,24 +472,36 @@ router.put('/users/:id', auth, adminOnly, async (req, res) => {
     }
 
     const targetMentorId = mentor_id ? Number(mentor_id) : null;
+    const salesAccessVal = can_access_sales !== undefined ? Boolean(can_access_sales) : null;
 
     if (password && password.trim() !== '') {
       const hash = bcrypt.hashSync(password, 10);
       await db.query(`
         UPDATE users
-        SET name = $1, email = $2, password_hash = $3, role = $4, department = $5, mentor_id = $6
-        WHERE id = $7
-      `, [name, email, hash, role, department || 'General', targetMentorId, id]);
+        SET name = $1, email = $2, password_hash = $3, role = $4, department = $5, mentor_id = $6,
+            can_access_sales = COALESCE($7, can_access_sales)
+        WHERE id = $8
+      `, [name, email, hash, role, department || 'General', targetMentorId, salesAccessVal, id]);
     } else {
       await db.query(`
         UPDATE users
-        SET name = $1, email = $2, role = $3, department = $4, mentor_id = $5
-        WHERE id = $6
-      `, [name, email, role, department || 'General', targetMentorId, id]);
+        SET name = $1, email = $2, role = $3, department = $4, mentor_id = $5,
+            can_access_sales = COALESCE($6, can_access_sales)
+        WHERE id = $7
+      `, [name, email, role, department || 'General', targetMentorId, salesAccessVal, id]);
     }
 
     const { rows: updatedRows } = await db.query(`
-      SELECT u.id, u.name, u.email, u.role, u.department, u.avatar_url, u.mentor_id, m.name as mentor_name, u.created_at
+      SELECT u.id, u.name, u.email, u.role, u.department, u.avatar_url, u.mentor_id, m.name as mentor_name,
+        COALESCE(u.can_access_sales, false) as can_access_sales,
+        COALESCE(u.can_access_nirantar, false) as can_access_nirantar,
+        COALESCE(u.can_access_saksham, false) as can_access_saksham,
+        COALESCE(u.can_access_upakaram, false) as can_access_upakaram,
+        COALESCE(u.can_access_general_leads, true) as can_access_general_leads,
+        COALESCE(u.can_access_order_lakshya, true) as can_access_order_lakshya,
+        COALESCE(u.can_access_billing_lakshya, true) as can_access_billing_lakshya,
+        COALESCE(u.can_access_collection_lakshya, true) as can_access_collection_lakshya,
+        u.created_at
       FROM users u
       LEFT JOIN users m ON u.mentor_id = m.id
       WHERE u.id = $1
@@ -557,6 +569,7 @@ router.get('/tasks', auth, async (req, res) => {
     let sql = `
       SELECT t.*, 
         u.name as assignee_name, u.email as assignee_email, u.mentor_id as assignee_mentor_id, u.role as assignee_role,
+        m.name as mentor_name,
         c.name as creator_name, c.role as creator_role, c.department as creator_department, 
         e.name as last_edited_by_name,
         v.name as verifier_name, v.role as verifier_role, v.department as verifier_department,
@@ -566,6 +579,7 @@ router.get('/tasks', auth, async (req, res) => {
         p.name as project_name
       FROM tasks t
       LEFT JOIN users u ON t.assignee_id = u.id
+      LEFT JOIN users m ON u.mentor_id = m.id
       LEFT JOIN users c ON t.creator_id = c.id
       LEFT JOIN users e ON t.last_edited_by = e.id
       LEFT JOIN users v ON t.verifier_id = v.id
@@ -741,6 +755,7 @@ router.get('/tasks', auth, async (req, res) => {
           OR t.creator_id = $${paramIdx} 
           OR t.verifier_id = $${paramIdx} 
           OR t.completed_by = $${paramIdx}
+          OR EXISTS (SELECT 1 FROM users u WHERE u.id = t.assignee_id AND u.mentor_id = $${paramIdx})
           OR EXISTS (SELECT 1 FROM tasks child WHERE child.parent_id = t.id AND child.assignee_id = $${paramIdx})
         )`;
         params.push(req.user.id);
@@ -765,6 +780,7 @@ router.get('/tasks/:id', auth, async (req, res) => {
     const { rows } = await db.query(`
       SELECT t.*, 
         u.name as assignee_name, u.email as assignee_email, u.mentor_id as assignee_mentor_id, u.role as assignee_role,
+        m.name as mentor_name,
         c.name as creator_name, c.role as creator_role, c.department as creator_department, 
         e.name as last_edited_by_name,
         v.name as verifier_name, v.role as verifier_role, v.department as verifier_department,
@@ -774,6 +790,7 @@ router.get('/tasks/:id', auth, async (req, res) => {
         p.name as project_name
       FROM tasks t
       LEFT JOIN users u ON t.assignee_id = u.id
+      LEFT JOIN users m ON u.mentor_id = m.id
       LEFT JOIN users c ON t.creator_id = c.id
       LEFT JOIN users e ON t.last_edited_by = e.id
       LEFT JOIN users v ON t.verifier_id = v.id
@@ -801,7 +818,7 @@ router.get('/tasks/:id', auth, async (req, res) => {
 
 router.post('/tasks', auth, async (req, res) => {
   try {
-    const { title, description, color, status, priority, category, pillar, duration_type, is_red_flagged, red_flag_reason, assignee_id, assignee_ids,
+    const { title, description, color, status, priority, category, pillar, product_line, product_line_other, duration_type, is_red_flagged, red_flag_reason, assignee_id, assignee_ids,
       start_date, due_date, estimated_hours, project_id, verifier_id,
       vacancies_count, hiring_stage, hr_strategy_notes,
       hiring_department, hiring_lead_id, way_of_hiring,
@@ -826,10 +843,30 @@ router.post('/tasks', auth, async (req, res) => {
       });
     }
 
-    if (!['admin', 'manager', 'site_manager'].includes(req.user.role)) {
+    const targetAssigneeIds = (assignee_ids && Array.isArray(assignee_ids) && assignee_ids.length > 0)
+      ? assignee_ids.map(Number)
+      : [assignee_id ? Number(assignee_id) : Number(req.user.id)];
+
+    let isAuthorizedMentor = true;
+    for (const tId of targetAssigneeIds) {
+      if (tId !== req.user.id) {
+        const { rows: menteeRows } = await db.query(
+          "SELECT id FROM users WHERE id = $1 AND (mentor_id = $2 OR role = 'intern')",
+          [tId, req.user.id]
+        );
+        if (!menteeRows[0]) {
+          isAuthorizedMentor = false;
+          break;
+        }
+      }
+    }
+
+    const isAssigningToOthers = targetAssigneeIds.some(id => id !== req.user.id);
+
+    if (!['admin', 'manager', 'site_manager'].includes(req.user.role) && (!isAssigningToOthers || !isAuthorizedMentor)) {
       const { rows: weekRows } = await db.query(`
         SELECT COUNT(*) as count FROM tasks 
-        WHERE creator_id = $1 AND created_at >= DATE_TRUNC('week', CURRENT_TIMESTAMP)
+        WHERE creator_id = $1 AND assignee_id = $1 AND created_at >= DATE_TRUNC('week', CURRENT_TIMESTAMP)
       `, [req.user.id]);
       const weekCount = parseInt(weekRows[0]?.count || '0', 10);
       if (weekCount >= 2) {
@@ -840,33 +877,13 @@ router.post('/tasks', auth, async (req, res) => {
 
       const { rows: monthRows } = await db.query(`
         SELECT COUNT(*) as count FROM tasks 
-        WHERE creator_id = $1 AND created_at >= DATE_TRUNC('month', CURRENT_TIMESTAMP)
+        WHERE creator_id = $1 AND assignee_id = $1 AND created_at >= DATE_TRUNC('month', CURRENT_TIMESTAMP)
       `, [req.user.id]);
       const monthCount = parseInt(monthRows[0]?.count || '0', 10);
       if (monthCount >= 10) {
         return res.status(403).json({ 
           error: 'Monthly task creation limit reached (max 10 self-created tasks per month). Please ask your Manager or Admin to assign tasks.' 
         });
-      }
-    }
-
-    const isManagerOrAdmin = ['admin', 'manager', 'site_manager', 'sales_manager'].includes(req.user.role);
-
-    const targetAssigneeIds = (assignee_ids && Array.isArray(assignee_ids) && assignee_ids.length > 0)
-      ? assignee_ids.map(Number)
-      : [assignee_id ? Number(assignee_id) : Number(req.user.id)];
-
-    let isAuthorizedMentor = true;
-    for (const tId of targetAssigneeIds) {
-      if (tId !== req.user.id) {
-        const { rows: menteeRows } = await db.query(
-          'SELECT id FROM users WHERE id = $1 AND mentor_id = $2',
-          [tId, req.user.id]
-        );
-        if (!menteeRows[0]) {
-          isAuthorizedMentor = false;
-          break;
-        }
       }
     }
 
@@ -886,14 +903,16 @@ router.post('/tasks', auth, async (req, res) => {
     for (let i = 0; i < assignees.length; i++) {
       const targetId = assignees[i];
       const result = await db.query(`
-        INSERT INTO tasks (title, description, color, status, priority, category, pillar, duration_type, is_red_flagged, red_flag_reason,
+        INSERT INTO tasks (title, description, color, status, priority, category, pillar, product_line, product_line_other, duration_type, is_red_flagged, red_flag_reason,
           assignee_id, creator_id, start_date, due_date, estimated_hours, parent_id, project_id, verifier_id,
           vacancies_count, hiring_stage, hr_strategy_notes, hiring_department, hiring_lead_id, way_of_hiring,
           training_module, training_level, training_video_url, training_doc_url)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28) RETURNING id
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30) RETURNING id
       `, [
         title, description || '', color || 'slate', status || 'todo',
-        priority || 'medium', category || 'General', pillar || 'general', duration_type || 'exact',
+        priority || 'medium', category || 'General', pillar || 'general',
+        product_line || 'general', product_line_other || '',
+        duration_type || 'exact',
         Boolean(is_red_flagged), red_flag_reason || '',
         targetId, req.user.id,
         start_date || null, due_date || null, estimated_hours || 0,
@@ -1176,10 +1195,46 @@ router.put('/tasks/:id', auth, async (req, res) => {
       req.body.hiring_stage_updated_at = new Date();
     }
 
-    const fields = ['title', 'description', 'color', 'status', 'priority', 'category', 'pillar', 'duration_type',
+    if (req.body.stage_verification) {
+      let existingVerifications = [];
+      try {
+        existingVerifications = typeof currentTask.stage_verifications === 'string'
+          ? JSON.parse(currentTask.stage_verifications)
+          : (currentTask.stage_verifications || []);
+      } catch (e) {
+        existingVerifications = [];
+      }
+      if (!Array.isArray(existingVerifications)) existingVerifications = [];
+
+      const sv = req.body.stage_verification;
+      const newVerification = {
+        id: Date.now(),
+        from_stage: sv.from_stage || currentTask.status,
+        to_stage: sv.to_stage || req.body.status || currentTask.status,
+        stage_label: sv.stage_label || `${sv.from_stage || 'Previous'} ➔ ${sv.to_stage || 'Next'}`,
+        verified_by_id: req.user.id,
+        verified_by_name: req.user.name,
+        verified_by_role: req.user.role,
+        comment: (sv.comment || '').trim(),
+        timestamp: new Date().toISOString()
+      };
+      existingVerifications.push(newVerification);
+      req.body.stage_verifications = JSON.stringify(existingVerifications);
+
+      try {
+        await db.query(
+          'INSERT INTO admin_comments (task_id, admin_id, comment_text) VALUES ($1, $2, $3)',
+          [id, req.user.id, `🛡️ [Mentor Stage Verification - ${newVerification.stage_label}]: ${newVerification.comment}`]
+        );
+      } catch (err) {
+        console.error('Failed to insert mentor stage verification comment:', err.message);
+      }
+    }
+
+    const fields = ['title', 'description', 'color', 'status', 'priority', 'category', 'pillar', 'product_line', 'product_line_other', 'duration_type',
       'is_red_flagged', 'red_flag_reason',
       'progress_percent', 'start_date', 'due_date', 'estimated_hours',
-      'logical_explanation', 'project_id', 'verifier_id', 'verified_at', 'completed_by',
+      'logical_explanation', 'project_id', 'verifier_id', 'verified_at', 'completed_by', 'stage_verifications',
       'vacancies_count', 'hiring_stage', 'hiring_stage_updated_by', 'hiring_stage_updated_at', 'hr_strategy_notes',
       'hiring_department', 'hiring_lead_id', 'way_of_hiring',
       'training_module', 'training_level', 'training_video_url', 'training_doc_url'];
@@ -1500,13 +1555,20 @@ router.post('/tasks/:id/comments', auth, async (req, res) => {
 router.get('/tasks/:id/comments', auth, async (req, res) => {
   try {
     const { id } = req.params;
+    const taskId = Number(id);
+    const { rows: taskRows } = await db.query('SELECT id, parent_id FROM tasks WHERE id = $1', [taskId]);
+    const task = taskRows[0];
+    if (!task) return res.json([]);
+
+    const rootId = task.parent_id ? Number(task.parent_id) : taskId;
+
     const { rows: comments } = await db.query(`
       SELECT ac.*, u.name as admin_name
       FROM admin_comments ac
       LEFT JOIN users u ON ac.admin_id = u.id
-      WHERE ac.task_id = $1
+      WHERE ac.task_id = $1 OR ac.task_id = $2 OR ac.task_id IN (SELECT id FROM tasks WHERE parent_id = $2)
       ORDER BY ac.parent_id IS NULL DESC, ac.created_at ASC
-    `, [id]);
+    `, [taskId, rootId]);
     res.json(comments);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -2022,6 +2084,13 @@ router.get('/dependencies/pending', auth, async (req, res) => {
 router.get('/tasks/:id/dependencies', auth, async (req, res) => {
   try {
     const { id } = req.params;
+    const taskId = Number(id);
+    const { rows: taskRows } = await db.query('SELECT id, parent_id FROM tasks WHERE id = $1', [taskId]);
+    const task = taskRows[0];
+    if (!task) return res.json([]);
+
+    const rootId = task.parent_id ? Number(task.parent_id) : taskId;
+
     const { rows: deps } = await db.query(`
       SELECT d.*, 
         r.name as requester_name, r.role as requester_role, r.email as requester_email,
@@ -2029,9 +2098,9 @@ router.get('/tasks/:id/dependencies', auth, async (req, res) => {
       FROM task_dependencies d
       LEFT JOIN users r ON d.requester_id = r.id
       LEFT JOIN users t ON d.tagee_id = t.id
-      WHERE d.task_id = $1
+      WHERE d.task_id = $1 OR d.task_id = $2 OR d.task_id IN (SELECT id FROM tasks WHERE parent_id = $2)
       ORDER BY d.created_at ASC
-    `, [id]);
+    `, [taskId, rootId]);
     res.json(deps);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -3393,10 +3462,19 @@ const STAGE_PROBABILITIES = {
 
 const salesAccessOnly = async (req, res, next) => {
   try {
-    if (['admin', 'sales_manager'].includes(req.user.role)) return next();
+    if (['admin', 'sales_manager', 'sales_executive'].includes(req.user.role)) return next();
     const { rows } = await db.query('SELECT can_access_sales FROM users WHERE id = $1', [req.user.id]);
     if (rows[0]?.can_access_sales) return next();
     return res.status(403).json({ error: 'Sales access required' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+const salesWriteOnly = async (req, res, next) => {
+  try {
+    if (['admin', 'sales_manager', 'sales_executive'].includes(req.user.role)) return next();
+    return res.status(403).json({ error: 'You have read-only access to Sales. Modifying sales data is restricted to sales personnel.' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -3428,7 +3506,7 @@ router.get('/sales/goals', auth, salesAccessOnly, async (req, res) => {
   }
 });
 
-router.post('/sales/goals', auth, salesAccessOnly, async (req, res) => {
+router.post('/sales/goals', auth, salesWriteOnly, async (req, res) => {
   try {
     if (!['admin', 'sales_manager'].includes(req.user.role)) {
       return res.status(403).json({ error: 'Only Admin or Sales Manager can create goals' });
@@ -3462,7 +3540,7 @@ router.post('/sales/goals', auth, salesAccessOnly, async (req, res) => {
   }
 });
 
-router.put('/sales/goals/:id', auth, salesAccessOnly, async (req, res) => {
+router.put('/sales/goals/:id', auth, salesWriteOnly, async (req, res) => {
   try {
     if (!['admin', 'sales_manager'].includes(req.user.role)) {
       return res.status(403).json({ error: 'Only Admin or Sales Manager can edit goals' });
@@ -3563,7 +3641,7 @@ router.get('/sales/targets', auth, salesAccessOnly, async (req, res) => {
   }
 });
 
-router.post('/sales/targets/upsert', auth, salesAccessOnly, async (req, res) => {
+router.post('/sales/targets/upsert', auth, salesWriteOnly, async (req, res) => {
   try {
     if (!['admin', 'sales_manager'].includes(req.user.role)) {
       return res.status(403).json({ error: 'Only Admin or Sales Manager can set targets' });
@@ -3664,7 +3742,7 @@ router.get('/sales/targets/progress', auth, salesAccessOnly, async (req, res) =>
 });
 
 // Update target actual count directly by salesperson
-router.put('/sales/targets/:id/actual', auth, salesAccessOnly, async (req, res) => {
+router.put('/sales/targets/:id/actual', auth, salesWriteOnly, async (req, res) => {
   try {
     const { id } = req.params;
     const { actual_count } = req.body;
@@ -3815,6 +3893,8 @@ router.get('/sales/leads', auth, salesAccessOnly, async (req, res) => {
         a.name as assignee_name, a.avatar_url as assignee_avatar,
         c.name as creator_name,
         g.name as goal_name,
+        EXISTS(SELECT 1 FROM sales_stage_history WHERE lead_id = l.id AND to_stage = 'demo') as had_demo_stage,
+        EXISTS(SELECT 1 FROM sales_stage_history WHERE lead_id = l.id AND to_stage = 'spec_tender') as had_spec_tender_stage,
         (SELECT COUNT(*) FROM sales_lead_contacts WHERE lead_id = l.id) as contact_count,
         (SELECT COUNT(*) FROM sales_lead_contacts WHERE lead_id = l.id AND is_leverage = true) as leverage_contact_count,
         (SELECT COUNT(*) FROM sales_daily_logs WHERE lead_id = l.id) as log_count,
@@ -3886,7 +3966,7 @@ router.get('/sales/leads/:id', auth, salesAccessOnly, async (req, res) => {
   }
 });
 
-router.post('/sales/leads', auth, salesAccessOnly, async (req, res) => {
+router.post('/sales/leads', auth, salesWriteOnly, async (req, res) => {
   try {
     // Quota check for sales_executive
     if (req.user.role === 'sales_executive') {
@@ -3990,7 +4070,7 @@ router.post('/sales/leads', auth, salesAccessOnly, async (req, res) => {
   }
 });
 
-router.put('/sales/leads/:id', auth, salesAccessOnly, async (req, res) => {
+router.put('/sales/leads/:id', auth, salesWriteOnly, async (req, res) => {
   try {
     const { id } = req.params;
     const {
@@ -4099,7 +4179,7 @@ router.put('/sales/leads/:id/strategy', auth, adminOnly, async (req, res) => {
 });
 
 // Update Stage Transition History Note Endpoint
-router.put('/sales/leads/:id/stage-history/:historyId', auth, salesAccessOnly, async (req, res) => {
+router.put('/sales/leads/:id/stage-history/:historyId', auth, salesWriteOnly, async (req, res) => {
   try {
     const { id, historyId } = req.params;
     const { notes } = req.body;
@@ -4126,7 +4206,7 @@ router.delete('/sales/leads/:id', auth, adminOnly, async (req, res) => {
 });
 
 // ── Stage Transition Endpoint (with Skip Detection & Probability Auto-Update) ──
-router.put('/sales/leads/:id/stage', auth, salesAccessOnly, async (req, res) => {
+router.put('/sales/leads/:id/stage', auth, salesWriteOnly, async (req, res) => {
   try {
     const { id } = req.params;
     const { new_stage, notes } = req.body;
@@ -4230,7 +4310,7 @@ router.put('/sales/leads/:id/stage', auth, salesAccessOnly, async (req, res) => 
 });
 
 // ── Admin Order Confirmation Endpoint ──
-router.post('/sales/leads/:id/confirm-order', auth, salesAccessOnly, async (req, res) => {
+router.post('/sales/leads/:id/confirm-order', auth, salesWriteOnly, async (req, res) => {
   try {
     if (req.user.role !== 'admin') {
       return res.status(403).json({ error: 'Only Admin can confirm orders' });
@@ -4265,7 +4345,7 @@ router.post('/sales/leads/:id/confirm-order', auth, salesAccessOnly, async (req,
 });
 
 // ── Move Billing Lead to Collection ──
-router.post('/sales/leads/:id/move-to-collection', auth, salesAccessOnly, async (req, res) => {
+router.post('/sales/leads/:id/move-to-collection', auth, salesWriteOnly, async (req, res) => {
   try {
     const { id } = req.params;
     const { rows: currentRows } = await db.query('SELECT * FROM sales_leads WHERE id = $1', [id]);
@@ -4319,7 +4399,7 @@ router.get('/sales/leads/:id/contacts', auth, salesAccessOnly, async (req, res) 
   }
 });
 
-router.post('/sales/leads/:id/contacts', auth, salesAccessOnly, async (req, res) => {
+router.post('/sales/leads/:id/contacts', auth, salesWriteOnly, async (req, res) => {
   try {
     const { id } = req.params;
     const { contact_name, contact_role, contact_email, contact_phone, company_name, is_leverage, notes } = req.body;
@@ -4340,7 +4420,7 @@ router.post('/sales/leads/:id/contacts', auth, salesAccessOnly, async (req, res)
   }
 });
 
-router.put('/sales/leads/:id/contacts/:cid', auth, salesAccessOnly, async (req, res) => {
+router.put('/sales/leads/:id/contacts/:cid', auth, salesWriteOnly, async (req, res) => {
   try {
     const { id, cid } = req.params;
     const { contact_name, contact_role, contact_email, contact_phone, company_name, is_leverage, notes } = req.body;
@@ -4365,7 +4445,7 @@ router.put('/sales/leads/:id/contacts/:cid', auth, salesAccessOnly, async (req, 
   }
 });
 
-router.delete('/sales/leads/:id/contacts/:cid', auth, salesAccessOnly, async (req, res) => {
+router.delete('/sales/leads/:id/contacts/:cid', auth, salesWriteOnly, async (req, res) => {
   try {
     const { id, cid } = req.params;
     await db.query('DELETE FROM sales_lead_contacts WHERE id = $1 AND lead_id = $2', [cid, id]);
@@ -4404,7 +4484,7 @@ router.get('/sales/leads/:id/daily-logs', auth, salesAccessOnly, async (req, res
   }
 });
 
-router.post('/sales/leads/:id/daily-logs', auth, salesAccessOnly, async (req, res) => {
+router.post('/sales/leads/:id/daily-logs', auth, salesWriteOnly, async (req, res) => {
   try {
     const { id } = req.params;
     const { log_date, content } = req.body;
@@ -4429,7 +4509,7 @@ router.post('/sales/leads/:id/daily-logs', auth, salesAccessOnly, async (req, re
   }
 });
 
-router.delete('/sales/leads/:id/daily-logs/:logId', auth, salesAccessOnly, async (req, res) => {
+router.delete('/sales/leads/:id/daily-logs/:logId', auth, salesWriteOnly, async (req, res) => {
   try {
     const { id, logId } = req.params;
     const { rows } = await db.query('SELECT user_id FROM sales_daily_logs WHERE id = $1 AND lead_id = $2', [logId, id]);
@@ -4444,7 +4524,7 @@ router.delete('/sales/leads/:id/daily-logs/:logId', auth, salesAccessOnly, async
   }
 });
 
-router.post('/sales/leads/:id/daily-logs/:logId/comments', auth, salesAccessOnly, async (req, res) => {
+router.post('/sales/leads/:id/daily-logs/:logId/comments', auth, salesWriteOnly, async (req, res) => {
   try {
     const { logId } = req.params;
     const { comment_text } = req.body;
@@ -4501,7 +4581,7 @@ router.get('/sales/leads/:id/problems', auth, salesAccessOnly, async (req, res) 
   }
 });
 
-router.post('/sales/leads/:id/problems', auth, salesAccessOnly, async (req, res) => {
+router.post('/sales/leads/:id/problems', auth, salesWriteOnly, async (req, res) => {
   try {
     const { id } = req.params;
     const { issue_type, title, description } = req.body;
@@ -4550,7 +4630,7 @@ router.post('/sales/leads/:id/problems', auth, salesAccessOnly, async (req, res)
   }
 });
 
-router.put('/sales/leads/:id/problems/:problemId/status', auth, salesAccessOnly, async (req, res) => {
+router.put('/sales/leads/:id/problems/:problemId/status', auth, salesWriteOnly, async (req, res) => {
   try {
     const { id, problemId } = req.params;
     const { status } = req.body;
@@ -4594,7 +4674,7 @@ router.put('/sales/leads/:id/problems/:problemId/status', auth, salesAccessOnly,
   }
 });
 
-router.post('/sales/leads/:id/problems/:problemId/replies', auth, salesAccessOnly, async (req, res) => {
+router.post('/sales/leads/:id/problems/:problemId/replies', auth, salesWriteOnly, async (req, res) => {
   try {
     const { id, problemId } = req.params;
     const { reply_text } = req.body;
@@ -4646,7 +4726,7 @@ router.post('/sales/leads/:id/problems/:problemId/replies', auth, salesAccessOnl
   }
 });
 
-router.delete('/sales/leads/:id/problems/:problemId', auth, salesAccessOnly, async (req, res) => {
+router.delete('/sales/leads/:id/problems/:problemId', auth, salesWriteOnly, async (req, res) => {
   try {
     const { id, problemId } = req.params;
     const { rows } = await db.query('SELECT user_id FROM sales_lead_problems WHERE id = $1 AND lead_id = $2', [problemId, id]);
@@ -4663,8 +4743,10 @@ router.delete('/sales/leads/:id/problems/:problemId', auth, salesAccessOnly, asy
   }
 });
 
+
+
 // ── Lead Activities & Timeline Endpoints ──
-router.post('/sales/leads/:id/activities', auth, salesAccessOnly, async (req, res) => {
+router.post('/sales/leads/:id/activities', auth, salesWriteOnly, async (req, res) => {
   try {
     const { id } = req.params;
     const { activity_type, negative_reason, title, description, probability_change, activity_date } = req.body;
@@ -4698,7 +4780,7 @@ router.post('/sales/leads/:id/activities', auth, salesAccessOnly, async (req, re
   }
 });
 
-router.put('/sales/leads/:id/activities/:activityId', auth, salesAccessOnly, async (req, res) => {
+router.put('/sales/leads/:id/activities/:activityId', auth, salesWriteOnly, async (req, res) => {
   try {
     const { id, activityId } = req.params;
     const { activity_type, negative_reason, title, description, probability_change, activity_date } = req.body;

@@ -5,15 +5,17 @@ import TaskModal from './TaskModal';
 import ConfirmDeleteModal from './ConfirmDeleteModal';
 import TaskDetailModal from './TaskDetailModal';
 import TaskVerificationModal from './TaskVerificationModal';
-import { Search, ListTodo, Plus, CheckCircle, Users, X, FolderGit2, ShieldCheck } from 'lucide-react';
+import { Search, ListTodo, Plus, CheckCircle, Users, X, FolderGit2, ShieldCheck, TrendingUp, Clock } from 'lucide-react';
 import ProjectsList from './ProjectsList';
 import ProjectDetail from './ProjectDetail';
 import TaskKanbanBoard from './TaskKanbanBoard';
+import SalesDashboard from './SalesDashboard';
 
 const tabs = [
   { id: 'projects', label: 'Projects', icon: FolderGit2 },
   { id: 'work', label: 'Work', icon: ListTodo },
-  { id: 'to_verify', label: 'To Verify', icon: ShieldCheck },
+  { id: 'to_verify', label: 'To Verify', icon: Clock },
+  { id: 'sales', label: 'Sales', icon: TrendingUp },
   { id: 'completed', label: 'Completed', icon: CheckCircle },
   { id: 'team', label: 'Team', icon: Users },
 ];
@@ -50,6 +52,10 @@ export default function EmployeeDashboard({ user }) {
   const [editTask, setEditTask] = useState(null);
   const [verificationTask, setVerificationTask] = useState(null);
   const [selectedProject, setSelectedProject] = useState(null);
+  const [defaultAssigneeId, setDefaultAssigneeId] = useState(null);
+  const [salesPersonFilter, setSalesPersonFilter] = useState('');
+  const [salesLeadFilter, setSalesLeadFilter] = useState(null);
+  const userHasSales = user?.role === 'admin' || user?.role === 'sales_manager' || user?.role === 'sales_executive' || !!user?.can_access_sales;
 
   const fetchTasksOnly = (isSilent = false) => {
     if (!isSilent) setLoading(true);
@@ -83,6 +89,7 @@ export default function EmployeeDashboard({ user }) {
     const handleHashChange = () => {
       const hash = window.location.hash;
       setStatusFilter('');
+      setPillarFilter('general');
       if (!hash) {
         setActiveTab('work');
         setEmployeeFilter(null);
@@ -99,9 +106,10 @@ export default function EmployeeDashboard({ user }) {
         return;
       }
 
-      if (['projects', 'all', 'work', 'to_verify', 'completed', 'assigned_by_me', 'verified', 'team'].includes(tabId)) {
+      if (['projects', 'all', 'work', 'sales', 'to_verify', 'completed', 'assigned_by_me', 'verified', 'team'].includes(tabId)) {
         setActiveTab(tabId);
         if (tabId !== 'projects') setSelectedProject(null);
+        if (tabId !== 'sales') setSalesPersonFilter('');
       } else {
         // Unrecognized tab — default to 'work' to prevent blank screen
         setActiveTab('work');
@@ -117,9 +125,9 @@ export default function EmployeeDashboard({ user }) {
         if (employees && employees.length > 0) {
           const emp = employees.find(e => e.id === empId);
           if (emp) {
-            const isSales = emp.role === 'sales_manager' || emp.role === 'sales_executive' || emp.department === 'Sales & Marketing' || emp.can_access_sales;
+            const isSalesOnly = emp.role === 'sales_manager' || emp.role === 'sales_executive';
             const userHasSales = user?.role === 'admin' || user?.role === 'sales_manager' || user?.role === 'sales_executive' || !!user?.can_access_sales;
-            if (isSales && !userHasSales) {
+            if (emp.id !== user?.id && isSalesOnly && !userHasSales) {
               alert("You don't have access to view Sales team member profiles.");
               window.location.hash = 'team';
               setEmployeeFilter(null);
@@ -165,9 +173,10 @@ export default function EmployeeDashboard({ user }) {
 
   const checkSalesProfileAccess = (emp) => {
     if (!emp) return true;
-    const isSales = emp.role === 'sales_manager' || emp.role === 'sales_executive' || emp.department === 'Sales & Marketing' || emp.can_access_sales;
+    if (emp.id === user?.id) return true;
+    const isSalesOnly = emp.role === 'sales_manager' || emp.role === 'sales_executive';
     const userHasSales = user?.role === 'admin' || user?.role === 'sales_manager' || user?.role === 'sales_executive' || !!user?.can_access_sales;
-    if (isSales && !userHasSales) {
+    if (isSalesOnly && !userHasSales) {
       alert("You don't have access to view Sales team member profiles.");
       return false;
     }
@@ -207,7 +216,10 @@ export default function EmployeeDashboard({ user }) {
   };
 
   const allVerifierTasks = tasks.filter(t => 
-    (Number(t.verifier_id) === Number(user.id) || Number(t.completed_by) === Number(user.id)) && 
+    (Number(t.verifier_id) === Number(user.id) || 
+     Number(t.completed_by) === Number(user.id) || 
+     (t.assignee_mentor_id && Number(t.assignee_mentor_id) === Number(user.id)) ||
+     (t.assignee_role === 'intern' && (Number(t.creator_id) === Number(user.id) || Number(t.verifier_id) === Number(user.id)))) && 
     Number(t.assignee_id) !== Number(user.id) &&
     (!t.parent_id || t.id === t.parent_id)
   );
@@ -220,8 +232,13 @@ export default function EmployeeDashboard({ user }) {
     if (t.project_id && activeTab !== 'to_verify') return false;
 
     if (activeTab === 'to_verify') {
-      // To Verify shows BOTH project tasks and normal tasks where user is verifier
-      const isVerifierTask = (Number(t.verifier_id) === Number(user.id) || Number(t.completed_by) === Number(user.id)) && Number(t.assignee_id) !== Number(user.id);
+      // To Verify shows BOTH project tasks and normal tasks where user is verifier or mentor
+      const isVerifierTask = (
+        Number(t.verifier_id) === Number(user.id) || 
+        Number(t.completed_by) === Number(user.id) ||
+        (t.assignee_mentor_id && Number(t.assignee_mentor_id) === Number(user.id)) ||
+        (t.assignee_role === 'intern' && (Number(t.creator_id) === Number(user.id) || Number(t.verifier_id) === Number(user.id)))
+      ) && Number(t.assignee_id) !== Number(user.id);
       if (!isVerifierTask) return false;
       if (t.parent_id && t.id !== t.parent_id) return false;
       if (statusFilter && t.status !== statusFilter) return false;
@@ -339,31 +356,42 @@ export default function EmployeeDashboard({ user }) {
               </h2>
               <p className="text-[9px] sm:text-[11px] text-gray-400 mt-0.5 uppercase font-semibold">{selectedEmp.role} &middot; {selectedEmp.department} &middot; {selectedEmp.email}</p>
             </div>
-            <button onClick={clearEmployeeFilter} className="bg-gray-800 hover:bg-gray-700 text-white text-[10px] sm:text-xs font-semibold px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg transition-all shadow-sm">
-              Back to Team
-            </button>
+            <div className="flex items-center gap-2">
+              {(user?.role === 'admin' || user?.role === 'manager' || Number(selectedEmp.mentor_id) === Number(user.id) || selectedEmp.role === 'intern') && (
+                <button
+                  onClick={() => { setEditTask(null); setDefaultAssigneeId(selectedEmp.id); setShowTaskModal(true); }}
+                  className="bg-amber-500 hover:bg-amber-600 text-white text-[10px] sm:text-xs font-bold px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg transition-all shadow-xs flex items-center gap-1.5"
+                >
+                  <Plus className="w-3.5 h-3.5" /> Assign Task to {selectedEmp.name.split(' ')[0]}
+                </button>
+              )}
+              {(selectedEmp.role === 'sales_manager' || selectedEmp.role === 'sales_executive' || selectedEmp.can_access_sales) && userHasSales && (
+                <button
+                  onClick={() => {
+                    setSalesPersonFilter(String(selectedEmp.id));
+                    setActiveTab('sales');
+                    window.location.hash = 'sales';
+                  }}
+                  className="bg-amber-600 hover:bg-amber-700 text-white text-[10px] sm:text-xs font-semibold px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg transition-all shadow-sm flex items-center gap-1.5 cursor-pointer"
+                >
+                  💼 View {selectedEmp.name ? selectedEmp.name.split(' ')[0] : 'Employee'}'s Sales Pipeline
+                </button>
+              )}
+              <button onClick={clearEmployeeFilter} className="bg-gray-800 hover:bg-gray-700 text-white text-[10px] sm:text-xs font-semibold px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg transition-all shadow-sm">
+                Back to Team
+              </button>
+            </div>
           </div>
 
           <div className="flex gap-1 bg-gray-200 p-1 rounded-xl w-fit flex-wrap">
             <button
-              onClick={() => { window.location.hash = `all/employee/${selectedEmp.id}`; }}
-              className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                activeTab === 'all' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              All Tasks
-              <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${activeTab === 'all' ? 'bg-amber-100 text-amber-800' : 'bg-gray-300 text-gray-700'}`}>
-                {empAllTasksCount}
-              </span>
-            </button>
-            <button
               onClick={() => { window.location.hash = `work/employee/${selectedEmp.id}`; }}
               className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                activeTab === 'work' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                activeTab === 'work' || activeTab === 'all' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
               }`}
             >
               Active Tasks
-              <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${activeTab === 'work' ? 'bg-amber-100 text-amber-800' : 'bg-gray-300 text-gray-700'}`}>
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${activeTab === 'work' || activeTab === 'all' ? 'bg-amber-100 text-amber-800' : 'bg-gray-300 text-gray-700'}`}>
                 {empActiveTasksCount}
               </span>
             </button>
@@ -400,6 +428,18 @@ export default function EmployeeDashboard({ user }) {
                 {empVerifiedTasksCount}
               </span>
             </button>
+            {(selectedEmp.role === 'sales_manager' || selectedEmp.role === 'sales_executive' || selectedEmp.can_access_sales) && userHasSales && (
+              <button
+                onClick={() => {
+                  setSalesPersonFilter(String(selectedEmp.id));
+                  setActiveTab('sales');
+                  window.location.hash = 'sales';
+                }}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all bg-amber-50 text-amber-900 hover:bg-amber-100 border border-amber-200/60 cursor-pointer"
+              >
+                💼 Sales Pipeline
+              </button>
+            )}
           </div>
         </div>
       ) : (
@@ -437,8 +477,9 @@ export default function EmployeeDashboard({ user }) {
         <div className="flex gap-1 bg-gray-200 p-1 rounded-xl w-full overflow-x-auto scrollbar-none shrink-0">
           {tabs
             .filter(tab => {
+              if (tab.id === 'sales' && !userHasSales) return false;
               if (tab.id === 'team' && user?.role === 'intern') return false;
-              if (tab.id === 'to_verify' && allVerifierTasks.length === 0) return false;
+              if (tab.id === 'to_verify' && allVerifierTasks.length === 0 && activeTab !== 'to_verify') return false;
               return true;
             })
             .map((tab) => {
@@ -543,13 +584,21 @@ export default function EmployeeDashboard({ user }) {
                       </div>
                     </div>
                   </div>
-                  <div className="mt-3 flex items-center gap-2">
-                    <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                      <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${emp.avg_progress}%` }} />
+                  {emp.role === 'sales_manager' || emp.role === 'sales_executive' || emp.can_access_sales ? (
+                    <div className="mt-3 flex items-center justify-between text-xs text-amber-800 font-semibold bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200/60">
+                      <span>💼 Sales Representative</span>
                     </div>
-                    <span className="text-[11px] font-bold text-emerald-700">{emp.avg_progress}%</span>
-                  </div>
-                  <p className="text-xs text-gray-500 font-medium mt-1.5">{emp.completed_task_count || 0} of {emp.task_count || 0} tasks completed</p>
+                  ) : (
+                    <>
+                      <div className="mt-3 flex items-center gap-2">
+                        <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                          <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${emp.avg_progress}%` }} />
+                        </div>
+                        <span className="text-[11px] font-bold text-emerald-700">{emp.avg_progress}%</span>
+                      </div>
+                      <p className="text-xs text-gray-500 font-medium mt-1.5">{emp.completed_task_count || 0} of {emp.task_count || 0} tasks completed</p>
+                    </>
+                  )}
                   <div className="flex gap-2 mt-4 pt-3 border-t border-gray-100">
                     <button
                       onClick={(e) => {
@@ -577,7 +626,16 @@ export default function EmployeeDashboard({ user }) {
         </div>
       )}
 
-      {(activeTab === 'work' || activeTab === 'to_verify' || activeTab === 'completed' || activeTab === 'all' || activeTab === 'assigned_by_me' || activeTab === 'verified' || selectedEmp) && activeTab !== 'projects' && activeTab !== 'repeated_tasks' && (
+      {activeTab === 'sales' && userHasSales && (
+        <SalesDashboard
+          user={user}
+          initialAssigneeId={salesPersonFilter}
+          initialLeadId={salesLeadFilter}
+          onClearLeadId={() => setSalesLeadFilter(null)}
+        />
+      )}
+
+      {(activeTab === 'work' || activeTab === 'to_verify' || activeTab === 'completed' || activeTab === 'all' || activeTab === 'assigned_by_me' || activeTab === 'verified' || selectedEmp) && activeTab !== 'projects' && activeTab !== 'repeated_tasks' && activeTab !== 'sales' && (
         <>
           {/* Work Pillars: General Tasks, Vishwas, Avishkar, Nirantar, Saksham */}
           <div className="flex items-center gap-2 p-1.5 bg-gray-100/90 rounded-xl border border-gray-200/80 w-fit flex-wrap mb-3 shadow-xs">
@@ -728,6 +786,7 @@ export default function EmployeeDashboard({ user }) {
           ) : (
             <TaskKanbanBoard
               tasks={displayedTasks}
+              activePillar={pillarFilter}
               onRefresh={() => fetchTasksOnly(true)}
               onViewDetail={setDetailTask}
               onEditTask={(t) => {
@@ -744,7 +803,16 @@ export default function EmployeeDashboard({ user }) {
         </>
       )}
 
-      <TaskModal isOpen={showTaskModal} onClose={() => { setShowTaskModal(false); setEditTask(null); }} onSaved={fetchTasksOnly} task={editTask} onVerificationNeeded={setVerificationTask} initialPillar={pillarFilter} />
+      <TaskModal
+        isOpen={showTaskModal}
+        onClose={() => { setShowTaskModal(false); setEditTask(null); setDefaultAssigneeId(null); }}
+        onSaved={fetchTasksOnly}
+        task={editTask}
+        employees={employees}
+        defaultAssigneeId={defaultAssigneeId}
+        onVerificationNeeded={setVerificationTask}
+        initialPillar={pillarFilter}
+      />
       <TaskDetailModal isOpen={!!detailTask} onClose={() => setDetailTask(null)} task={detailTask} onTaskUpdated={fetchTasksOnly} readOnly={isReadOnly} />
       <TaskVerificationModal isOpen={!!verificationTask} onClose={() => setVerificationTask(null)} task={verificationTask} />
       <ConfirmDeleteModal

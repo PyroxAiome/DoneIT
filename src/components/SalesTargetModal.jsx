@@ -32,7 +32,7 @@ const COLLECTION_STAGES = [
 const DEFAULT_PRODUCT_LINES = [
   'Home Automation',
   'Fire Ready',
-  'Fire Safety'
+  'VictoFire'
 ];
 
 export default function SalesTargetModal({ isOpen, onClose, onSave, employees = [], lakshyaType = 'order' }) {
@@ -114,7 +114,7 @@ export default function SalesTargetModal({ isOpen, onClose, onSave, employees = 
           ? t.product_line_other 
           : (t.product_line === 'home_automation' ? 'Home Automation' :
              t.product_line === 'fire_ready' ? 'Fire Ready' :
-             t.product_line === 'firesafety' ? 'Fire Safety' : t.product_line);
+             (t.product_line === 'firesafety' || t.product_line === 'victofire') ? 'VictoFire' : t.product_line);
 
         customLinesFound.add(plName);
         const key = `${plName}_${t.stage}`;
@@ -176,7 +176,7 @@ export default function SalesTargetModal({ isOpen, onClose, onSave, employees = 
 
             if (pl === 'Home Automation') { plKey = 'home_automation'; plOther = ''; }
             else if (pl === 'Fire Ready') { plKey = 'fire_ready'; plOther = ''; }
-            else if (pl === 'Fire Safety') { plKey = 'firesafety'; plOther = ''; }
+            else if (pl === 'VictoFire' || pl === 'Fire Safety') { plKey = 'victofire'; plOther = ''; }
 
             targetsList.push({
               assignee_id: parseInt(selectedAssignee, 10),

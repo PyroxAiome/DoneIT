@@ -51,8 +51,9 @@ const STAGE_LABELS = {
   fully_collected: 'Fully Collected'
 };
 
-export default function SalesLeadCard({ lead, onClick, onEdit, onDelete, onStageChange, userRole }) {
+export default function SalesLeadCard({ lead, onClick, onEdit, onDelete, onStageChange, userRole, canEditSales = true }) {
   const [showMenu, setShowMenu] = useState(false);
+  const canEdit = canEditSales && ['admin', 'sales_manager', 'sales_executive'].includes(userRole);
 
   const formatCurrency = (val) => {
     if (!val || isNaN(val)) return '₹0';
@@ -111,55 +112,57 @@ export default function SalesLeadCard({ lead, onClick, onEdit, onDelete, onStage
           </h4>
         </div>
 
-        {/* Options Menu */}
-        <div className="relative" onClick={(e) => e.stopPropagation()}>
-          <button
-            onClick={() => setShowMenu(!showMenu)}
-            className="p-1 hover:bg-gray-100 rounded text-gray-400 hover:text-gray-600 transition-colors"
-          >
-            <MoreVertical className="w-4 h-4" />
-          </button>
+        {/* Options Menu (Only for sales team with write rights) */}
+        {canEdit && (
+          <div className="relative" onClick={(e) => e.stopPropagation()}>
+            <button
+              onClick={() => setShowMenu(!showMenu)}
+              className="p-1 hover:bg-gray-100 rounded text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              <MoreVertical className="w-4 h-4" />
+            </button>
 
-          {showMenu && (
-            <div className="absolute right-0 top-6 w-40 bg-white rounded-xl shadow-lg border border-gray-100 py-1 z-20 animate-in fade-in">
-              <button
-                onClick={() => { setShowMenu(false); if (onEdit) onEdit(lead); }}
-                className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 flex items-center gap-2"
-              >
-                <Edit3 className="w-3.5 h-3.5 text-gray-500" />
-                Edit Details
-              </button>
-              {['admin', 'sales_manager'].includes(userRole) && lead.category === 'general' && (
+            {showMenu && (
+              <div className="absolute right-0 top-6 w-40 bg-white rounded-xl shadow-lg border border-gray-100 py-1 z-20 animate-in fade-in">
                 <button
-                  onClick={async () => {
-                    setShowMenu(false);
-                    if (window.confirm(`Promote "${lead.title}" to Order Lakshya (Hot Prospect)?`)) {
-                      try {
-                        await api.updateSalesLead(lead.id, { category: 'lakshya' });
-                        window.dispatchEvent(new CustomEvent('sales-updated'));
-                      } catch (err) {
-                        alert(err.message || 'Failed to update lead category');
+                  onClick={() => { setShowMenu(false); if (onEdit) onEdit(lead); }}
+                  className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                >
+                  <Edit3 className="w-3.5 h-3.5 text-gray-500" />
+                  Edit Details
+                </button>
+                {['admin', 'sales_manager'].includes(userRole) && lead.category === 'general' && (
+                  <button
+                    onClick={async () => {
+                      setShowMenu(false);
+                      if (window.confirm(`Promote "${lead.title}" to Order Lakshya (Hot Prospect)?`)) {
+                        try {
+                          await api.updateSalesLead(lead.id, { category: 'lakshya' });
+                          window.dispatchEvent(new CustomEvent('sales-updated'));
+                        } catch (err) {
+                          alert(err.message || 'Failed to update lead category');
+                        }
                       }
-                    }
-                  }}
-                  className="w-full text-left px-3 py-1.5 text-xs text-amber-800 hover:bg-amber-50 flex items-center gap-2 font-medium"
-                >
-                  <Tag className="w-3.5 h-3.5 text-amber-600" />
-                  Move to Order Lakshya
-                </button>
-              )}
-              {userRole === 'admin' && onDelete && (
-                <button
-                  onClick={() => { setShowMenu(false); onDelete(lead); }}
-                  className="w-full text-left px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 flex items-center gap-2"
-                >
-                  <Trash2 className="w-3.5 h-3.5 text-red-500" />
-                  Delete Lead
-                </button>
-              )}
-            </div>
-          )}
-        </div>
+                    }}
+                    className="w-full text-left px-3 py-1.5 text-xs text-amber-800 hover:bg-amber-50 flex items-center gap-2 font-medium"
+                  >
+                    <Tag className="w-3.5 h-3.5 text-amber-600" />
+                    Move to Order Lakshya
+                  </button>
+                )}
+                {userRole === 'admin' && onDelete && (
+                  <button
+                    onClick={() => { setShowMenu(false); onDelete(lead); }}
+                    className="w-full text-left px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 flex items-center gap-2"
+                  >
+                    <Trash2 className="w-3.5 h-3.5 text-red-500" />
+                    Delete Lead
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Value & Location Banner */}
@@ -220,7 +223,7 @@ export default function SalesLeadCard({ lead, onClick, onEdit, onDelete, onStage
       </div>
 
       {/* Action Button: Confirm Order (for Admin on pre-order leads) */}
-      {userRole === 'admin' && lead?.category !== 'billing_lakshya' && lead?.category !== 'collection_lakshya' && (
+      {canEdit && userRole === 'admin' && lead?.category !== 'billing_lakshya' && lead?.category !== 'collection_lakshya' && (
         <button
           onClick={async (e) => {
             e.stopPropagation();
@@ -241,7 +244,7 @@ export default function SalesLeadCard({ lead, onClick, onEdit, onDelete, onStage
       )}
 
       {/* Action Button: Move to Collection (for Billing leads in payment_pending) */}
-      {lead.category === 'billing_lakshya' && lead.current_stage === 'payment_pending' && (
+      {canEdit && lead.category === 'billing_lakshya' && lead.current_stage === 'payment_pending' && (
         <button
           onClick={async (e) => {
             e.stopPropagation();

@@ -2,7 +2,38 @@ import { useState, useEffect } from 'react';
 import { api } from '../lib/api';
 import { useAuth } from '../App';
 import VerificationReviewModal from './VerificationReviewModal';
-import { X, Send, Edit3, Trash2, Check, X as XIcon, MessageSquare, FileText, Reply, Calendar, ThumbsUp, ThumbsDown, GitMerge } from 'lucide-react';
+import StageVerificationModal from './StageVerificationModal';
+import { X, Send, Edit3, Trash2, Check, X as XIcon, MessageSquare, FileText, Reply, Calendar, ThumbsUp, ThumbsDown, GitMerge, ShieldCheck, ArrowRight, CheckCircle2, Clock, AlertTriangle, Star, ShieldAlert, AlertCircle, Plus } from 'lucide-react';
+
+const GENERAL_STAGES = [
+  { key: 'todo', label: 'Pending' },
+  { key: 'in_progress', label: 'Progress' },
+  { key: 'under_review', label: 'Review' },
+  { key: 'completed', label: 'Completed' }
+];
+
+const VISHWAS_STAGES = [
+  { key: 'todo', label: 'Issue' },
+  { key: 'rca_in_progress', label: 'Analysis' },
+  { key: 'in_progress', label: 'Action' },
+  { key: 'under_review', label: 'Audit' },
+  { key: 'completed', label: 'Resolved' }
+];
+
+const AVISHKAR_STAGES = [
+  { key: 'todo', label: 'Idea' },
+  { key: 'feasibility_planning', label: 'Planning' },
+  { key: 'in_progress', label: 'Prototype' },
+  { key: 'under_review', label: 'Trial' },
+  { key: 'completed', label: 'Deployed' }
+];
+
+const getPillarStagesList = (pillarName) => {
+  const p = (pillarName || '').toLowerCase();
+  if (p === 'vishwas') return VISHWAS_STAGES;
+  if (p === 'avishkar') return AVISHKAR_STAGES;
+  return GENERAL_STAGES;
+};
 
 const formatDescription = (desc) => {
   if (!desc) return '';
@@ -44,14 +75,18 @@ const getEmbedVideoUrl = (url) => {
 
 export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated, readOnly }) {
   const user = useAuth();
-   const [tab, setTab] = useState(task?.defaultTab || 'reviews');
+  const [taskData, setTaskData] = useState(null);
+  const isInternTask = Boolean(
+    (taskData?.assignee_role === 'intern' || task?.assignee_role === 'intern') ||
+    (taskData?.assignee_mentor_id || task?.assignee_mentor_id)
+  );
+  const [tab, setTab] = useState(task?.defaultTab || (isInternTask ? 'stages' : 'reviews'));
    const [comments, setComments] = useState([]);
    const [fbText, setFbText] = useState('');
    const [explanation, setExplanation] = useState('');
    const [saving, setSaving] = useState(false);
    const [editCommentId, setEditCommentId] = useState(null);
    const [editText, setEditText] = useState('');
-   const [taskData, setTaskData] = useState(null);
    const [replyToId, setReplyToId] = useState(null);
    const [replyText, setReplyText] = useState('');
  
@@ -73,6 +108,9 @@ export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated, 
    const [depText, setDepText] = useState('');
    const [replyTexts, setReplyTexts] = useState({});
    const [showVerificationReviewModal, setShowVerificationReviewModal] = useState(false);
+   const [showStageVerifyModal, setShowStageVerifyModal] = useState(false);
+
+
 
    useEffect(() => {
      if (isOpen && task?.id) {
@@ -82,9 +120,24 @@ export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated, 
        setExplanationsList([]);
        setDependencies([]);
        setNewLogContent('');
+       
+       const isInitialInternTask = Boolean(
+         (task.assignee_role === 'intern') ||
+         (task.assignee_mentor_id) ||
+         (task.mentor_id)
+       );
        setTab(task.defaultTab || 'reviews');
+
        api.getTask(task.id).then(t => {
          setTaskData(t);
+         const isFetchedInternTask = Boolean(
+           (t.assignee_role === 'intern') ||
+           (t.assignee_mentor_id) ||
+           (t.mentor_id)
+         );
+         if (!isFetchedInternTask && !task.defaultTab) {
+           setTab('reviews');
+         }
        }).catch(() => {});
        api.getComments(task.id).then(setComments).catch(() => {});
        api.getDailyLogs(task.id).then(setDailyLogs).catch(() => {});
@@ -315,6 +368,24 @@ export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated, 
       .catch(() => {})
   };
 
+  const handleConfirmModalStageVerification = async (verificationPayload) => {
+    try {
+      let backendStatus = verificationPayload.to_stage;
+      if (backendStatus === 'todo') backendStatus = 'pending';
+
+      const updatedTask = await api.updateTask(task.id, {
+        status: backendStatus,
+        stage_verification: verificationPayload
+      });
+      setTaskData(updatedTask);
+      setShowStageVerifyModal(false);
+      onTaskUpdated?.();
+      api.getComments(task.id).then(setComments).catch(() => {});
+    } catch (err) {
+      alert(err.message || 'Failed to verify stage');
+    }
+  };
+
   const isVerifier = Number(taskData?.verifier_id || task.verifier_id) === Number(user?.id);
   const isCreator = Number(taskData?.creator_id || task.creator_id) === Number(user?.id);
   const isAssignee = Number(taskData?.assignee_id || task.assignee_id) === Number(user?.id);
@@ -324,6 +395,20 @@ export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated, 
   const canAddExplanation = !readOnly || isAssignee || isMentor || isVerifier || isAdminOrManager;
 
   const isResolver = dependencies.some(d => Number(d.tagee_id) === Number(user.id));
+
+  let stageVerifications = [];
+  try {
+    const raw = taskData?.stage_verifications || task?.stage_verifications;
+    stageVerifications = typeof raw === 'string' ? JSON.parse(raw) : (raw || []);
+  } catch (e) {
+    stageVerifications = [];
+  }
+  if (!Array.isArray(stageVerifications)) stageVerifications = [];
+
+  const currentTaskObj = taskData || task;
+  const mentorId = Number(currentTaskObj?.assignee_mentor_id || currentTaskObj?.mentor_id);
+  const isAssignedMentor = Boolean(mentorId && Number(user?.id) === mentorId);
+  const mentorHasVerified = Array.isArray(stageVerifications) && stageVerifications.some(sv => Number(sv.verified_by_id) === mentorId);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/30 backdrop-blur-sm" onClick={onClose}>
@@ -408,7 +493,14 @@ export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated, 
               <div className="flex items-center gap-2 shrink-0">
                 {(user?.role === 'admin' || ((taskData?.verifier_id || task.verifier_id) && Number(taskData?.verifier_id || task.verifier_id) === Number(user?.id))) && (
                   <button
-                    onClick={() => setShowVerificationReviewModal(true)}
+                    onClick={() => {
+                      if (isInternTask && !mentorHasVerified && !isAssignedMentor) {
+                        const mentorDisplayName = currentTaskObj?.mentor_name || 'Assigned Mentor';
+                        alert(`Mentor Verification Required: This task assigned to Intern "${currentTaskObj?.assignee_name || 'Intern'}" must first be verified & signed-off by their assigned Mentor (${mentorDisplayName}). Admin verification can only be done AFTER mentor sign-off.`);
+                        return;
+                      }
+                      setShowVerificationReviewModal(true);
+                    }}
                     disabled={saving}
                     className="btn-amber bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-4 py-2 rounded-xl flex items-center justify-center gap-1.5 shrink-0 shadow-xs whitespace-nowrap cursor-pointer"
                   >
@@ -801,20 +893,21 @@ export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated, 
 
         {/* Tab buttons */}
         <div className="flex border-b border-gray-100 overflow-x-auto scrollbar-none shrink-0">
+          
           <button onClick={() => setTab('reviews')}
-            className={`flex items-center gap-1.5 px-5 py-3 text-sm font-medium transition-colors whitespace-nowrap ${tab === 'reviews' ? 'text-amber-600 border-b-2 border-amber-500' : 'text-gray-500 hover:text-gray-700'}`}>
+            className={`flex items-center gap-1.5 px-5 py-3 text-sm font-medium transition-colors whitespace-nowrap ${tab === 'reviews' ? 'text-amber-600 border-b-2 border-amber-500 font-bold' : 'text-gray-500 hover:text-gray-700'}`}>
             <MessageSquare className="w-4 h-4" /> Reviews ({comments.length})
           </button>
           <button onClick={() => setTab('explanation')}
-            className={`flex items-center gap-1.5 px-5 py-3 text-sm font-medium transition-colors whitespace-nowrap ${tab === 'explanation' ? 'text-amber-600 border-b-2 border-amber-500' : 'text-gray-500 hover:text-gray-700'}`}>
+            className={`flex items-center gap-1.5 px-5 py-3 text-sm font-medium transition-colors whitespace-nowrap ${tab === 'explanation' ? 'text-amber-600 border-b-2 border-amber-500 font-bold' : 'text-gray-500 hover:text-gray-700'}`}>
             <FileText className="w-4 h-4" /> Logical Explanation ({explanationsList.length})
           </button>
           <button onClick={() => setTab('daily-logs')}
-            className={`flex items-center gap-1.5 px-5 py-3 text-sm font-medium transition-colors whitespace-nowrap ${tab === 'daily-logs' ? 'text-amber-600 border-b-2 border-amber-500' : 'text-gray-500 hover:text-gray-700'}`}>
+            className={`flex items-center gap-1.5 px-5 py-3 text-sm font-medium transition-colors whitespace-nowrap ${tab === 'daily-logs' ? 'text-amber-600 border-b-2 border-amber-500 font-bold' : 'text-gray-500 hover:text-gray-700'}`}>
             <Calendar className="w-4 h-4" /> Daily Achievements ({dailyLogs.length})
           </button>
           <button onClick={() => setTab('dependencies')}
-            className={`flex items-center gap-1.5 px-5 py-3 text-sm font-medium transition-colors whitespace-nowrap ${tab === 'dependencies' ? 'text-amber-600 border-b-2 border-amber-500' : 'text-gray-500 hover:text-gray-700'}`}>
+            className={`flex items-center gap-1.5 px-5 py-3 text-sm font-medium transition-colors whitespace-nowrap ${tab === 'dependencies' ? 'text-amber-600 border-b-2 border-amber-500 font-bold' : 'text-gray-500 hover:text-gray-700'}`}>
             <GitMerge className="w-4 h-4" /> Dependencies ({dependencies.length})
           </button>
         </div>
@@ -1395,6 +1488,28 @@ export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated, 
           }
         }}
       />
+
+      {(() => {
+        const activePillarStages = getPillarStagesList(taskData?.pillar || task.pillar);
+        const currStatus = taskData?.status || task.status;
+        const currIdx = activePillarStages.findIndex(s => s.key === currStatus);
+        const targetIdx = Math.min(currIdx + 1, activePillarStages.length - 1);
+        const fromStg = activePillarStages[currIdx] || activePillarStages[0];
+        const toStg = activePillarStages[targetIdx] || activePillarStages[activePillarStages.length - 1];
+
+        return (
+          <StageVerificationModal
+            isOpen={showStageVerifyModal}
+            onClose={() => setShowStageVerifyModal(false)}
+            task={taskData || task}
+            fromStageLabel={fromStg?.label}
+            toStageLabel={toStg?.label}
+            fromStageKey={fromStg?.key}
+            toStageKey={toStg?.key}
+            onConfirm={handleConfirmModalStageVerification}
+          />
+        );
+      })()}
     </div>
   );
 }

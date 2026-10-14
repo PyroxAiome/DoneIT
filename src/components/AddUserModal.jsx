@@ -89,7 +89,7 @@ export default function AddUserModal({ isOpen, onClose, onCreated, onUpdated, ed
       };
       if (editingUser) {
         const updated = await api.updateUser(editingUser.id, payload);
-        await api.updateUserPermissions(editingUser.id, {
+        const permRes = await api.updateUserPermissions(editingUser.id, {
           can_access_nirantar: editingUser.can_access_nirantar,
           can_access_saksham: editingUser.can_access_saksham,
           can_access_upakaram: form.can_access_upakaram,
@@ -99,10 +99,11 @@ export default function AddUserModal({ isOpen, onClose, onCreated, onUpdated, ed
           can_access_billing_lakshya: form.can_access_billing_lakshya,
           can_access_collection_lakshya: form.can_access_collection_lakshya
         });
-        if (onUpdated) onUpdated(updated);
+        const mergedUser = permRes?.user ? { ...updated, ...permRes.user } : { ...editingUser, ...payload, ...updated };
+        if (onUpdated) onUpdated(mergedUser);
       } else {
         const user = await api.createUser(payload);
-        await api.updateUserPermissions(user.id, {
+        const permRes = await api.updateUserPermissions(user.id, {
           can_access_nirantar: false,
           can_access_saksham: false,
           can_access_upakaram: form.can_access_upakaram,
@@ -112,7 +113,8 @@ export default function AddUserModal({ isOpen, onClose, onCreated, onUpdated, ed
           can_access_billing_lakshya: form.can_access_billing_lakshya,
           can_access_collection_lakshya: form.can_access_collection_lakshya
         });
-        if (onCreated) onCreated(user);
+        const mergedUser = permRes?.user ? { ...user, ...permRes.user } : { ...user, can_access_sales: form.can_access_sales };
+        if (onCreated) onCreated(mergedUser);
       }
       reset();
       onClose();

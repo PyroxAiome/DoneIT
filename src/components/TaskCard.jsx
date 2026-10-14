@@ -87,6 +87,25 @@ export default function TaskCard({ task, compact, onEdit, onDelete, onSelect, on
   }, [task.id]);
 
   const handleStatusChange = async (newStatus) => {
+    const isInternTask = task.assignee_role === 'intern' || Boolean(task.assignee_mentor_id);
+    const mentorId = Number(task.assignee_mentor_id || task.mentor_id);
+    const isAssignedMentor = Boolean(mentorId && Number(user?.id) === mentorId);
+
+    let stageVerifications = [];
+    try {
+      const raw = task.stage_verifications;
+      stageVerifications = typeof raw === 'string' ? JSON.parse(raw) : (raw || []);
+    } catch (e) {
+      stageVerifications = [];
+    }
+    const mentorHasVerified = Array.isArray(stageVerifications) && stageVerifications.some(sv => Number(sv.verified_by_id) === mentorId);
+
+    if (isInternTask && !mentorHasVerified && !isAssignedMentor) {
+      const mentorDisplayName = task.mentor_name || 'Assigned Mentor';
+      alert(`Mentor Verification Required: This task assigned to Intern "${task.assignee_name || 'Intern'}" must first be verified & signed-off by their assigned Mentor (${mentorDisplayName}). Admin verification can only be done AFTER mentor sign-off.`);
+      setShowMenu(false);
+      return;
+    }
     if (newStatus === 'completed' && (user?.role === 'admin' || Number(task.verifier_id) === Number(user?.id))) {
       if (onViewDetail) {
         onViewDetail(task);

@@ -231,6 +231,10 @@ const initDatabase = async () => {
     ALTER TABLE tasks ADD COLUMN IF NOT EXISTS verified_at TIMESTAMP;
     ALTER TABLE tasks ADD COLUMN IF NOT EXISTS completed_by INTEGER REFERENCES users(id) ON DELETE SET NULL;
     ALTER TABLE tasks ADD COLUMN IF NOT EXISTS pillar TEXT DEFAULT 'general';
+    ALTER TABLE tasks ADD COLUMN IF NOT EXISTS product_line TEXT DEFAULT 'general';
+    ALTER TABLE tasks ADD COLUMN IF NOT EXISTS product_line_other TEXT DEFAULT '';
+    ALTER TABLE tasks ADD COLUMN IF NOT EXISTS stage_verifications TEXT DEFAULT '[]';
+    ALTER TABLE tasks DROP CONSTRAINT IF EXISTS tasks_status_check;
 
     CREATE TABLE IF NOT EXISTS admin_comments (
       id SERIAL PRIMARY KEY,
@@ -597,7 +601,7 @@ const initDatabase = async () => {
       id SERIAL PRIMARY KEY,
       assignee_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       lakshya_type TEXT DEFAULT 'order' CHECK(lakshya_type IN ('order', 'billing', 'collection')),
-      product_line TEXT NOT NULL CHECK(product_line IN ('home_automation', 'fire_ready', 'firesafety', 'other')),
+      product_line TEXT NOT NULL CHECK(product_line IN ('home_automation', 'fire_ready', 'firesafety', 'victofire', 'other')),
       product_line_other TEXT DEFAULT '',
       stage TEXT NOT NULL,
       period_type TEXT NOT NULL CHECK(period_type IN ('monthly', 'quarterly', 'half_yearly', 'annual')),
@@ -628,6 +632,27 @@ const initDatabase = async () => {
     CREATE TABLE IF NOT EXISTS sales_lead_problem_replies (
       id SERIAL PRIMARY KEY,
       problem_id INTEGER NOT NULL REFERENCES sales_lead_problems(id) ON DELETE CASCADE,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      reply_text TEXT NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS task_problems (
+      id SERIAL PRIMARY KEY,
+      task_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      stage_key TEXT,
+      issue_type TEXT NOT NULL DEFAULT 'stage_update',
+      title TEXT NOT NULL,
+      description TEXT NOT NULL,
+      status TEXT DEFAULT 'open' CHECK(status IN ('open', 'in_progress', 'resolved')),
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS task_problem_replies (
+      id SERIAL PRIMARY KEY,
+      problem_id INTEGER NOT NULL REFERENCES task_problems(id) ON DELETE CASCADE,
       user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       reply_text TEXT NOT NULL,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP

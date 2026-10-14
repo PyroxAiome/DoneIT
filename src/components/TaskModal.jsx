@@ -21,7 +21,7 @@ const getRoleDisplay = (emp) => {
   return roleLabels[emp.role] || (emp.role ? emp.role.replace('_', ' ') : 'Employee');
 };
 
-export default function TaskModal({ isOpen, onClose, onSaved, task, employees, onVerificationNeeded, projectId, initialPillar }) {
+export default function TaskModal({ isOpen, onClose, onSaved, task, employees, onVerificationNeeded, projectId, initialPillar, defaultAssigneeId }) {
   const currentUser = useAuth();
   const isEdit = !!task;
   const [form, setForm] = useState({
@@ -43,13 +43,13 @@ export default function TaskModal({ isOpen, onClose, onSaved, task, employees, o
   const isManagerOrAdmin = currentUser && ['admin', 'manager', 'site_manager', 'sales_manager'].includes(currentUser.role);
   const sourceEmployees = (employees && employees.length > 0) ? employees : allUsersList;
 
-  // Mentee IDs under currentUser
+  // Mentee IDs under currentUser and all Interns
   const myMenteeIds = new Set(
     sourceEmployees
-      .filter(emp => Number(emp.mentor_id) === Number(currentUser?.id))
+      .filter(emp => Number(emp.mentor_id) === Number(currentUser?.id) || emp.role === 'intern')
       .map(emp => Number(emp.id))
   );
-  const isMentor = myMenteeIds.size > 0;
+  const isMentor = sourceEmployees.some(emp => Number(emp.mentor_id) === Number(currentUser?.id)) || myMenteeIds.size > 0;
 
   const assigneeList = [];
   const seenIds = new Set();
@@ -61,7 +61,7 @@ export default function TaskModal({ isOpen, onClose, onSaved, task, employees, o
       assigneeList.push(emp);
       seenIds.add(emp.id);
     } else if (isMentor) {
-      if (emp.id === currentUser?.id || myMenteeIds.has(emp.id) || (task && Number(task.assignee_id) === emp.id)) {
+      if (emp.id === currentUser?.id || myMenteeIds.has(emp.id) || emp.role === 'intern' || (task && Number(task.assignee_id) === emp.id)) {
         assigneeList.push(emp);
         seenIds.add(emp.id);
       }
@@ -105,6 +105,8 @@ export default function TaskModal({ isOpen, onClose, onSaved, task, employees, o
         status: task.status || 'todo',
         priority: task.priority || 'medium',
         pillar: task.pillar || 'general',
+        product_line: task.product_line || 'general',
+        product_line_other: task.product_line_other || '',
         category: task.category || 'General',
         duration_type: task.duration_type || (task.due_date ? 'exact' : 'exact'),
         is_red_flagged: !!task.is_red_flagged,
@@ -136,9 +138,9 @@ export default function TaskModal({ isOpen, onClose, onSaved, task, employees, o
     } else {
       setForm({
         title: '', description: '', color: 'slate', status: 'todo', priority: 'medium',
-        pillar: initialPillar || 'general', category: 'General', duration_type: 'exact',
+        pillar: initialPillar || 'general', product_line: 'general', product_line_other: '', category: 'General', duration_type: 'exact',
         is_red_flagged: false, red_flag_reason: '',
-        assignee_id: currentUser ? String(currentUser.id) : '', start_date: '', due_date: '', estimated_hours: '',
+        assignee_id: defaultAssigneeId ? String(defaultAssigneeId) : (currentUser ? String(currentUser.id) : ''), start_date: '', due_date: '', estimated_hours: '',
         project_id: projectId ? String(projectId) : '',
         verifier_id: '',
         vacancies_count: 0,
@@ -152,14 +154,16 @@ export default function TaskModal({ isOpen, onClose, onSaved, task, employees, o
         training_video_url: '',
         training_doc_url: '',
       });
-      if (currentUser && !isManagerOrAdmin && !isMentor) {
+      if (defaultAssigneeId) {
+        setSelectedAssigneeIds([Number(defaultAssigneeId)]);
+      } else if (currentUser && !isManagerOrAdmin && !isMentor) {
         setSelectedAssigneeIds([Number(currentUser.id)]);
       } else {
         setSelectedAssigneeIds([]);
       }
     }
     setError('');
-  }, [task, isOpen, currentUser, projectId, initialPillar]);
+  }, [task, isOpen, currentUser, projectId, initialPillar, defaultAssigneeId]);
 
   if (!isOpen) return null;
 
@@ -327,6 +331,54 @@ export default function TaskModal({ isOpen, onClose, onSaved, task, employees, o
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
+              <label className="text-xs font-bold text-gray-700 uppercase tracking-wider block mb-1">
+                📦 Product Line
+              </label>
+              <select value={form.product_line || 'general'} onChange={handleChange('product_line')} className="input-field border-amber-300 bg-amber-50/20 font-semibold">
+                <option value="general">🌐 General / All Products</option>
+                <option value="home_automation">🏠 Home Automation</option>
+                <option value="fire_ready">🔥 Fire-ready</option>
+                <option value="victofire">🧯 VictoFire</option>
+                <option value="other">📌 Other</option>
+              </select>
+            </div>
+            {form.product_line === 'other' ? (
+              <div>
+                <label className="text-xs font-bold text-gray-700 uppercase tracking-wider block mb-1">
+                  Specify Product Line
+                </label>
+                <input
+                  type="text"
+                  value={form.product_line_other || ''}
+                  onChange={handleChange('product_line_other')}
+                  placeholder="Enter product line name..."
+                  className="input-field"
+                  required
+                />
+              </div>
+            ) : (
+              <div>
+                <label className="text-xs text-gray-500 uppercase tracking-wider block mb-1">Work Pillar / Track</label>
+                <select value={form.pillar || 'general'} onChange={handleChange('pillar')} className="input-field">
+                  <option value="general">🌐 General / Other</option>
+                  <option value="vishwas">🛡️ Vishwas (Quality & Continuous Improvement)</option>
+                  <option value="avishkar">💡 Avishkar (Innovation & Product Optimization)</option>
+                  {(currentUser?.role === 'admin' || currentUser?.can_access_nirantar || form.pillar === 'nirantar') && (
+                    <option value="nirantar">🔁 Nirantar (Hiring & Vacancies)</option>
+                  )}
+                  {(currentUser?.role === 'admin' || currentUser?.can_access_saksham || form.pillar === 'saksham') && (
+                    <option value="saksham">⚡ Saksham (Capability Enablement)</option>
+                  )}
+                  {(currentUser?.role === 'admin' || currentUser?.can_access_upakaram || form.pillar === 'upakaram') && (
+                    <option value="upakaram">🚀 Upakaram (Internal / Confidential Track)</option>
+                  )}
+                </select>
+              </div>
+            )}
+          </div>
+
+          {form.product_line === 'other' && (
+            <div>
               <label className="text-xs text-gray-500 uppercase tracking-wider block mb-1">Work Pillar / Track</label>
               <select value={form.pillar || 'general'} onChange={handleChange('pillar')} className="input-field">
                 <option value="general">🌐 General / Other</option>
@@ -343,22 +395,23 @@ export default function TaskModal({ isOpen, onClose, onSaved, task, employees, o
                 )}
               </select>
             </div>
-            <div>
-              <label className="text-xs text-gray-500 uppercase tracking-wider block mb-1">Category / Department</label>
-              <select value={form.category} onChange={handleChange('category')} className="input-field">
-                {!['General', 'Software', 'Electronics', 'Mechanical', 'Production', 'Commercial', 'Legal', 'Sales & Marketing'].includes(form.category) && form.category && (
-                  <option value={form.category}>{form.category}</option>
-                )}
-                <option value="General">General</option>
-                <option value="Software">Software</option>
-                <option value="Electronics">Electronics</option>
-                <option value="Mechanical">Mechanical</option>
-                <option value="Production">Production</option>
-                <option value="Commercial">Commercial</option>
-                <option value="Legal">Legal</option>
-                <option value="Sales & Marketing">Sales & Marketing</option>
-              </select>
-            </div>
+          )}
+
+          <div>
+            <label className="text-xs text-gray-500 uppercase tracking-wider block mb-1">Category / Department</label>
+            <select value={form.category} onChange={handleChange('category')} className="input-field">
+              {!['General', 'Software', 'Electronics', 'Mechanical', 'Production', 'Commercial', 'Legal', 'Sales & Marketing'].includes(form.category) && form.category && (
+                <option value={form.category}>{form.category}</option>
+              )}
+              <option value="General">General</option>
+              <option value="Software">Software</option>
+              <option value="Electronics">Electronics</option>
+              <option value="Mechanical">Mechanical</option>
+              <option value="Production">Production</option>
+              <option value="Commercial">Commercial</option>
+              <option value="Legal">Legal</option>
+              <option value="Sales & Marketing">Sales & Marketing</option>
+            </select>
           </div>
 
           {form.pillar === 'nirantar' && (

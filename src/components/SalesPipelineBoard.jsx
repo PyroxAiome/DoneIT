@@ -27,7 +27,7 @@ const COLLECTION_STAGES = [
   { key: 'fully_collected', label: 'Fully Collected', prob: 100 }
 ];
 
-export default function SalesPipelineBoard({ leads = [], onLeadClick, onEditLead, onDeleteLead, userRole, subCategory = 'general' }) {
+export default function SalesPipelineBoard({ leads = [], onLeadClick, onEditLead, onDeleteLead, userRole, subCategory = 'general', canEditSales = true }) {
   const activeStages = subCategory === 'billing_lakshya'
     ? BILLING_STAGES
     : subCategory === 'collection_lakshya'
@@ -82,6 +82,7 @@ export default function SalesPipelineBoard({ leads = [], onLeadClick, onEditLead
                     onEdit={onEditLead}
                     onDelete={onDeleteLead}
                     userRole={userRole}
+                    canEditSales={canEditSales}
                   />
                 ))
               )}

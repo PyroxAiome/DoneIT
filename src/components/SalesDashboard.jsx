@@ -175,6 +175,7 @@ export default function SalesDashboard({ user, initialAssigneeId = '', initialLe
   const canViewOrder = (user?.role === 'admin' || user?.can_access_order_lakshya !== false) && (!filteredSalesPerson || filteredSalesPerson.can_access_order_lakshya !== false);
   const canViewBilling = (user?.role === 'admin' || user?.can_access_billing_lakshya !== false) && (!filteredSalesPerson || filteredSalesPerson.can_access_billing_lakshya !== false);
   const canViewCollection = (user?.role === 'admin' || user?.can_access_collection_lakshya !== false) && (!filteredSalesPerson || filteredSalesPerson.can_access_collection_lakshya !== false);
+  const canEditSales = ['admin', 'sales_manager', 'sales_executive'].includes(user?.role);
 
   useEffect(() => {
     if (filteredSalesPerson) {
@@ -229,9 +230,16 @@ export default function SalesDashboard({ user, initialAssigneeId = '', initialLe
                   Sales Executive • My Assigned Funnel
                 </span>
               )}
+              {!canEditSales && (
+                <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 flex items-center gap-1">
+                  👁️ Read-Only Sales Access
+                </span>
+              )}
             </div>
             <p className="text-xs text-gray-500 mt-0.5">
-              {user?.role === 'sales_executive'
+              {!canEditSales
+                ? 'Viewing company sales pipeline, leads, and activity reports (read-only observer mode)'
+                : user?.role === 'sales_executive'
                 ? 'Managing your assigned client leads, stage progress, and personal activity logs'
                 : subCategory === 'general'
                 ? 'Track raw sales inquiries, general lead assignments, and initial contact progress'
@@ -327,13 +335,15 @@ export default function SalesDashboard({ user, initialAssigneeId = '', initialLe
                 Create {subCategory === 'general' ? 'Company' : (subCategory === 'order_lakshya' || subCategory === 'lakshya' ? 'Company Order' : (subCategory === 'billing_lakshya' ? 'Company Billing' : 'Company Collection'))} Goal
               </button>
             )}
-            <button
-              onClick={() => { setEditingLead(null); setShowLeadModal(true); }}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 bg-amber-700 text-white rounded-lg hover:bg-amber-800 transition-colors shadow-xs text-xs font-semibold"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              New Lead
-            </button>
+            {canEditSales && (
+              <button
+                onClick={() => { setEditingLead(null); setShowLeadModal(true); }}
+                className="flex items-center gap-1.5 px-3.5 py-1.5 bg-amber-700 text-white rounded-lg hover:bg-amber-800 transition-colors shadow-xs text-xs font-semibold"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                New Lead
+              </button>
+            )}
           </div>
         </div>
 
@@ -652,9 +662,9 @@ export default function SalesDashboard({ user, initialAssigneeId = '', initialLe
                 <option value="">Product Choice (All)</option>
                 <option value="home_automation">Home Automation</option>
                 <option value="fire_ready">Fire-ready</option>
-                <option value="firesafety">Firesafety</option>
+                <option value="victofire">VictoFire</option>
                 {/* Custom product category support */}
-                {Array.from(new Set(leads.map(l => l.product_category).filter(p => p && !['home_automation', 'fire_ready', 'firesafety'].includes(p)))).map(p => (
+                {Array.from(new Set(leads.map(l => l.product_category).filter(p => p && !['home_automation', 'fire_ready', 'firesafety', 'victofire'].includes(p)))).map(p => (
                   <option key={p} value={p}>{p}</option>
                 ))}
               </select>
@@ -698,15 +708,16 @@ export default function SalesDashboard({ user, initialAssigneeId = '', initialLe
         <SalesPipelineBoard
           leads={leads}
           onLeadClick={(l) => setSelectedLeadId(l.id)}
-          onEditLead={(l) => { setEditingLead(l); setShowLeadModal(true); }}
-          onDeleteLead={async (l) => {
+          onEditLead={canEditSales ? (l) => { setEditingLead(l); setShowLeadModal(true); } : null}
+          onDeleteLead={canEditSales ? async (l) => {
             if (window.confirm(`Delete lead "${l.title}"?`)) {
               await api.deleteSalesLead(l.id);
               fetchAllData();
             }
-          }}
+          } : null}
           userRole={user?.role}
           subCategory={subCategory}
+          canEditSales={canEditSales}
         />
       ) : activeTab === 'report' ? (
         <SalesMonthlyReport assigneeId={assigneeFilter || (user?.role !== 'admin' && user?.role !== 'manager' ? user?.id : '')} />
@@ -716,6 +727,7 @@ export default function SalesDashboard({ user, initialAssigneeId = '', initialLe
           employees={employees}
           lakshyaType={subCategory.includes('lakshya') ? subCategory.replace('_lakshya', '') : 'order'}
           assigneeId={assigneeFilter || (user?.role !== 'admin' && user?.role !== 'manager' ? user?.id : '')}
+          canEditSales={canEditSales}
         />
       )}
 
@@ -758,6 +770,7 @@ export default function SalesDashboard({ user, initialAssigneeId = '', initialLe
         onClose={() => setSelectedLeadId(null)}
         user={user}
         onUpdated={fetchAllData}
+        canEditSales={canEditSales}
       />
     </div>
   );

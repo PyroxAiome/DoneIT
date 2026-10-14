@@ -73,7 +73,8 @@ const NEGATIVE_REASONS = [
   { value: 'contact_changed', label: '👤 Contact Person Changed' }
 ];
 
-export default function SalesLeadDetailModal({ leadId, isOpen, onClose, user, onUpdated }) {
+export default function SalesLeadDetailModal({ leadId, isOpen, onClose, user, onUpdated, canEditSales = true }) {
+  const canEdit = canEditSales && ['admin', 'sales_manager', 'sales_executive'].includes(user?.role);
   const [lead, setLead] = useState(null);
   const [activeTab, setActiveTab] = useState('pipeline'); // 'pipeline' | 'contacts' | 'daily-logs' | 'timeline' | 'strategy'
   const [loading, setLoading] = useState(true);
@@ -455,7 +456,7 @@ export default function SalesLeadDetailModal({ leadId, isOpen, onClose, user, on
                 </span>
               )}
 
-              {['admin', 'sales_manager'].includes(user?.role) && (
+              {canEdit && ['admin', 'sales_manager'].includes(user?.role) && (
                 lead?.category === 'general' ? (
                   <button
                     onClick={async () => {
@@ -528,6 +529,15 @@ export default function SalesLeadDetailModal({ leadId, isOpen, onClose, user, on
           </div>
         )}
 
+        {!canEdit && (
+          <div className="mx-5 mt-3 flex items-center gap-2 text-amber-900 text-xs bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 font-medium">
+            <ShieldAlert className="w-4 h-4 text-amber-600 shrink-0" />
+            <span>
+              <strong>Read-Only Observer Mode:</strong> You can view lead information and progress. Editing stages, strategy, contacts, and issues is restricted to the Sales Team.
+            </span>
+          </div>
+        )}
+
         {loading ? (
           <div className="p-12 text-center text-gray-500">
             <div className="w-8 h-8 border-2 border-amber-600 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
@@ -581,7 +591,7 @@ export default function SalesLeadDetailModal({ leadId, isOpen, onClose, user, on
               {activeTab === 'pipeline' && (
                 <div className="space-y-6">
                   {/* Admin Order Confirmation Box */}
-                  {user?.role === 'admin' && lead?.category !== 'billing_lakshya' && lead?.category !== 'collection_lakshya' && (
+                  {canEdit && user?.role === 'admin' && lead?.category !== 'billing_lakshya' && lead?.category !== 'collection_lakshya' && (
                     <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between gap-4">
                       <div>
                         <h4 className="text-xs font-bold text-emerald-900 uppercase tracking-wider">Admin Order Confirmation</h4>
@@ -710,8 +720,8 @@ export default function SalesLeadDetailModal({ leadId, isOpen, onClose, user, on
                         return (
                           <div
                             key={stageKey}
-                            onClick={() => setTargetStage(stageKey)}
-                            className={`p-2.5 rounded-xl border text-center text-xs transition-all cursor-pointer hover:border-amber-400 ${bgClass} ${targetStage === stageKey && !isCurrent ? 'ring-2 ring-amber-400' : ''}`}
+                            onClick={canEdit ? () => setTargetStage(stageKey) : undefined}
+                            className={`p-2.5 rounded-xl border text-center text-xs transition-all ${canEdit ? 'cursor-pointer hover:border-amber-400' : 'cursor-default'} ${bgClass} ${targetStage === stageKey && !isCurrent ? 'ring-2 ring-amber-400' : ''}`}
                           >
                             <div className="text-[10px] opacity-75 uppercase font-medium">{idx + 1}. Stage</div>
                             <div className="font-semibold truncate">{STAGE_LABELS[stageKey]}</div>
@@ -731,43 +741,45 @@ export default function SalesLeadDetailModal({ leadId, isOpen, onClose, user, on
                   </div>
 
                   {/* Clean Update Stage Box */}
-                  <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
-                    <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Update Pipeline Stage</h4>
-                    <div className="flex flex-col sm:flex-row gap-3 items-end">
-                      <div className="flex-1 w-full">
-                        <label className="text-[11px] text-slate-600 font-medium block mb-1">New Pipeline Stage</label>
-                        <select
-                          value={targetStage}
-                          onChange={(e) => setTargetStage(e.target.value)}
-                          className="input-field bg-white"
+                  {canEdit && (
+                    <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+                      <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Update Pipeline Stage</h4>
+                      <div className="flex flex-col sm:flex-row gap-3 items-end">
+                        <div className="flex-1 w-full">
+                          <label className="text-[11px] text-slate-600 font-medium block mb-1">New Pipeline Stage</label>
+                          <select
+                            value={targetStage}
+                            onChange={(e) => setTargetStage(e.target.value)}
+                            className="input-field bg-white"
+                          >
+                            {activeStages.map(s => (
+                              <option key={s} value={s}>{STAGE_LABELS[s]}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="flex-[2] w-full">
+                          <label className="text-[11px] text-slate-700 font-semibold block mb-1">
+                            Stage Move Notes <span className="text-red-500">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            value={stageNotes}
+                            onChange={(e) => setStageNotes(e.target.value)}
+                            placeholder="e.g. Client agreed to presentation date... (Required)"
+                            className="input-field bg-white"
+                            required
+                          />
+                        </div>
+                        <button
+                          onClick={handleStageMove}
+                          disabled={movingStage || !stageNotes.trim()}
+                          className="btn-amber text-xs py-2 px-4 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                          {activeStages.map(s => (
-                            <option key={s} value={s}>{STAGE_LABELS[s]}</option>
-                          ))}
-                        </select>
+                          {movingStage ? 'Updating...' : 'Change Stage'}
+                        </button>
                       </div>
-                      <div className="flex-[2] w-full">
-                        <label className="text-[11px] text-slate-700 font-semibold block mb-1">
-                          Stage Move Notes <span className="text-red-500">*</span>
-                        </label>
-                        <input
-                          type="text"
-                          value={stageNotes}
-                          onChange={(e) => setStageNotes(e.target.value)}
-                          placeholder="e.g. Client agreed to presentation date... (Required)"
-                          className="input-field bg-white"
-                          required
-                        />
-                      </div>
-                      <button
-                        onClick={handleStageMove}
-                        disabled={movingStage || !stageNotes.trim()}
-                        className="btn-amber text-xs py-2 px-4 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {movingStage ? 'Updating...' : 'Change Stage'}
-                      </button>
                     </div>
-                  </div>
+                  )}
 
                   {/* Audit History of Stage Transitions */}
                   <div>
@@ -791,12 +803,14 @@ export default function SalesLeadDetailModal({ leadId, isOpen, onClose, user, on
                                     </span>
                                   )}
                                 </div>
-                                <button
-                                  onClick={() => handleStartEditHistoryNote(h)}
-                                  className="text-amber-700 hover:text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-200/80 px-2 py-0.5 rounded transition-colors flex items-center gap-1 text-[11px] font-semibold shrink-0"
-                                >
-                                  <Edit3 className="w-3 h-3" /> Edit Note
-                                </button>
+                                {canEdit && (
+                                  <button
+                                    onClick={() => handleStartEditHistoryNote(h)}
+                                    className="text-amber-700 hover:text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-200/80 px-2 py-0.5 rounded transition-colors flex items-center gap-1 text-[11px] font-semibold shrink-0"
+                                  >
+                                    <Edit3 className="w-3 h-3" /> Edit Note
+                                  </button>
+                                )}
                               </div>
                               <div className="text-[11px] text-gray-500">
                                 By <strong>{h.changed_by_name || 'System'}</strong> on {new Date(h.created_at).toLocaleString()}
@@ -955,17 +969,19 @@ export default function SalesLeadDetailModal({ leadId, isOpen, onClose, user, on
 
                   <div className="flex items-center justify-between pt-2">
                     <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider">All Managed Contacts</h3>
-                    <button
-                      onClick={() => { setShowContactForm(!showContactForm); setEditingContact(null); }}
-                      className="btn-amber text-xs px-3 py-1.5 flex items-center gap-1"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                      Add Contact
-                    </button>
+                    {canEdit && (
+                      <button
+                        onClick={() => { setShowContactForm(!showContactForm); setEditingContact(null); }}
+                        className="btn-amber text-xs px-3 py-1.5 flex items-center gap-1"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        Add Contact
+                      </button>
+                    )}
                   </div>
 
                   {/* Add / Edit Contact Form */}
-                  {showContactForm && (
+                  {canEdit && showContactForm && (
                     <form onSubmit={handleSaveContact} className="p-4 bg-gray-50 border border-gray-200 rounded-xl space-y-3 animate-in fade-in">
                       <h4 className="text-xs font-semibold text-gray-900">{editingContact ? 'Edit Contact' : 'New Contact Person'}</h4>
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -1067,12 +1083,14 @@ export default function SalesLeadDetailModal({ leadId, isOpen, onClose, user, on
                               )}
                             </div>
 
-                            <button
-                              onClick={() => handleDeleteContact(c.id)}
-                              className="text-gray-300 hover:text-red-500 transition-colors p-1"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
+                            {canEdit && (
+                              <button
+                                onClick={() => handleDeleteContact(c.id)}
+                                className="text-gray-300 hover:text-red-500 transition-colors p-1"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
                           </div>
 
                           <div className="text-xs text-gray-600 space-y-1">
@@ -1094,21 +1112,23 @@ export default function SalesLeadDetailModal({ leadId, isOpen, onClose, user, on
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider">Activities & Event Timeline</h3>
-                    <button
-                      onClick={() => {
-                        setEditingActivityId(null);
-                        setActivityForm({ activity_type: 'call', negative_reason: '', title: '', description: '', probability_change: 0, activity_date: new Date().toISOString().split('T')[0] });
-                        setShowActivityForm(!showActivityForm);
-                      }}
-                      className="btn-amber text-xs px-3 py-1.5 flex items-center gap-1"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                      Log Activity / Event
-                    </button>
+                    {canEdit && (
+                      <button
+                        onClick={() => {
+                          setEditingActivityId(null);
+                          setActivityForm({ activity_type: 'call', negative_reason: '', title: '', description: '', probability_change: 0, activity_date: new Date().toISOString().split('T')[0] });
+                          setShowActivityForm(!showActivityForm);
+                        }}
+                        className="btn-amber text-xs px-3 py-1.5 flex items-center gap-1"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        Log Activity / Event
+                      </button>
+                    )}
                   </div>
 
                   {/* Log Activity Form */}
-                  {showActivityForm && (
+                  {canEdit && showActivityForm && (
                     <form onSubmit={handleSaveActivity} className="p-4 bg-gray-50 border border-gray-200 rounded-xl space-y-3 animate-in fade-in">
                       <h4 className="text-xs font-semibold text-gray-900">{editingActivityId ? 'Edit Logged Activity / Event' : 'Log Activity or Probability Event'}</h4>
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -1200,12 +1220,14 @@ export default function SalesLeadDetailModal({ leadId, isOpen, onClose, user, on
                                 </span>
                               )}
                             </div>
-                            <button
-                              onClick={() => handleEditActivity(act)}
-                              className="text-amber-700 hover:text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-200/80 px-2 py-0.5 rounded transition-colors flex items-center gap-1 text-[11px] font-semibold shrink-0"
-                            >
-                              <Edit3 className="w-3 h-3" /> Edit
-                            </button>
+                            {canEdit && (
+                              <button
+                                onClick={() => handleEditActivity(act)}
+                                className="text-amber-700 hover:text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-200/80 px-2 py-0.5 rounded transition-colors flex items-center gap-1 text-[11px] font-semibold shrink-0"
+                              >
+                                <Edit3 className="w-3 h-3" /> Edit
+                              </button>
+                            )}
                           </div>
                           <p className="text-gray-700 whitespace-pre-wrap leading-relaxed mt-1">{act.description}</p>
                           <div className="text-[10px] text-gray-400">
@@ -1231,7 +1253,7 @@ export default function SalesLeadDetailModal({ leadId, isOpen, onClose, user, on
                         Strategic direction, account positioning, key negotiation plan, and internal action guidance.
                       </p>
                     </div>
-                    {user?.role === 'admin' ? (
+                    {canEdit && user?.role === 'admin' ? (
                       <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800 bg-amber-100 border border-amber-300 px-2.5 py-1 rounded-lg">
                         ✏️ Admin Editable
                       </span>
@@ -1257,7 +1279,7 @@ export default function SalesLeadDetailModal({ leadId, isOpen, onClose, user, on
                           <Compass className="w-4 h-4 text-amber-600" />
                           <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">Active Strategy Document</h4>
                         </div>
-                        {user?.role === 'admin' && (
+                        {canEdit && user?.role === 'admin' && (
                           <button
                             onClick={() => {
                               setStrategyText(lead.strategy);
@@ -1331,7 +1353,7 @@ export default function SalesLeadDetailModal({ leadId, isOpen, onClose, user, on
                     <div className="p-8 bg-white border border-slate-200 rounded-2xl text-center space-y-3">
                       <Compass className="w-8 h-8 text-slate-300 mx-auto" />
                       <p className="text-xs text-slate-500">No project strategy has been documented for this lead yet.</p>
-                      {user?.role === 'admin' && (
+                      {canEdit && user?.role === 'admin' && (
                         <button
                           onClick={() => {
                             setStrategyText('');
@@ -1361,17 +1383,19 @@ export default function SalesLeadDetailModal({ leadId, isOpen, onClose, user, on
                         Report project delays, bottlenecks, or ask for leverage support from management and team members.
                       </p>
                     </div>
-                    <button
-                      onClick={() => setShowProblemForm(!showProblemForm)}
-                      className="btn-amber text-xs px-3.5 py-2 flex items-center gap-1.5 shrink-0 shadow-2xs font-semibold"
-                    >
-                      <Plus className="w-4 h-4" />
-                      {showProblemForm ? 'Close Form' : 'Log Problem / Request Leverage'}
-                    </button>
+                    {canEdit && (
+                      <button
+                        onClick={() => setShowProblemForm(!showProblemForm)}
+                        className="btn-amber text-xs px-3.5 py-2 flex items-center gap-1.5 shrink-0 shadow-2xs font-semibold"
+                      >
+                        <Plus className="w-4 h-4" />
+                        {showProblemForm ? 'Close Form' : 'Log Problem / Request Leverage'}
+                      </button>
+                    )}
                   </div>
 
                   {/* New Problem Form */}
-                  {showProblemForm && (
+                  {canEdit && showProblemForm && (
                     <form onSubmit={handleCreateProblem} className="p-4 bg-white border border-amber-200 rounded-2xl space-y-4 shadow-xs animate-in fade-in">
                       <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
                         <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
@@ -1509,14 +1533,15 @@ export default function SalesLeadDetailModal({ leadId, isOpen, onClose, user, on
                                 <select
                                   value={p.status}
                                   onChange={(e) => handleStatusChange(p.id, e.target.value)}
-                                  className="text-[11px] font-semibold bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-slate-700 focus:ring-amber-500"
+                                  disabled={!canEdit}
+                                  className={`text-[11px] font-semibold bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-slate-700 focus:ring-amber-500 ${!canEdit ? 'opacity-80 cursor-default' : ''}`}
                                 >
                                   <option value="open">Status: Open</option>
                                   <option value="in_progress">Status: In Progress</option>
                                   <option value="resolved">Status: Resolved</option>
                                 </select>
 
-                                {(user?.role === 'admin' || user?.id === p.user_id) && (
+                                {canEdit && (user?.role === 'admin' || user?.id === p.user_id) && (
                                   <button
                                     onClick={() => handleDeleteProblem(p.id)}
                                     className="text-slate-300 hover:text-red-500 transition-colors p-1"
@@ -1558,29 +1583,31 @@ export default function SalesLeadDetailModal({ leadId, isOpen, onClose, user, on
                               )}
 
                               {/* Add Reply Input */}
-                              <div className="flex items-center gap-2 pt-1">
-                                <input
-                                  type="text"
-                                  value={replyTextMap[p.id] || ''}
-                                  onChange={(e) => setReplyTextMap({ ...replyTextMap, [p.id]: e.target.value })}
-                                  onKeyDown={(e) => {
-                                    if (e.key === 'Enter' && !e.shiftKey) {
-                                      e.preventDefault();
-                                      handleCreateReply(p.id);
-                                    }
-                                  }}
-                                  placeholder="Write a reply or provide leverage update..."
-                                  className="input-field text-xs bg-slate-50/80 flex-1 py-1.5 focus:bg-white"
-                                />
-                                <button
-                                  type="button"
-                                  onClick={() => handleCreateReply(p.id)}
-                                  disabled={submittingReplyMap[p.id] || !replyTextMap[p.id]?.trim()}
-                                  className="btn-amber text-xs py-1.5 px-3 flex items-center gap-1 font-semibold shrink-0 disabled:opacity-50"
-                                >
-                                  {submittingReplyMap[p.id] ? 'Posting...' : 'Reply'}
-                                </button>
-                              </div>
+                              {canEdit && (
+                                <div className="flex items-center gap-2 pt-1">
+                                  <input
+                                    type="text"
+                                    value={replyTextMap[p.id] || ''}
+                                    onChange={(e) => setReplyTextMap({ ...replyTextMap, [p.id]: e.target.value })}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter' && !e.shiftKey) {
+                                        e.preventDefault();
+                                        handleCreateReply(p.id);
+                                      }
+                                    }}
+                                    placeholder="Write a reply or provide leverage update..."
+                                    className="input-field text-xs bg-slate-50/80 flex-1 py-1.5 focus:bg-white"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => handleCreateReply(p.id)}
+                                    disabled={submittingReplyMap[p.id] || !replyTextMap[p.id]?.trim()}
+                                    className="btn-amber text-xs py-1.5 px-3 flex items-center gap-1 font-semibold shrink-0 disabled:opacity-50"
+                                  >
+                                    {submittingReplyMap[p.id] ? 'Posting...' : 'Reply'}
+                                  </button>
+                                </div>
+                              )}
                             </div>
                           </div>
                         ))}

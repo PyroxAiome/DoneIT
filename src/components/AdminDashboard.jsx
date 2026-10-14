@@ -8,11 +8,13 @@ import TaskDetailModal from './TaskDetailModal';
 import {
   LayoutDashboard, Briefcase, Users, Plus, Search, Grid3X3, List,
   UserPlus, Trash2, Filter, ListTodo, CheckCircle,
-  MessageSquare, X, Shield, Edit2, FolderGit2, ShieldCheck, TrendingUp
+  MessageSquare, X, Shield, Edit2, FolderGit2, ShieldCheck, TrendingUp,
+  User, AlertTriangle, ExternalLink, ShieldAlert, Building2
 } from 'lucide-react';
 import ProjectsList from './ProjectsList';
 import ProjectDetail from './ProjectDetail';
 import SalesDashboard from './SalesDashboard';
+import SalesLeadDetailModal from './SalesLeadDetailModal';
 import TaskKanbanBoard from './TaskKanbanBoard';
 
 const tabs = [
@@ -96,6 +98,7 @@ export default function AdminDashboard({ user }) {
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [showUserModal, setShowUserModal] = useState(false);
   const [editTask, setEditTask] = useState(null);
+  const [defaultAssigneeId, setDefaultAssigneeId] = useState(null);
   const [editingUser, setEditingUser] = useState(null);
   const [deleteTask, setDeleteTask] = useState(null);
   const [deleteUser, setDeleteUser] = useState(null);
@@ -104,6 +107,9 @@ export default function AdminDashboard({ user }) {
   const [selectedProject, setSelectedProject] = useState(null);
   const [salesPersonFilter, setSalesPersonFilter] = useState('');
   const [targetLeadId, setTargetLeadId] = useState(null);
+  const [salesLeads, setSalesLeads] = useState([]);
+  const [selectedLeadIdForModal, setSelectedLeadIdForModal] = useState(null);
+  const [missedLeadFilter, setMissedLeadFilter] = useState('all');
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -173,9 +179,11 @@ export default function AdminDashboard({ user }) {
       api.getDashboardStats(),
       api.getTasks(params),
       api.getEmployees(true),
-    ]).then(([sRes, tRes, eRes]) => {
+      api.getSalesLeads({ category: 'general' }),
+    ]).then(([sRes, tRes, eRes, slRes]) => {
       if (sRes.status === 'fulfilled') setStats(sRes.value);
       if (tRes.status === 'fulfilled') setTasks(tRes.value);
+      if (slRes.status === 'fulfilled') setSalesLeads(slRes.value || []);
       if (eRes.status === 'fulfilled') {
         const e = eRes.value;
         setEmployees(e);
@@ -194,6 +202,7 @@ export default function AdminDashboard({ user }) {
     const handleHashChange = () => {
       const hash = window.location.hash;
       setStatusFilter('');
+      setPillarFilter('general');
       if (!hash) {
         setActiveTab('overview');
         setEmployeeFilter(null);
@@ -202,7 +211,7 @@ export default function AdminDashboard({ user }) {
       }
       const parts = hash.substring(1).split('/');
       const tabId = parts[0];
-      if (['overview', 'projects', 'all', 'work', 'sales', 'completed', 'assigned_by_me', 'verified', 'team', 'admin'].includes(tabId)) {
+      if (['overview', 'projects', 'all', 'work', 'sales', 'to_verify', 'completed', 'assigned_by_me', 'verified', 'team', 'admin'].includes(tabId)) {
         setActiveTab(tabId);
         if (tabId !== 'projects') {
           setSelectedProject(null);
@@ -233,6 +242,7 @@ export default function AdminDashboard({ user }) {
   useEffect(() => {
     fetchAll();
     window.addEventListener('task-updated', fetchAll);
+    window.addEventListener('sales-updated', fetchAll);
     const handleOpenLead = (e) => {
       if (e.detail && e.detail.leadId) {
         setTargetLeadId(e.detail.leadId);
@@ -243,6 +253,7 @@ export default function AdminDashboard({ user }) {
     window.addEventListener('open-sales-lead', handleOpenLead);
     return () => {
       window.removeEventListener('task-updated', fetchAll);
+      window.removeEventListener('sales-updated', fetchAll);
       window.removeEventListener('open-sales-lead', handleOpenLead);
     };
   }, []);
@@ -369,7 +380,17 @@ export default function AdminDashboard({ user }) {
     // Main workspace views strictly exclude project tasks (managed in Projects tab)
     if (t.project_id) return false;
 
-    if (activeTab === 'admin') {
+    if (activeTab === 'to_verify') {
+      const isVerifierTask = user?.role === 'admin' || 
+        Number(t.verifier_id) === Number(user?.id) || 
+        Number(t.completed_by) === Number(user?.id) ||
+        (t.assignee_mentor_id && Number(t.assignee_mentor_id) === Number(user?.id)) ||
+        t.status === 'under_review';
+      if (!isVerifierTask) return false;
+      if (t.parent_id && t.id !== t.parent_id) return false;
+      if (statusFilter && t.status !== statusFilter) return false;
+      return true;
+    } else if (activeTab === 'admin') {
       const adminUserIds = employees.filter(e => e.role === 'admin').map(e => Number(e.id));
       const isAdminTask = adminUserIds.includes(Number(t.assignee_id)) || adminUserIds.includes(Number(t.hiring_lead_id));
       if (!isAdminTask) return false;
@@ -420,9 +441,94 @@ export default function AdminDashboard({ user }) {
   const empCreatedForOthersCount = selectedEmp ? tasks.filter(t => !t.project_id && Number(t.creator_id) === Number(selectedEmp.id) && !isAssignedToEmp(t, selectedEmp.id) && (!t.parent_id || t.id === t.parent_id)).length : 0;
   const empVerifiedTasksCount = selectedEmp ? tasks.filter(t => !t.project_id && t.status === 'completed' && (Number(t.completed_by) === Number(selectedEmp.id) || Number(t.verifier_id) === Number(selectedEmp.id)) && !isAssignedToEmp(t, selectedEmp.id)).length : 0;
 
+  const ORDER_STAGE_KEYS = [
+    'suspect',
+    'prospect',
+    'presentation',
+    'demo',
+    'spec_tender',
+    'enquiry',
+    'quotation',
+    'design_optimisation',
+    'negotiation',
+    'pending_order_receipts'
+  ];
+
+  const STAGE_LABELS = {
+    suspect: 'Suspect',
+    prospect: 'Prospect',
+    presentation: 'Presentation',
+    demo: 'Demo',
+    spec_tender: 'Spec of Tender',
+    enquiry: 'Enquiry',
+    quotation: 'Quotation',
+    design_optimisation: 'Design Optimisation',
+    negotiation: 'Negotiation',
+    pending_order_receipts: 'Pending Order Receipts'
+  };
+
+  const formatLeadValue = (val) => {
+    if (!val || isNaN(val)) return '₹0';
+    if (val >= 10000000) return `₹${(val / 10000000).toFixed(1)}Cr`;
+    if (val >= 100000) return `₹${(val / 100000).toFixed(1)}L`;
+    return `₹${val.toLocaleString('en-IN')}`;
+  };
+
+  const missedDemoAndSpecLeads = salesLeads.filter(lead => {
+    if (lead.category && lead.category !== 'general') return false;
+    if ((lead.priority || '').toLowerCase() === 'lost') return false;
+
+    const currentIdx = ORDER_STAGE_KEYS.indexOf(lead.current_stage);
+    let skipped = [];
+    try {
+      skipped = typeof lead.skipped_stages === 'string'
+        ? JSON.parse(lead.skipped_stages || '[]')
+        : (lead.skipped_stages || []);
+    } catch (e) {
+      skipped = [];
+    }
+
+    const missedDemo = skipped.includes('demo') || (currentIdx > ORDER_STAGE_KEYS.indexOf('demo') && !lead.had_demo_stage);
+    const missedSpecTender = skipped.includes('spec_tender') || (currentIdx > ORDER_STAGE_KEYS.indexOf('spec_tender') && !lead.had_spec_tender_stage);
+
+    return missedDemo || missedSpecTender;
+  }).map(lead => {
+    const currentIdx = ORDER_STAGE_KEYS.indexOf(lead.current_stage);
+    let skipped = [];
+    try {
+      skipped = typeof lead.skipped_stages === 'string'
+        ? JSON.parse(lead.skipped_stages || '[]')
+        : (lead.skipped_stages || []);
+    } catch (e) {
+      skipped = [];
+    }
+
+    const missedDemo = skipped.includes('demo') || (currentIdx > ORDER_STAGE_KEYS.indexOf('demo') && !lead.had_demo_stage);
+    const missedSpecTender = skipped.includes('spec_tender') || (currentIdx > ORDER_STAGE_KEYS.indexOf('spec_tender') && !lead.had_spec_tender_stage);
+
+    return {
+      ...lead,
+      missedDemo,
+      missedSpecTender
+    };
+  });
+
+  const filteredMissedLeads = missedDemoAndSpecLeads.filter(lead => {
+    if (missedLeadFilter === 'demo') return lead.missedDemo;
+    if (missedLeadFilter === 'spec_tender') return lead.missedSpecTender;
+    return true;
+  });
+
   const metricCards = stats ? [
     { label: 'Total Tasks', value: stats.totalTasks, icon: ListTodo, color: 'text-gray-500' },
     { label: 'Team Members', value: stats.totalTeamMembers ?? (Number(stats.totalEmployees) + Number(stats.totalManagers)), icon: Users, color: 'text-blue-500' },
+    { label: 'Avg Completion', value: `${stats.avgCompletion || 0}%`, icon: CheckCircle, color: 'text-emerald-500' },
+    {
+      label: 'Missed Demo / Spec',
+      value: missedDemoAndSpecLeads.length,
+      icon: AlertTriangle,
+      color: missedDemoAndSpecLeads.length > 0 ? 'text-amber-500' : 'text-gray-400',
+    },
   ] : [];
 
   return (
@@ -435,11 +541,18 @@ export default function AdminDashboard({ user }) {
               <p className="text-[9px] sm:text-[11px] text-gray-400 mt-0.5 uppercase font-semibold">{selectedEmp.role} &middot; {selectedEmp.department} &middot; {selectedEmp.email}</p>
             </div>
             <div className="flex items-center gap-2">
+              <button
+                onClick={() => { setEditTask(null); setDefaultAssigneeId(selectedEmp.id); setShowTaskModal(true); }}
+                className="bg-amber-500 hover:bg-amber-600 text-white text-[10px] sm:text-xs font-bold px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" /> Assign Task to {selectedEmp.name ? selectedEmp.name.split(' ')[0] : 'Employee'}
+              </button>
               {(selectedEmp.role === 'sales_manager' || selectedEmp.role === 'sales_executive' || selectedEmp.can_access_sales) && (
                 <button
                   onClick={() => {
                     setSalesPersonFilter(String(selectedEmp.id));
                     setActiveTab('sales');
+                    setSelectedEmp(null);
                     window.location.hash = 'sales';
                   }}
                   className="bg-amber-600 hover:bg-amber-700 text-white text-[10px] sm:text-xs font-semibold px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg transition-all shadow-sm flex items-center gap-1.5"
@@ -455,24 +568,13 @@ export default function AdminDashboard({ user }) {
 
           <div className="flex gap-1 bg-gray-200 p-1 rounded-xl w-fit flex-wrap">
             <button
-              onClick={() => { window.location.hash = `all/employee/${selectedEmp.id}`; }}
-              className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                activeTab === 'all' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              All Tasks
-              <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${activeTab === 'all' ? 'bg-amber-100 text-amber-800' : 'bg-gray-300 text-gray-700'}`}>
-                {empAllTasksCount}
-              </span>
-            </button>
-            <button
               onClick={() => { window.location.hash = `work/employee/${selectedEmp.id}`; }}
               className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                activeTab === 'work' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                activeTab === 'work' || activeTab === 'all' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
               }`}
             >
               Active Tasks
-              <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${activeTab === 'work' ? 'bg-amber-100 text-amber-800' : 'bg-gray-300 text-gray-700'}`}>
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${activeTab === 'work' || activeTab === 'all' ? 'bg-amber-100 text-amber-800' : 'bg-gray-300 text-gray-700'}`}>
                 {empActiveTasksCount}
               </span>
             </button>
@@ -509,6 +611,19 @@ export default function AdminDashboard({ user }) {
                 {empVerifiedTasksCount}
               </span>
             </button>
+            {(selectedEmp.role === 'sales_manager' || selectedEmp.role === 'sales_executive' || selectedEmp.can_access_sales) && (
+              <button
+                onClick={() => {
+                  setSalesPersonFilter(String(selectedEmp.id));
+                  setActiveTab('sales');
+                  setSelectedEmp(null);
+                  window.location.hash = 'sales';
+                }}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold transition-all bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200"
+              >
+                💼 Sales Pipeline
+              </button>
+            )}
           </div>
         </div>
       ) : (
@@ -578,6 +693,166 @@ export default function AdminDashboard({ user }) {
               </div>
             </div>
           )}
+
+          {/* General Inquiries: Missed Demo & Spec of Tender Steps Audit */}
+          <div className="bg-white border border-gray-200 rounded-2xl shadow-xs overflow-hidden">
+            <div className="p-4 sm:p-5 bg-gradient-to-r from-amber-50/80 via-white to-orange-50/40 border-b border-gray-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-600 shrink-0">
+                  <AlertTriangle className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="font-bold text-gray-900 text-sm sm:text-base">
+                      General Inquiries — Missed Demo & Spec of Tender Steps
+                    </h3>
+                    <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
+                      missedDemoAndSpecLeads.length > 0 ? 'bg-amber-100 text-amber-800 border border-amber-200' : 'bg-gray-100 text-gray-600'
+                    }`}>
+                      {missedDemoAndSpecLeads.length} {missedDemoAndSpecLeads.length === 1 ? 'Lead' : 'Leads'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    Sales prospects in General Inquiries that advanced on the Kanban board without completing mandatory Demo or Spec of Tender steps.
+                  </p>
+                </div>
+              </div>
+
+              {/* Filter Pills */}
+              <div className="flex items-center gap-1.5 self-start sm:self-center bg-gray-100 p-1 rounded-xl">
+                <button
+                  onClick={() => setMissedLeadFilter('all')}
+                  className={`text-xs px-2.5 py-1 rounded-lg font-semibold transition-all cursor-pointer ${
+                    missedLeadFilter === 'all'
+                      ? 'bg-white text-gray-900 shadow-xs'
+                      : 'text-gray-500 hover:text-gray-900'
+                  }`}
+                >
+                  All ({missedDemoAndSpecLeads.length})
+                </button>
+                <button
+                  onClick={() => setMissedLeadFilter('demo')}
+                  className={`text-xs px-2.5 py-1 rounded-lg font-semibold transition-all cursor-pointer ${
+                    missedLeadFilter === 'demo'
+                      ? 'bg-white text-amber-800 shadow-xs'
+                      : 'text-gray-500 hover:text-gray-900'
+                  }`}
+                >
+                  Missed Demo ({missedDemoAndSpecLeads.filter(l => l.missedDemo).length})
+                </button>
+                <button
+                  onClick={() => setMissedLeadFilter('spec_tender')}
+                  className={`text-xs px-2.5 py-1 rounded-lg font-semibold transition-all cursor-pointer ${
+                    missedLeadFilter === 'spec_tender'
+                      ? 'bg-white text-purple-800 shadow-xs'
+                      : 'text-gray-500 hover:text-gray-900'
+                  }`}
+                >
+                  Missed Spec to Tender ({missedDemoAndSpecLeads.filter(l => l.missedSpecTender).length})
+                </button>
+              </div>
+            </div>
+
+            {filteredMissedLeads.length === 0 ? (
+              <div className="p-8 text-center bg-emerald-50/20">
+                <ShieldCheck className="w-10 h-10 text-emerald-500 mx-auto mb-2 opacity-80" />
+                <p className="text-sm font-semibold text-gray-800">
+                  {missedDemoAndSpecLeads.length === 0
+                    ? 'All General Inquiries are following standard pipeline steps'
+                    : 'No leads found for selected filter'}
+                </p>
+                <p className="text-xs text-gray-500 mt-1">
+                  {missedDemoAndSpecLeads.length === 0
+                    ? 'No sales prospects have bypassed Demo or Spec of Tender stages.'
+                    : 'Switch back to "All" to view all flagged prospects.'}
+                </p>
+              </div>
+            ) : (
+              <div className="divide-y divide-gray-100 max-h-[460px] overflow-y-auto">
+                {filteredMissedLeads.map((lead) => {
+                  const stageLabel = STAGE_LABELS[lead.current_stage] || (lead.current_stage ? lead.current_stage.replace('_', ' ') : 'Unknown');
+                  const leadValFormatted = formatLeadValue(lead.lead_value);
+                  return (
+                    <div
+                      key={lead.id}
+                      className="p-4 hover:bg-amber-50/30 transition-colors flex flex-col md:flex-row md:items-center justify-between gap-3 group"
+                    >
+                      <div className="space-y-1.5 min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h4
+                            onClick={() => setSelectedLeadIdForModal(lead.id)}
+                            className="font-bold text-gray-900 text-sm hover:text-amber-600 transition-colors cursor-pointer truncate"
+                            title="Click to view details"
+                          >
+                            {lead.title}
+                          </h4>
+                          <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                            Current: {stageLabel}
+                          </span>
+                          {lead.missedDemo && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300">
+                              <AlertTriangle className="w-3 h-3 text-amber-600" />
+                              Missed Demo
+                            </span>
+                          )}
+                          {lead.missedSpecTender && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 border border-purple-300">
+                              <ShieldAlert className="w-3 h-3 text-purple-600" />
+                              Missed Spec of Tender
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-4 text-xs text-gray-500 flex-wrap">
+                          {(lead.client_company || lead.client_name) && (
+                            <span className="flex items-center gap-1 text-gray-700 font-medium">
+                              <Building2 className="w-3.5 h-3.5 text-gray-400" />
+                              {lead.client_company || lead.client_name}
+                            </span>
+                          )}
+                          {lead.assignee_name && (
+                            <span className="flex items-center gap-1 text-gray-600">
+                              <User className="w-3.5 h-3.5 text-gray-400" />
+                              Sales Rep: <strong className="font-semibold text-gray-800">{lead.assignee_name}</strong>
+                            </span>
+                          )}
+                          {lead.lead_value > 0 && (
+                            <span className="flex items-center gap-1 text-emerald-700 font-semibold">
+                              Value: {leadValFormatted}
+                            </span>
+                          )}
+                          {lead.city && (
+                            <span className="text-gray-400">
+                              &middot; {lead.city}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 self-start md:self-center shrink-0">
+                        <button
+                          onClick={() => setSelectedLeadIdForModal(lead.id)}
+                          className="px-3 py-1.5 text-xs font-semibold text-gray-700 bg-white hover:bg-gray-50 border border-gray-200 rounded-lg shadow-2xs transition-all cursor-pointer"
+                        >
+                          View Details
+                        </button>
+                        <button
+                          onClick={() => {
+                            setTargetLeadId(lead.id);
+                            setActiveTab('sales');
+                            window.location.hash = 'sales';
+                          }}
+                          className="px-3 py-1.5 text-xs font-semibold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-lg shadow-2xs transition-all flex items-center gap-1 cursor-pointer"
+                        >
+                          Open in Pipeline <ExternalLink className="w-3 h-3" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -607,7 +882,7 @@ export default function AdminDashboard({ user }) {
         />
       )}
 
-      {(activeTab === 'work' || activeTab === 'all' || activeTab === 'completed' || activeTab === 'assigned_by_me' || activeTab === 'verified' || selectedEmp) && (
+      {(activeTab === 'work' || activeTab === 'all' || activeTab === 'to_verify' || activeTab === 'completed' || activeTab === 'assigned_by_me' || activeTab === 'verified' || selectedEmp) && activeTab !== 'sales' && activeTab !== 'projects' && activeTab !== 'overview' && activeTab !== 'team' && activeTab !== 'admin' && (
         <div className="space-y-4">
 
 
@@ -877,6 +1152,7 @@ export default function AdminDashboard({ user }) {
           ) : (
             <TaskKanbanBoard
               tasks={displayedTasks}
+              activePillar={pillarFilter}
               onRefresh={() => fetchTasksOnly(true)}
               onViewDetail={setDetailTask}
               onEditTask={handleEditTask}
@@ -1064,7 +1340,7 @@ export default function AdminDashboard({ user }) {
         </div>
       )}
 
-      <TaskModal isOpen={showTaskModal} onClose={() => { setShowTaskModal(false); setEditTask(null); }} onSaved={fetchAll} task={editTask} employees={employees} initialPillar={pillarFilter} />
+      <TaskModal isOpen={showTaskModal} onClose={() => { setShowTaskModal(false); setEditTask(null); setDefaultAssigneeId(null); }} onSaved={fetchAll} task={editTask} employees={employees} initialPillar={pillarFilter} defaultAssigneeId={defaultAssigneeId} />
       <AddUserModal 
         isOpen={showUserModal} 
         onClose={() => { setShowUserModal(false); setEditingUser(null); }} 
@@ -1078,6 +1354,19 @@ export default function AdminDashboard({ user }) {
         title="Delete Task" message={`Delete "${deleteTask?.title}"? This cannot be undone.`} />
       <ConfirmDeleteModal isOpen={!!deleteUser} onClose={() => setDeleteUser(null)} onConfirm={handleDeleteUser}
         title="Delete User" message={`Remove ${deleteUser?.name} and all their data? This cannot be undone.`} />
+
+      {selectedLeadIdForModal && (
+        <SalesLeadDetailModal
+          leadId={selectedLeadIdForModal}
+          isOpen={!!selectedLeadIdForModal}
+          onClose={() => setSelectedLeadIdForModal(null)}
+          user={user}
+          onUpdated={() => {
+            fetchAll(true);
+          }}
+          canEditSales={true}
+        />
+      )}
     </div>
   );
 }

@@ -29,7 +29,7 @@ const COLLECTION_STAGES = [
   { key: 'reconciled', label: 'Reconciled' }
 ];
 
-export default function SalesTargetDashboard({ user, employees = [], lakshyaType = 'order', assigneeId = '' }) {
+export default function SalesTargetDashboard({ user, employees = [], lakshyaType = 'order', assigneeId = '', canEditSales = true }) {
   const STAGES = lakshyaType === 'billing' ? BILLING_STAGES : lakshyaType === 'collection' ? COLLECTION_STAGES : ORDER_STAGES;
   const [periodType, setPeriodType] = useState('monthly');
   const [periodYear, setPeriodYear] = useState(new Date().getFullYear().toString());
@@ -123,7 +123,7 @@ export default function SalesTargetDashboard({ user, employees = [], lakshyaType
       ? row.product_line_other
       : (row.product_line === 'home_automation' ? 'Home Automation' :
          row.product_line === 'fire_ready' ? 'Fire Ready' :
-         row.product_line === 'firesafety' ? 'Fire Safety' : row.product_line);
+         (row.product_line === 'firesafety' || row.product_line === 'victofire') ? 'VictoFire' : row.product_line);
 
     groupedByPerson[personId].productLines.add(plName);
     groupedByPerson[personId].targets.push({
@@ -300,7 +300,8 @@ export default function SalesTargetDashboard({ user, employees = [], lakshyaType
               };
             });
 
-            const canEditTarget = isAdmin || (user?.id && String(person.assignee_id) === String(user.id));
+            const isSalesWriter = canEditSales && ['admin', 'sales_manager', 'sales_executive'].includes(user?.role);
+            const canEditTarget = isSalesWriter && (isAdmin || (user?.id && String(person.assignee_id) === String(user.id)));
 
             return (
               <div 

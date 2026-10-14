@@ -6,7 +6,7 @@ const PRODUCTS = [
   { value: 'general', label: '🌐 All Product Lines' },
   { value: 'home_automation', label: '🏠 Home Automation' },
   { value: 'fire_ready', label: '🔥 Fire-ready' },
-  { value: 'firesafety', label: '🧯 Firesafety' },
+  { value: 'victofire', label: '🧯 VictoFire' },
   { value: 'other', label: '📌 Other' }
 ];
 
