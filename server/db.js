@@ -471,8 +471,15 @@ const initDatabase = async () => {
     ALTER TABLE project_documents ADD COLUMN IF NOT EXISTS admin_verified_at TIMESTAMP DEFAULT NULL;
     ALTER TABLE project_documents ADD COLUMN IF NOT EXISTS rejection_reason TEXT DEFAULT '';
     
+    ALTER TABLE project_documents DROP CONSTRAINT IF EXISTS project_documents_doc_type_check;
+    ALTER TABLE project_documents ADD CONSTRAINT project_documents_doc_type_check CHECK(doc_type IN (
+      'ra_bills', 'work_order', 'amendments', 'installation_docs', 
+      'drawings', 'purchase_invoice', 'testing_commissioning',
+      'dc_stamped', 'quality_report', 'safety_permit', 'handover_sheet', 'general'
+    ));
+
     ALTER TABLE project_documents DROP CONSTRAINT IF EXISTS project_documents_status_check;
-    ALTER TABLE project_documents ADD CONSTRAINT project_documents_status_check CHECK(status IN ('pending_manager', 'pending_admin', 'active', 'rejected', 'archived'));
+    ALTER TABLE project_documents ADD CONSTRAINT project_documents_status_check CHECK(status IN ('draft', 'pending_manager', 'pending_admin', 'active', 'rejected', 'archived'));
     -- ── Sales Pipeline Tables ──────────────────────────────────────
     CREATE TABLE IF NOT EXISTS sales_goals (
       id SERIAL PRIMARY KEY,

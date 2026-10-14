@@ -3181,8 +3181,10 @@ router.get('/projects/:id/documents', auth, async (req, res) => {
     const activeDocs = allDocs.filter(d => d.status === 'active');
     const pendingManagerDocs = allDocs.filter(d => d.status === 'pending_manager');
     const pendingAdminDocs = allDocs.filter(d => d.status === 'pending_admin');
+    const myDocs = allDocs.filter(d => d.uploaded_by === req.user.id);
+    const draftDocs = allDocs.filter(d => d.status === 'draft' && (req.user.role === 'admin' || req.user.role === 'manager' || d.uploaded_by === req.user.id));
 
-    res.json({ documents: activeDocs, pendingManagerDocs, pendingAdminDocs, allDocs });
+    res.json({ documents: activeDocs, pendingManagerDocs, pendingAdminDocs, myDocs, draftDocs, allDocs });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -3201,9 +3203,9 @@ router.post('/projects/:id/documents/upload', auth, upload.single('file'), async
     const fileName = req.file.originalname;
     const fileSize = req.file.size;
 
-    // Admin uploads are auto-active; Manager uploads go to pending_admin; Site Manager & Employees go to pending_manager
+    // Admin uploads are auto-active; Manager uploads go to pending_admin; Employees & all other roles go to draft
     const initialStatus = req.user.role === 'admin' ? 'active' :
-                          req.user.role === 'manager' ? 'pending_admin' : 'pending_manager';
+                          req.user.role === 'manager' ? 'pending_admin' : 'draft';
 
     const { rows } = await db.query(`
       INSERT INTO project_documents 
@@ -3230,48 +3232,219 @@ router.post('/projects/:id/documents/upload', auth, upload.single('file'), async
   }
 });
 
-// Document 2-Tier Verification Endpoint (Manager / Admin)
+// Modify / Edit uploaded document (Title, Category, or replace file)
+router.put('/projects/:id/documents/:docId', auth, upload.single('file'), async (req, res) => {
+  try {
+    const { id, docId } = req.params;
+    const { doc_type, title } = req.body;
+
+    const { rows: existingRows } = await db.query(
+      'SELECT * FROM project_documents WHERE id = $1 AND project_id = $2 AND status != \'archived\'',
+      [docId, id]
+    );
+    if (existingRows.length === 0) {
+      return res.status(404).json({ error: 'Document not found' });
+    }
+    const doc = existingRows[0];
+
+    const isUploader = doc.uploaded_by === req.user.id;
+    const isAdminOrManager = req.user.role === 'admin' || req.user.role === 'manager';
+
+    if (!isAdminOrManager && (!isUploader || !['draft', 'rejected', 'pending_manager'].includes(doc.status))) {
+      return res.status(403).json({ error: 'Permission denied: You can only edit your own draft, rejected, or pending documents.' });
+    }
+
+    let fileUrl = doc.file_url;
+    let fileName = doc.file_name;
+    let fileSize = doc.file_size;
+
+    if (req.file) {
+      fileUrl = `/uploads/site_documents/${req.file.filename}`;
+      fileName = req.file.originalname;
+      fileSize = req.file.size;
+    }
+
+    const newTitle = (title !== undefined && title.trim()) ? title.trim() : doc.title;
+    const newDocType = doc_type || doc.doc_type;
+
+    const { rows: updatedRows } = await db.query(`
+      UPDATE project_documents
+      SET title = $1, doc_type = $2, file_url = $3, file_name = $4, file_size = $5
+      WHERE id = $6 AND project_id = $7
+      RETURNING *
+    `, [newTitle, newDocType, fileUrl, fileName, fileSize, docId, id]);
+
+    res.json(updatedRows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Submit draft or rejected document for Level 1 Manager Verification
+router.put('/projects/:id/documents/:docId/submit', auth, async (req, res) => {
+  try {
+    const { id, docId } = req.params;
+    const { rows: existingRows } = await db.query(
+      'SELECT * FROM project_documents WHERE id = $1 AND project_id = $2 AND status != \'archived\'',
+      [docId, id]
+    );
+    if (existingRows.length === 0) {
+      return res.status(404).json({ error: 'Document not found' });
+    }
+    const doc = existingRows[0];
+
+    const isUploader = doc.uploaded_by === req.user.id;
+    const isAdminOrManager = req.user.role === 'admin' || req.user.role === 'manager';
+
+    if (!isUploader && !isAdminOrManager) {
+      return res.status(403).json({ error: 'Permission denied: You can only submit your own documents.' });
+    }
+
+    if (!['draft', 'rejected'].includes(doc.status)) {
+      return res.status(400).json({ error: `Cannot submit document with status '${doc.status}'` });
+    }
+
+    // Submit to Level 1 (pending_manager) and clear previous rejection
+    const { rows: updatedRows } = await db.query(`
+      UPDATE project_documents
+      SET status = 'pending_manager', rejection_reason = '', verified_at = NULL, admin_verified_at = NULL
+      WHERE id = $1 AND project_id = $2
+      RETURNING *
+    `, [docId, id]);
+
+    // Notify Managers
+    try {
+      const { rows: managers } = await db.query(`
+        SELECT id FROM users WHERE role IN ('manager', 'admin')
+      `);
+      for (const mgr of managers) {
+        await createNotification(
+          mgr.id,
+          req.user.id,
+          `${req.user.name} submitted document "${doc.title}" for Level 1 Manager Verification.`
+        );
+      }
+    } catch (notifErr) {
+      console.error('Notification error on doc submit:', notifErr);
+    }
+
+    res.json(updatedRows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Document 2-Tier Verification Endpoint (Level 1: Manager -> Level 2: Admin)
 router.put('/projects/:id/documents/:docId/verify', auth, adminOrManager, async (req, res) => {
   try {
     const { id, docId } = req.params;
-    const { action } = req.body; // 'manager_verify' | 'admin_approve' | 'reject'
+    const { action, rejection_reason = '' } = req.body; // 'manager_verify' | 'admin_approve' | 'reject'
     if (!['manager_verify', 'admin_approve', 'reject'].includes(action)) {
       return res.status(400).json({ error: 'Action must be manager_verify, admin_approve, or reject' });
     }
+
+    const { rows: docRows } = await db.query(
+      'SELECT * FROM project_documents WHERE id = $1 AND project_id = $2',
+      [docId, id]
+    );
+    if (docRows.length === 0) return res.status(404).json({ error: 'Document not found' });
+    const currentDoc = docRows[0];
 
     let queryText = '';
     let params = [];
 
     if (action === 'manager_verify') {
-      if (req.user.role !== 'manager') {
-        return res.status(403).json({ error: 'Tier 1 Verification must be performed by a Manager first' });
+      // Level 1: Manager verification -> pass to pending_admin
+      if (req.user.role !== 'manager' && req.user.role !== 'admin') {
+        return res.status(403).json({ error: 'Level 1 Verification must be performed by a Manager or Admin' });
       }
       queryText = `
         UPDATE project_documents
-        SET status = 'pending_admin', manager_user_id = $1, verified_at = CURRENT_TIMESTAMP
+        SET status = 'pending_admin', manager_user_id = $1, verified_at = CURRENT_TIMESTAMP, rejection_reason = ''
         WHERE id = $2 AND project_id = $3
         RETURNING *
       `;
       params = [req.user.id, docId, id];
+
+      // Notify Admin for Level 2 final sign-off
+      try {
+        const { rows: admins } = await db.query('SELECT id FROM users WHERE role = \'admin\'');
+        for (const adm of admins) {
+          await createNotification(
+            adm.id,
+            req.user.id,
+            `Manager ${req.user.name} verified "${currentDoc.title}". Pending your Level 2 final approval.`
+          );
+        }
+        if (currentDoc.uploaded_by && currentDoc.uploaded_by !== req.user.id) {
+          await createNotification(
+            currentDoc.uploaded_by,
+            req.user.id,
+            `Your document "${currentDoc.title}" passed Level 1 Manager Verification and is now pending final Admin approval.`
+          );
+        }
+      } catch (notifErr) {
+        console.error('Notification error on manager_verify:', notifErr);
+      }
+
     } else if (action === 'admin_approve') {
+      // Level 2: Admin final approval -> active in vault
       if (req.user.role !== 'admin') {
-        return res.status(403).json({ error: 'Admin access required for final approval' });
+        return res.status(403).json({ error: 'Admin access required for Level 2 final approval' });
       }
       queryText = `
         UPDATE project_documents
-        SET status = 'active', admin_user_id = $1, admin_verified_at = CURRENT_TIMESTAMP
+        SET status = 'active', admin_user_id = $1, admin_verified_at = CURRENT_TIMESTAMP, rejection_reason = ''
         WHERE id = $2 AND project_id = $3
         RETURNING *
       `;
       params = [req.user.id, docId, id];
+
+      // Notify Uploader of final approval
+      if (currentDoc.uploaded_by && currentDoc.uploaded_by !== req.user.id) {
+        try {
+          await createNotification(
+            currentDoc.uploaded_by,
+            req.user.id,
+            `Congratulations! Your document "${currentDoc.title}" received final Admin approval and is now verified in the vault.`
+          );
+        } catch (notifErr) {
+          console.error('Notification error on admin_approve:', notifErr);
+        }
+      }
+
     } else if (action === 'reject') {
-      queryText = `
-        UPDATE project_documents
-        SET status = 'rejected', manager_user_id = $1, verified_at = CURRENT_TIMESTAMP
-        WHERE id = $2 AND project_id = $3
-        RETURNING *
-      `;
-      params = [req.user.id, docId, id];
+      const reason = (rejection_reason && rejection_reason.trim()) ? rejection_reason.trim() : 'Document requires changes';
+      if (req.user.role === 'admin') {
+        queryText = `
+          UPDATE project_documents
+          SET status = 'rejected', admin_user_id = $1, admin_verified_at = CURRENT_TIMESTAMP, rejection_reason = $4
+          WHERE id = $2 AND project_id = $3
+          RETURNING *
+        `;
+        params = [req.user.id, docId, id, reason];
+      } else {
+        queryText = `
+          UPDATE project_documents
+          SET status = 'rejected', manager_user_id = $1, verified_at = CURRENT_TIMESTAMP, rejection_reason = $4
+          WHERE id = $2 AND project_id = $3
+          RETURNING *
+        `;
+        params = [req.user.id, docId, id, reason];
+      }
+
+      // Notify Uploader of rejection
+      if (currentDoc.uploaded_by && currentDoc.uploaded_by !== req.user.id) {
+        try {
+          await createNotification(
+            currentDoc.uploaded_by,
+            req.user.id,
+            `Your document "${currentDoc.title}" was rejected: "${reason}". Please modify and resubmit.`
+          );
+        } catch (notifErr) {
+          console.error('Notification error on reject:', notifErr);
+        }
+      }
     }
 
     const { rows } = await db.query(queryText, params);
@@ -3282,10 +3455,29 @@ router.put('/projects/:id/documents/:docId/verify', auth, adminOrManager, async 
   }
 });
 
-router.delete('/projects/:id/documents/:docId', auth, adminOrManager, async (req, res) => {
+router.delete('/projects/:id/documents/:docId', auth, async (req, res) => {
   try {
     const { id, docId } = req.params;
-    await db.query(`UPDATE project_documents SET status = 'archived' WHERE id = $1 AND project_id = $2`, [docId, id]);
+    const { rows: existingRows } = await db.query(
+      'SELECT * FROM project_documents WHERE id = $1 AND project_id = $2',
+      [docId, id]
+    );
+    if (existingRows.length === 0) {
+      return res.status(404).json({ error: 'Document not found' });
+    }
+    const doc = existingRows[0];
+    const isUploader = doc.uploaded_by === req.user.id;
+    const isAdminOrManager = req.user.role === 'admin' || req.user.role === 'manager';
+
+    if (!isAdminOrManager && (!isUploader || doc.status !== 'draft')) {
+      return res.status(403).json({ error: 'Permission denied: You can only delete your own draft documents.' });
+    }
+
+    if (doc.status === 'draft') {
+      await db.query('DELETE FROM project_documents WHERE id = $1 AND project_id = $2', [docId, id]);
+    } else {
+      await db.query(`UPDATE project_documents SET status = 'archived' WHERE id = $1 AND project_id = $2`, [docId, id]);
+    }
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });

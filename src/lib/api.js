@@ -352,6 +352,37 @@ export const api = {
     return data;
   },
 
+  updateProjectDocument: async (projectId, docId, formDataOrData) => {
+    const token = getToken();
+    let res;
+    if (formDataOrData instanceof FormData) {
+      res = await fetch(`/api/projects/${projectId}/documents/${docId}`, {
+        method: 'PUT',
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: formDataOrData,
+      });
+    } else {
+      res = await fetch(`/api/projects/${projectId}/documents/${docId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify(formDataOrData),
+      });
+    }
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Update failed');
+    return data;
+  },
+
+  submitProjectDocument: (projectId, docId) =>
+    request(`/projects/${projectId}/documents/${docId}/submit`, {
+      method: 'PUT',
+    }),
+
   verifyProjectDocument: (projectId, docId, action, rejection_reason = '') =>
     request(`/projects/${projectId}/documents/${docId}/verify`, {
       method: 'PUT',
