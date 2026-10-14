@@ -220,9 +220,19 @@ export default function ProjectSiteDocuments({ project, user, onVerificationDone
     }
   };
 
+  // Check for any legacy documents in the vault
+  const legacyDocsCount = documents.filter(d => !DOCUMENT_CATEGORIES.some(cat => cat.id === d.doc_type)).length;
+
   // Filter vault documents
   const filteredVaultDocs = documents.filter(d => {
-    const matchesType = activeTypeFilter === 'all' || d.doc_type === activeTypeFilter;
+    let matchesType = false;
+    if (activeTypeFilter === 'all') {
+      matchesType = true;
+    } else if (activeTypeFilter === 'legacy_other') {
+      matchesType = !DOCUMENT_CATEGORIES.some(cat => cat.id === d.doc_type);
+    } else {
+      matchesType = d.doc_type === activeTypeFilter;
+    }
     const matchesSearch = (d.title || '').toLowerCase().includes(search.toLowerCase()) || 
                           (d.file_name || '').toLowerCase().includes(search.toLowerCase());
     return matchesType && matchesSearch;
@@ -582,6 +592,19 @@ export default function ProjectSiteDocuments({ project, user, onVerificationDone
                 </button>
               );
             })}
+
+            {legacyDocsCount > 0 && (
+              <button
+                onClick={() => setActiveTypeFilter('legacy_other')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                  activeTypeFilter === 'legacy_other' 
+                    ? 'bg-amber-100 text-amber-900 shadow-2xs font-bold border border-amber-300' 
+                    : 'text-amber-700/80 hover:text-amber-900'
+                }`}
+              >
+                📁 Legacy Docs ({legacyDocsCount})
+              </button>
+            )}
           </div>
 
           <div className="relative sm:w-56">
@@ -629,15 +652,26 @@ export default function ProjectSiteDocuments({ project, user, onVerificationDone
                     </div>
                   </div>
 
-                  {(user?.role === 'admin' || user?.role === 'manager') && (
-                    <button
-                      onClick={() => handleDeleteDoc(doc.id)}
-                      className="text-gray-400 hover:text-red-600 p-1 rounded hover:bg-gray-100 transition-colors cursor-pointer"
-                      title="Archive document"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  )}
+                  <div className="flex items-center gap-1">
+                    {(user?.role === 'admin' || user?.role === 'manager' || doc.uploaded_by === user?.id) && (
+                      <button
+                        onClick={() => openEditModal(doc)}
+                        className="text-gray-400 hover:text-amber-600 p-1 rounded hover:bg-gray-100 transition-colors cursor-pointer"
+                        title="Modify title or category"
+                      >
+                        <Edit3 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                    {(user?.role === 'admin' || user?.role === 'manager') && (
+                      <button
+                        onClick={() => handleDeleteDoc(doc.id)}
+                        className="text-gray-400 hover:text-red-600 p-1 rounded hover:bg-gray-100 transition-colors cursor-pointer"
+                        title="Archive document"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 <div className="text-[11px] text-gray-500 space-y-1 pt-1 border-t border-gray-100">
