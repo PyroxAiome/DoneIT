@@ -16,17 +16,23 @@ export const DOCUMENT_CATEGORIES = [
   { id: 'testing_commissioning', label: 'Testing and commissioning documents' },
 ];
 
+export const LEGACY_CATEGORY_MAP = {
+  quality_report: 'testing_commissioning', // Quality / Test Report -> Testing and commissioning documents
+  safety_permit: 'installation_docs',     // Safety / Height Work Permit -> Installation documents
+  dc_stamped: 'installation_docs',        // Delivery Challan -> Installation documents
+  handover_sheet: 'testing_commissioning',// Handover Sheet -> Testing and commissioning documents
+  general: 'work_order',                  // General Site Document -> Work Order
+};
+
+export const getMappedCategory = (docType) => {
+  return LEGACY_CATEGORY_MAP[docType] || docType;
+};
+
 export const getCategoryLabel = (docType) => {
-  const found = DOCUMENT_CATEGORIES.find(c => c.id === docType);
+  const targetType = getMappedCategory(docType);
+  const found = DOCUMENT_CATEGORIES.find(c => c.id === targetType);
   if (found) return found.label;
-  const legacy = {
-    dc_stamped: 'Stamped DCs',
-    quality_report: 'Quality & Test',
-    safety_permit: 'Safety Permits',
-    handover_sheet: 'Handovers',
-    general: 'General Document'
-  };
-  return legacy[docType] || docType?.replace(/_/g, ' ') || 'Document';
+  return docType?.replace(/_/g, ' ') || 'Document';
 };
 
 export default function ProjectSiteDocuments({ project, user, onVerificationDone }) {
@@ -241,35 +247,48 @@ export default function ProjectSiteDocuments({ project, user, onVerificationDone
   return (
     <div className="space-y-6">
       {/* ── SECTION 1: EMPLOYEE "MY UPLOADS & SUBMISSION PIPELINE" ── */}
-      {myDocs.length > 0 && (
-        <div className="bg-white border-2 border-amber-200/90 rounded-2xl p-4 sm:p-5 shadow-xs space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-amber-100">
-            <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-xs">
-                <Layers className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="font-bold text-sm sm:text-base text-gray-900 flex items-center gap-2">
-                  My Uploaded Documents & Verification Status
+      <div className="bg-white border-2 border-amber-200/90 rounded-2xl p-4 sm:p-5 shadow-xs space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-amber-100">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-xs">
+              <Layers className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="font-bold text-sm sm:text-base text-gray-900 flex items-center gap-2">
+                My Uploaded Documents & Verification Pipeline
+                {myDocs.length > 0 && (
                   <span className="text-xs bg-amber-100 text-amber-900 font-bold px-2 py-0.5 rounded-full">
                     {myDocs.length} Total
                   </span>
-                </h3>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  Review your uploads, modify title, category or files, and submit for 2-Level verification (Manager ➔ Admin).
-                </p>
-              </div>
+                )}
+              </h3>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Upload site documents, modify title, category or files, and submit for 2-Level verification (Manager ➔ Admin).
+              </p>
             </div>
-
-            <button
-              onClick={() => setShowUploadModal(true)}
-              className="flex items-center justify-center gap-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-semibold shadow-2xs transition-colors self-start sm:self-auto cursor-pointer"
-            >
-              <Upload className="w-3.5 h-3.5" />
-              Upload New Document
-            </button>
           </div>
 
+          <button
+            onClick={() => setShowUploadModal(true)}
+            className="flex items-center justify-center gap-1.5 px-3.5 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-semibold shadow-2xs transition-colors self-start sm:self-auto cursor-pointer"
+          >
+            <Upload className="w-3.5 h-3.5" />
+            + Upload Document for Verification
+          </button>
+        </div>
+
+        {myDocs.length === 0 ? (
+          <div className="text-center py-6 bg-amber-50/20 rounded-xl border border-dashed border-amber-200 space-y-1.5">
+            <FileText className="w-7 h-7 text-amber-400 mx-auto stroke-1" />
+            <p className="text-xs text-gray-600 font-medium">You have not uploaded any documents yet for this project.</p>
+            <button
+              onClick={() => setShowUploadModal(true)}
+              className="text-xs text-amber-600 hover:underline font-semibold cursor-pointer"
+            >
+              Click here to upload your first document (starts as Draft for review)
+            </button>
+          </div>
+        ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
             {myDocs.map(doc => {
               const isDraft = doc.status === 'draft';
@@ -405,8 +424,8 @@ export default function ProjectSiteDocuments({ project, user, onVerificationDone
               );
             })}
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* ── SECTION 2: TIER 1 MANAGER VERIFICATION QUEUE (Level 1) ── */}
       {pendingManagerDocs.length > 0 && (user?.role === 'manager' || user?.role === 'admin') && (
@@ -552,14 +571,6 @@ export default function ProjectSiteDocuments({ project, user, onVerificationDone
               </p>
             </div>
           </div>
-
-          <button
-            onClick={() => setShowUploadModal(true)}
-            className="flex items-center justify-center gap-2 px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors shadow-sm text-xs font-semibold cursor-pointer"
-          >
-            <Upload className="w-4 h-4" />
-            + Upload Site Document
-          </button>
         </div>
 
         {/* 7 Requested Category Tabs + All Docs */}
@@ -577,7 +588,7 @@ export default function ProjectSiteDocuments({ project, user, onVerificationDone
             </button>
 
             {DOCUMENT_CATEGORIES.map(tab => {
-              const count = documents.filter(d => d.doc_type === tab.id).length;
+              const count = documents.filter(d => getMappedCategory(d.doc_type) === tab.id).length;
               return (
                 <button
                   key={tab.id}
@@ -592,19 +603,6 @@ export default function ProjectSiteDocuments({ project, user, onVerificationDone
                 </button>
               );
             })}
-
-            {legacyDocsCount > 0 && (
-              <button
-                onClick={() => setActiveTypeFilter('legacy_other')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                  activeTypeFilter === 'legacy_other' 
-                    ? 'bg-amber-100 text-amber-900 shadow-2xs font-bold border border-amber-300' 
-                    : 'text-amber-700/80 hover:text-amber-900'
-                }`}
-              >
-                📁 Legacy Docs ({legacyDocsCount})
-              </button>
-            )}
           </div>
 
           <div className="relative sm:w-56">
