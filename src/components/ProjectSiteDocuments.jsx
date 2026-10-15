@@ -69,12 +69,12 @@ export default function ProjectSiteDocuments({ project, user, onVerificationDone
         setDocuments(res.documents || []);
         setPendingManagerDocs(res.pendingManagerDocs || []);
         setPendingAdminDocs(res.pendingAdminDocs || []);
-        setMyDocs(res.myDocs || (res.allDocs ? res.allDocs.filter(d => d.uploaded_by === user?.id) : []));
+        setMyDocs(res.myDocs || (res.allDocs ? res.allDocs.filter(d => Number(d.uploaded_by) === Number(user?.id)) : []));
       } else if (Array.isArray(res)) {
         setDocuments(res.filter(d => d.status === 'active'));
         setPendingManagerDocs(res.filter(d => d.status === 'pending_manager'));
         setPendingAdminDocs(res.filter(d => d.status === 'pending_admin'));
-        setMyDocs(res.filter(d => d.uploaded_by === user?.id));
+        setMyDocs(res.filter(d => Number(d.uploaded_by) === Number(user?.id)));
       }
     } catch (err) {
       console.error('Error loading project documents:', err);
@@ -237,7 +237,7 @@ export default function ProjectSiteDocuments({ project, user, onVerificationDone
     } else if (activeTypeFilter === 'legacy_other') {
       matchesType = !DOCUMENT_CATEGORIES.some(cat => cat.id === d.doc_type);
     } else {
-      matchesType = d.doc_type === activeTypeFilter;
+      matchesType = getMappedCategory(d.doc_type) === activeTypeFilter;
     }
     const matchesSearch = (d.title || '').toLowerCase().includes(search.toLowerCase()) || 
                           (d.file_name || '').toLowerCase().includes(search.toLowerCase());
@@ -651,7 +651,7 @@ export default function ProjectSiteDocuments({ project, user, onVerificationDone
                   </div>
 
                   <div className="flex items-center gap-1">
-                    {(user?.role === 'admin' || user?.role === 'manager' || doc.uploaded_by === user?.id) && (
+                    {(user?.role === 'admin' || user?.role === 'manager' || Number(doc.uploaded_by) === Number(user?.id)) && (
                       <button
                         onClick={() => openEditModal(doc)}
                         className="text-gray-400 hover:text-amber-600 p-1 rounded hover:bg-gray-100 transition-colors cursor-pointer"

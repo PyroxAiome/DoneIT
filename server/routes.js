@@ -3181,8 +3181,8 @@ router.get('/projects/:id/documents', auth, async (req, res) => {
     const activeDocs = allDocs.filter(d => d.status === 'active');
     const pendingManagerDocs = allDocs.filter(d => d.status === 'pending_manager');
     const pendingAdminDocs = allDocs.filter(d => d.status === 'pending_admin');
-    const myDocs = allDocs.filter(d => d.uploaded_by === req.user.id);
-    const draftDocs = allDocs.filter(d => d.status === 'draft' && (req.user.role === 'admin' || req.user.role === 'manager' || d.uploaded_by === req.user.id));
+    const myDocs = allDocs.filter(d => Number(d.uploaded_by) === Number(req.user.id));
+    const draftDocs = allDocs.filter(d => d.status === 'draft' && (req.user.role === 'admin' || req.user.role === 'manager' || Number(d.uploaded_by) === Number(req.user.id)));
 
     res.json({ documents: activeDocs, pendingManagerDocs, pendingAdminDocs, myDocs, draftDocs, allDocs });
   } catch (err) {
