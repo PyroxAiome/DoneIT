@@ -10,16 +10,18 @@ export const DOCUMENT_CATEGORIES = [
   { id: 'ra_bills', label: 'RA bills' },
   { id: 'work_order', label: 'Work Order' },
   { id: 'amendments', label: 'Amendments' },
-  { id: 'installation_docs', label: 'Installation documents' },
+  { id: 'delivery_challan', label: 'Delivery Challan' },
   { id: 'drawings', label: 'Drawings' },
   { id: 'purchase_invoice', label: 'Purchase invoice' },
+  { id: 'test_certificates', label: 'Test certificates' },
   { id: 'testing_commissioning', label: 'Testing and commissioning documents' },
 ];
 
 export const LEGACY_CATEGORY_MAP = {
-  quality_report: 'testing_commissioning', // Quality / Test Report -> Testing and commissioning documents
-  safety_permit: 'installation_docs',     // Safety / Height Work Permit -> Installation documents
-  dc_stamped: 'installation_docs',        // Delivery Challan -> Installation documents
+  installation_docs: 'delivery_challan',  // Installation documents -> Delivery Challan
+  dc_stamped: 'delivery_challan',         // Delivery Challan -> Delivery Challan
+  safety_permit: 'delivery_challan',      // Safety Permit -> Delivery Challan
+  quality_report: 'test_certificates',    // Quality / Test Report -> Test certificates
   handover_sheet: 'testing_commissioning',// Handover Sheet -> Testing and commissioning documents
   general: 'work_order',                  // General Site Document -> Work Order
 };
@@ -118,7 +120,7 @@ export default function ProjectSiteDocuments({ project, user, onVerificationDone
   const openEditModal = (doc) => {
     setEditingDoc(doc);
     setEditForm({
-      doc_type: doc.doc_type || 'ra_bills',
+      doc_type: getMappedCategory(doc.doc_type) || 'ra_bills',
       title: doc.title || ''
     });
     setEditFile(null);

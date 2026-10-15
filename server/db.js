@@ -473,8 +473,8 @@ const initDatabase = async () => {
     
     ALTER TABLE project_documents DROP CONSTRAINT IF EXISTS project_documents_doc_type_check;
     ALTER TABLE project_documents ADD CONSTRAINT project_documents_doc_type_check CHECK(doc_type IN (
-      'ra_bills', 'work_order', 'amendments', 'installation_docs', 
-      'drawings', 'purchase_invoice', 'testing_commissioning',
+      'ra_bills', 'work_order', 'amendments', 'delivery_challan', 'installation_docs', 
+      'drawings', 'purchase_invoice', 'test_certificates', 'testing_commissioning',
       'dc_stamped', 'quality_report', 'safety_permit', 'handover_sheet', 'general'
     ));
 
