@@ -997,6 +997,8 @@ router.post('/tasks', auth, async (req, res) => {
       });
     }
 
+    const isManagerOrAdmin = ['admin', 'manager', 'site_manager', 'sales_manager'].includes(req.user.role);
+
     const targetAssigneeIds = (assignee_ids && Array.isArray(assignee_ids) && assignee_ids.length > 0)
       ? assignee_ids.map(Number)
       : [assignee_id ? Number(assignee_id) : Number(req.user.id)];
@@ -1017,7 +1019,7 @@ router.post('/tasks', auth, async (req, res) => {
 
     const isAssigningToOthers = targetAssigneeIds.some(id => id !== req.user.id);
 
-    if (!['admin', 'manager', 'site_manager'].includes(req.user.role) && (!isAssigningToOthers || !isAuthorizedMentor)) {
+    if (!isManagerOrAdmin && (!isAssigningToOthers || !isAuthorizedMentor)) {
       const { rows: weekRows } = await db.query(`
         SELECT COUNT(*) as count FROM tasks 
         WHERE creator_id = $1 AND assignee_id = $1 AND created_at >= DATE_TRUNC('week', CURRENT_TIMESTAMP)
