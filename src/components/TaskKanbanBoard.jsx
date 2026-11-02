@@ -815,7 +815,7 @@ export default function TaskKanbanBoard({
                                           ? 'bg-amber-100 text-amber-800 hover:bg-amber-200' 
                                           : 'bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200 shadow-2xs'
                                       }`}
-                                      title={canVerifyStage ? 'Review & Approve Stage' : `Stage Review Pending by ${t.verifier_name || 'Verifier'} (Click to view & WhatsApp)`}
+                                      title={canVerifyStage ? 'Review & Approve Stage' : `Stage Review Pending by ${t.verifier_name || 'Admin'} (Click to view & WhatsApp)`}
                                     >
                                       <Clock className="w-3.5 h-3.5 text-amber-600" />
                                       <span>{canVerifyStage ? 'Review' : 'Pending'}</span>
