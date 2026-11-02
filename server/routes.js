@@ -133,18 +133,19 @@ const createNotification = async (recipientId, updaterId, message, taskId = null
   }
 };
 
-const notifyRelevantUsers = async (updaterId, message, taskId, extraRecipientIds = []) => {
+const notifyRelevantUsers = async (updaterId, message, taskId, extraRecipientIds = [], excludeRecipientIds = []) => {
   try {
     console.log(`[Notification Triggered] message: "${message}", taskId: ${taskId}`);
     const recipientIds = new Set();
+    const excludeSet = new Set((excludeRecipientIds || []).map(Number));
 
-    // 1. All Admins
-    const { rows: admins } = await db.query("SELECT id FROM users WHERE role = 'admin'");
-    admins.forEach(a => recipientIds.add(a.id));
+    // 1. All High-Level Leadership (Admins and Managers)
+    const { rows: leaders } = await db.query("SELECT id FROM users WHERE role IN ('admin', 'manager')");
+    leaders.forEach(l => recipientIds.add(l.id));
 
-    // 2. Fetch task assignee, creator, and assignee's department details
+    // 2. Fetch task assignee, creator, verifier, group co-assignees, and department details
     const { rows: taskRows } = await db.query(`
-      SELECT t.assignee_id, t.creator_id, u.department as assignee_dept
+      SELECT t.assignee_id, t.creator_id, t.verifier_id, t.parent_id, u.department as assignee_dept
       FROM tasks t
       LEFT JOIN users u ON t.assignee_id = u.id
       WHERE t.id = $1
@@ -160,6 +161,18 @@ const notifyRelevantUsers = async (updaterId, message, taskId, extraRecipientIds
       if (taskDetails.creator_id) {
         recipientIds.add(taskDetails.creator_id);
       }
+      // Add verifier
+      if (taskDetails.verifier_id) {
+        recipientIds.add(taskDetails.verifier_id);
+      }
+      // Add all group co-assignees if group task
+      if (taskDetails.parent_id) {
+        const { rows: groupRows } = await db.query(
+          "SELECT assignee_id FROM tasks WHERE (id = $1 OR parent_id = $1) AND assignee_id IS NOT NULL",
+          [taskDetails.parent_id]
+        );
+        groupRows.forEach(g => recipientIds.add(g.assignee_id));
+      }
       // Add department manager
       if (taskDetails.assignee_dept) {
         const { rows: managers } = await db.query(
@@ -173,8 +186,9 @@ const notifyRelevantUsers = async (updaterId, message, taskId, extraRecipientIds
     // 3. Add extra recipients (e.g. parsed mentions)
     extraRecipientIds.forEach(id => recipientIds.add(id));
 
-    // Send notification to all collected unique IDs
+    // Send notification to all collected unique IDs (excluding updater and excludeSet)
     for (const recipientId of recipientIds) {
+      if (excludeSet.has(Number(recipientId))) continue;
       await createNotification(recipientId, updaterId, message, taskId);
     }
   } catch (err) {
@@ -366,12 +380,12 @@ router.get('/employees', auth, async (req, res) => {
         (
           SELECT COUNT(DISTINCT t.id)
           FROM tasks t
-          WHERE t.assignee_id = u.id AND t.project_id IS NULL
+          WHERE t.assignee_id = u.id
         ) as task_count,
         (
           SELECT COUNT(DISTINCT t.id)
           FROM tasks t
-          WHERE t.assignee_id = u.id AND t.status = 'completed' AND t.project_id IS NULL
+          WHERE t.assignee_id = u.id AND t.status = 'completed'
         ) as completed_task_count,
         COALESCE(
           (
@@ -383,7 +397,7 @@ router.get('/employees', auth, async (req, res) => {
               END
             ), 0)
             FROM tasks t
-            WHERE t.assignee_id = u.id AND t.project_id IS NULL
+            WHERE t.assignee_id = u.id
           ), 0
         ) as avg_progress,
         (
@@ -1130,7 +1144,7 @@ router.post('/tasks', auth, async (req, res) => {
       } else {
         msg = `${req.user.name} created task: "${title}"`;
       }
-      await notifyRelevantUsers(req.user.id, msg, task.id);
+      await notifyRelevantUsers(req.user.id, msg, task.id, [], task.verifier_id ? [task.verifier_id] : []);
 
       if (task.verifier_id && Number(task.verifier_id) !== Number(req.user.id)) {
         await createNotification(task.verifier_id, req.user.id, `${req.user.name} assigned you to verify task: "${title}"`, task.id);
@@ -1257,12 +1271,12 @@ router.put('/tasks/:id', auth, async (req, res) => {
       }
 
       if (req.user.role === 'intern') {
-        const allowedForIntern = ['status', 'progress_percent', 'logical_explanation'];
+        const allowedForIntern = ['status', 'progress_percent', 'logical_explanation', 'stage_verification', 'move_back_reason', 'from_stage_label', 'to_stage_label'];
         const attemptedFields = Object.keys(req.body);
         const hasDisallowed = attemptedFields.some(f => !allowedForIntern.includes(f));
         if (hasDisallowed) {
           return res.status(403).json({ 
-            error: 'Interns can only update task status, progress, and explanations. Task definition cannot be edited by interns.' 
+            error: 'Interns can only update task status, progress, explanations, and stage plans. Task definition cannot be edited by interns.' 
           });
         }
       }
@@ -1277,12 +1291,135 @@ router.put('/tasks/:id', auth, async (req, res) => {
       const isSelf = currentTask.creator_id === req.user.id;
       const isSameDeptEmployee = creatorRole === 'employee' && creatorDept === req.user.department;
       if (!isSelf && !isSameDeptEmployee) {
-        const allowedFieldsForRestricted = ['status', 'priority', 'progress_percent', 'logical_explanation'];
+        const allowedFieldsForRestricted = ['status', 'priority', 'progress_percent', 'logical_explanation', 'stage_verification', 'verifier_verified_at', 'verifier_comment', 'admin_redo_stage', 'move_back_reason', 'from_stage_label', 'to_stage_label'];
         const attemptedFields = Object.keys(req.body);
         const hasDisallowed = attemptedFields.some(f => !allowedFieldsForRestricted.includes(f));
         if (hasDisallowed) {
           return res.status(403).json({ error: 'Managers are only authorized to change status, priority, progress, and explanation for this task.' });
         }
+      }
+    }
+
+    // ── MOVE TASK BACKWARD WITH REASON ──
+    if (req.body.move_back_reason) {
+      const moveReason = (req.body.move_back_reason || '').trim();
+      if (!moveReason) {
+        return res.status(400).json({ error: 'A reason must be provided when moving a task back to a previous stage.' });
+      }
+
+      const targetStage = req.body.status;
+      if (!targetStage) {
+        return res.status(400).json({ error: 'Target stage is required when moving back.' });
+      }
+
+      const fromStage = currentTask.status;
+      const fromStageLabel = req.body.from_stage_label || fromStage;
+      const toStageLabel = req.body.to_stage_label || targetStage;
+
+      // Reset verification and completion flags
+      req.body.verifier_verified_at = null;
+      req.body.verifier_comment = null;
+      req.body.verified_at = null;
+      req.body.completed_by = null;
+
+      // Parse and update stage_verifications history
+      let existingVerifications = [];
+      try {
+        existingVerifications = typeof currentTask.stage_verifications === 'string'
+          ? JSON.parse(currentTask.stage_verifications) : (currentTask.stage_verifications || []);
+      } catch (e) { existingVerifications = []; }
+      if (!Array.isArray(existingVerifications)) existingVerifications = [];
+
+      const moveBackRecord = {
+        id: Date.now(),
+        type: 'stage_move_back',
+        from_stage: fromStage,
+        to_stage: targetStage,
+        from_stage_label: fromStageLabel,
+        to_stage_label: toStageLabel,
+        reason: moveReason,
+        moved_by_id: req.user.id,
+        moved_by_name: req.user.name,
+        moved_by_role: req.user.role,
+        timestamp: new Date().toISOString()
+      };
+      existingVerifications.push(moveBackRecord);
+      req.body.stage_verifications = JSON.stringify(existingVerifications);
+
+      // Insert comment into admin_comments table
+      try {
+        await db.query(
+          'INSERT INTO admin_comments (task_id, admin_id, comment_text) VALUES ($1, $2, $3)',
+          [id, req.user.id, `↩️ Moved back from ${fromStageLabel} to ${toStageLabel} by ${req.user.name}:\n${moveReason}`]
+        );
+      } catch (err) {
+        console.error('Failed to log move back comment:', err.message);
+      }
+
+      // Notify all relevant users (all Admins, assignee, verifier, creator) of the task move back
+      try {
+        const moveBackMsg = `↩️ ${req.user.name} moved task "${currentTask.title}" back to ${toStageLabel}: "${moveReason}"`;
+        await notifyRelevantUsers(req.user.id, moveBackMsg, id);
+      } catch (err) {
+        console.error('Failed to notify users of task move back:', err.message);
+      }
+    } else if (req.body.admin_redo_stage) {
+      // Legacy admin redo fallback
+      const redo = req.body.admin_redo_stage;
+      const targetStage = redo.target_stage;
+      const targetStageLabel = redo.target_stage_label || targetStage;
+      const redoReason = (redo.reason || '').trim();
+
+      if (!targetStage) {
+        return res.status(400).json({ error: 'Target stage is required for stage redo.' });
+      }
+      if (!redoReason) {
+        return res.status(400).json({ error: 'A reason must be provided for returning the task to redo.' });
+      }
+
+      req.body.status = targetStage;
+      req.body.verifier_verified_at = null;
+      req.body.verifier_comment = null;
+      req.body.verified_at = null;
+      req.body.completed_by = null;
+
+      let existingVerifications = [];
+      try {
+        existingVerifications = typeof currentTask.stage_verifications === 'string'
+          ? JSON.parse(currentTask.stage_verifications) : (currentTask.stage_verifications || []);
+      } catch (e) { existingVerifications = []; }
+      if (!Array.isArray(existingVerifications)) existingVerifications = [];
+
+      const redoRecord = {
+        id: Date.now(),
+        type: 'stage_move_back',
+        from_stage: currentTask.status,
+        to_stage: targetStage,
+        from_stage_label: currentTask.status,
+        to_stage_label: targetStageLabel,
+        reason: redoReason,
+        moved_by_id: req.user.id,
+        moved_by_name: req.user.name,
+        moved_by_role: req.user.role,
+        timestamp: new Date().toISOString()
+      };
+      existingVerifications.push(redoRecord);
+      req.body.stage_verifications = JSON.stringify(existingVerifications);
+
+      try {
+        await db.query(
+          'INSERT INTO admin_comments (task_id, admin_id, comment_text) VALUES ($1, $2, $3)',
+          [id, req.user.id, `↩️ Moved back from ${currentTask.status} to ${targetStageLabel} by ${req.user.name}:\n${redoReason}`]
+        );
+      } catch (err) {
+        console.error('Failed to log admin redo comment:', err.message);
+      }
+
+      try {
+        const redoNotif = `↩️ ${req.user.name} moved task "${currentTask.title}" back to ${targetStageLabel}: "${redoReason}"`;
+        await notifyRelevantUsers(req.user.id, redoNotif, id);
+      } catch (err) {
+        console.error('Failed to notify users of admin redo:', err.message);
       }
     }
 
@@ -1297,33 +1434,132 @@ router.put('/tasks/:id', auth, async (req, res) => {
 
     if (verifierChanged && req.body.verifier_id && (currentTask.status === 'completed' || currentTask.completed_by)) {
       // Reassigning verifier on a completed/verified task -> sets status to under_review for new verifier
-      // Keeps currentTask.completed_by as previous verifier history
       req.body.status = 'under_review';
       req.body.completed_by = currentTask.completed_by || currentTask.verifier_id || (currentTask.status === 'completed' ? 1 : null);
-      req.body.verified_at = null; // Clear old verification timestamp since re-verification is pending
+      req.body.verified_at = null;
+      req.body.verifier_verified_at = null;
+      req.body.verifier_comment = null;
       verificationRequired = true;
     } else if (isNewCompletionAttempt) {
-      // Task is being marked completed for the first time (status was NOT already 'completed')
-      if (!isVerifierOrAdmin) {
-        if (currentTask.status === 'under_review') {
-          return res.status(403).json({ error: 'Only the assigned verifier or an Admin can approve and complete a task in Under Review.' });
+      // Task is being marked completed for the first time
+      const targetVerifierId = currentTask.verifier_id ? Number(currentTask.verifier_id) : null;
+      const isCallerAssignedVerifier = Boolean(targetVerifierId && targetVerifierId === Number(req.user.id));
+      const isCallerAdmin = req.user.role === 'admin';
+      let isTargetVerifierAdmin = false;
+      if (targetVerifierId) {
+        const { rows: vUserRows } = await db.query('SELECT role, name FROM users WHERE id = $1', [targetVerifierId]);
+        isTargetVerifierAdmin = vUserRows[0]?.role === 'admin';
+      }
+
+      if (!targetVerifierId || targetVerifierId === 1 || isTargetVerifierAdmin) {
+        // No specific non-admin verifier assigned: Admin verifies directly
+        if (!isCallerAdmin && !isCallerAssignedVerifier) {
+          return res.status(403).json({ error: 'Only an Admin or the assigned verifier can complete this task.' });
         }
-        req.body.status = 'under_review';
-        verificationRequired = true;
-      } else {
         req.body.verified_at = new Date();
         req.body.completed_by = req.user.id;
+      } else {
+        // Task HAS a specific assigned verifier who is not Admin (e.g. Suraj)
+        if (isCallerAssignedVerifier && !isCallerAdmin) {
+          // The assigned verifier is signing off!
+          // Step 1: Record verifier sign-off, but keep task in under_review pending Admin final sign-off
+          req.body.verifier_verified_at = new Date();
+          req.body.verifier_comment = (req.body.verification_comment || 'Deliverables verified and approved for Admin final sign-off').trim();
+          req.body.status = currentTask.status; // Keep in current review status
+          delete req.body.completed_by;
+          delete req.body.verified_at;
+
+          let existingVerifications = [];
+          try {
+            existingVerifications = typeof currentTask.stage_verifications === 'string'
+              ? JSON.parse(currentTask.stage_verifications) : (currentTask.stage_verifications || []);
+          } catch (e) { existingVerifications = []; }
+          if (!Array.isArray(existingVerifications)) existingVerifications = [];
+
+          existingVerifications.push({
+            id: Date.now(),
+            type: 'verifier_final_approval',
+            verified_by_id: req.user.id,
+            verified_by_name: req.user.name,
+            verified_by_role: req.user.role,
+            comment: req.body.verifier_comment,
+            status: 'verifier_approved_pending_admin',
+            timestamp: new Date().toISOString()
+          });
+          req.body.stage_verifications = JSON.stringify(existingVerifications);
+
+          try {
+            await db.query(
+              'INSERT INTO admin_comments (task_id, admin_id, comment_text) VALUES ($1, $2, $3)',
+              [id, req.user.id, `🛡️ Verifier Sign-off by ${req.user.name}:\n${req.body.verifier_comment}`]
+            );
+            const { rows: leaders } = await db.query("SELECT id FROM users WHERE role IN ('admin', 'manager')");
+            for (const leader of leaders) {
+              await createNotification(
+                leader.id,
+                req.user.id,
+                `🛡️ ${req.user.name} (Assigned Verifier) verified task "${currentTask.title}". It is awaiting final sign-off to complete.`,
+                id
+              );
+            }
+          } catch (err) {
+            console.error('Failed to notify admins of verifier sign-off:', err.message);
+          }
+        } else if (isCallerAdmin) {
+          // Admin is attempting final completion
+          // Hierarchy rule: Has the assigned verifier verified first?
+          if (!currentTask.verifier_verified_at && !req.body.verifier_verified_at) {
+            return res.status(403).json({
+              error: `Verification Hierarchy Required: This task must first be verified by the assigned verifier (${currentTask.verifier_name || 'Assigned Verifier'}) before Admin final completion.`
+            });
+          }
+          // Assigned verifier already verified: Admin gives final completion sign-off!
+          req.body.verified_at = new Date();
+          req.body.completed_by = req.user.id;
+
+          let existingVerifications = [];
+          try {
+            existingVerifications = typeof currentTask.stage_verifications === 'string'
+              ? JSON.parse(currentTask.stage_verifications) : (currentTask.stage_verifications || []);
+          } catch (e) { existingVerifications = []; }
+          if (!Array.isArray(existingVerifications)) existingVerifications = [];
+
+          existingVerifications.push({
+            id: Date.now(),
+            type: 'admin_final_approval',
+            verified_by_id: req.user.id,
+            verified_by_name: req.user.name,
+            verified_by_role: req.user.role,
+            comment: (req.body.verification_comment || 'Admin final verification sign-off completed').trim(),
+            status: 'completed',
+            timestamp: new Date().toISOString()
+          });
+          req.body.stage_verifications = JSON.stringify(existingVerifications);
+
+          try {
+            await db.query(
+              'INSERT INTO admin_comments (task_id, admin_id, comment_text) VALUES ($1, $2, $3)',
+              [id, req.user.id, `✅ Admin Final Completion Sign-off:\n${(req.body.verification_comment || 'Admin approved & completed').trim()}`]
+            );
+          } catch (err) {
+            console.error('Failed to insert admin completion comment:', err.message);
+          }
+        } else {
+          return res.status(403).json({ error: 'Only the assigned verifier or an Admin can review this task.' });
+        }
       }
     } else if (req.body.status === 'completed' && currentTask.status === 'completed') {
-      // Task was already completed and user is just editing other fields — preserve status, don't touch verified_at
+      // Task was already completed and user is just editing other fields
       if (!currentTask.completed_by && req.user?.id) {
         req.body.completed_by = req.user.id;
       }
       delete req.body.status;
-    } else if (req.body.status && ['todo', 'in_progress'].includes(req.body.status)) {
-      // Task is being moved back to todo or in_progress: clear previous completion/verification metadata
+    } else if (req.body.status && req.body.status !== 'completed') {
+      // Task is being moved back to a non-completed stage: clear previous completion/verification metadata
       req.body.completed_by = null;
       req.body.verified_at = null;
+      req.body.verifier_verified_at = null;
+      req.body.verifier_comment = null;
     }
 
     if (req.body.title !== undefined) {
@@ -1363,34 +1599,206 @@ router.put('/tasks/:id', auth, async (req, res) => {
       if (!Array.isArray(existingVerifications)) existingVerifications = [];
 
       const sv = req.body.stage_verification;
-      const newVerification = {
-        id: Date.now(),
-        from_stage: sv.from_stage || currentTask.status,
-        to_stage: sv.to_stage || req.body.status || currentTask.status,
-        stage_label: sv.stage_label || `${sv.from_stage || 'Previous'} ➔ ${sv.to_stage || 'Next'}`,
-        verified_by_id: req.user.id,
-        verified_by_name: req.user.name,
-        verified_by_role: req.user.role,
-        comment: (sv.comment || '').trim(),
-        timestamp: new Date().toISOString()
-      };
-      existingVerifications.push(newVerification);
-      req.body.stage_verifications = JSON.stringify(existingVerifications);
+      const action = sv.action || 'approve';
 
-      try {
-        await db.query(
-          'INSERT INTO admin_comments (task_id, admin_id, comment_text) VALUES ($1, $2, $3)',
-          [id, req.user.id, `🛡️ [Mentor Stage Verification - ${newVerification.stage_label}]: ${newVerification.comment}`]
-        );
-      } catch (err) {
-        console.error('Failed to insert mentor stage verification comment:', err.message);
+      // ── ENFORCE OPTION B: Intermediate Stage Review Authorization ──
+      if (['approve', 'reject', 'update_feedback', 'direct_advance'].includes(action)) {
+        if (currentTask.assignee_id && Number(currentTask.assignee_id) === Number(req.user.id)) {
+          return res.status(403).json({
+            error: 'You cannot approve or verify your own stage deliverables. Only the assigned verifier can approve.'
+          });
+        }
+        if (currentTask.verifier_id) {
+          if (Number(currentTask.verifier_id) !== Number(req.user.id)) {
+            const { rows: vRows } = await db.query('SELECT name FROM users WHERE id = $1', [currentTask.verifier_id]);
+            const vName = vRows[0]?.name || 'the assigned verifier';
+            return res.status(403).json({
+              error: `Only the assigned verifier (${vName}) is authorized to review, approve, or reject this stage. Admin verification occurs at final sign-off.`
+            });
+          }
+        } else {
+          // If no verifier is assigned: ONLY Admin is authorized to verify
+          if (req.user.role !== 'admin') {
+            return res.status(403).json({
+              error: 'No verifier is assigned to this task. Only Admin can review, approve, or reject stages until an assigned verifier is designated.'
+            });
+          }
+        }
+      }
+
+      // Determine supervising verifier or admin default
+      let verifierUserId = currentTask.verifier_id ? Number(currentTask.verifier_id) : null;
+      let verifierUserName = null;
+
+      if (verifierUserId) {
+        const { rows: vRows } = await db.query('SELECT name FROM users WHERE id = $1', [verifierUserId]);
+        verifierUserName = vRows[0]?.name || 'Verifier';
+      } else {
+        const { rows: aRows } = await db.query("SELECT id, name FROM users WHERE role = 'admin' ORDER BY id ASC LIMIT 1");
+        if (aRows.length > 0) {
+          verifierUserId = aRows[0].id;
+          verifierUserName = aRows[0].name || 'Admin';
+        } else {
+          verifierUserName = 'Admin';
+        }
+      }
+
+      const stageLabel = sv.stage_label || `${sv.from_stage_label || sv.from_stage || 'Current'} ➔ ${sv.to_stage_label || sv.to_stage || 'Next'}`;
+
+      if (action === 'submit_plan') {
+        const achievementsText = (sv.achievements || sv.plan_notes || sv.comment || '').trim();
+        const proposedTimeText = (sv.proposed_review_time || sv.proposed_time || '').trim();
+        const combinedNotes = proposedTimeText
+          ? `${achievementsText}\n\n🕒 Proposed Review Time: ${proposedTimeText}`
+          : achievementsText;
+
+        const newRecord = {
+          id: Date.now(),
+          type: 'stage_plan',
+          from_stage: sv.from_stage || currentTask.status,
+          to_stage: sv.to_stage,
+          from_stage_label: sv.from_stage_label || sv.from_stage,
+          to_stage_label: sv.to_stage_label || sv.to_stage,
+          stage_label: stageLabel,
+          plan_section: sv.plan_section || 'General Stage Deliverables',
+          achievements: achievementsText,
+          proposed_review_time: proposedTimeText,
+          plan_notes: combinedNotes,
+          submitted_by_id: req.user.id,
+          submitted_by_name: req.user.name,
+          submitted_by_role: req.user.role,
+          verifier_id: verifierUserId,
+          verifier_name: verifierUserName,
+          status: 'pending_approval',
+          timestamp: new Date().toISOString()
+        };
+        existingVerifications.push(newRecord);
+        req.body.stage_verifications = JSON.stringify(existingVerifications);
+
+        // Employee submitting plan: keep task at current stage until verified
+        delete req.body.status;
+
+        const commentHeader = sv.is_revision ? 'Stage Plan (Revised)' : 'Stage Review Request';
+        try {
+          const commentBody = proposedTimeText
+            ? `${commentHeader} - ${newRecord.stage_label}:\n🏆 Achievements / Deliverables:\n${achievementsText || 'Completed stage requirements.'}\n\n🕒 Proposed Review Time: ${proposedTimeText}`
+            : `${commentHeader} - ${newRecord.stage_label}:\n${achievementsText || 'Completed stage requirements.'}`;
+          await db.query(
+            'INSERT INTO admin_comments (task_id, admin_id, comment_text) VALUES ($1, $2, $3)',
+            [id, req.user.id, commentBody]
+          );
+        } catch (err) {
+          console.error('Failed to insert stage plan comment:', err.message);
+        }
+
+        try {
+          const timeSnippet = proposedTimeText ? ` (Proposed: ${proposedTimeText})` : '';
+          const notifMsg = sv.is_revision
+            ? `📝 ${req.user.name} submitted a revised stage plan for "${currentTask.title}" (${newRecord.stage_label}) awaiting verification${timeSnippet}.`
+            : `📝 ${req.user.name} requested stage verification for "${currentTask.title}" (${newRecord.stage_label})${timeSnippet}.`;
+          await notifyRelevantUsers(req.user.id, notifMsg, id, verifierUserId ? [verifierUserId] : []);
+        } catch (err) {
+          console.error('Failed to notify users of stage plan submission:', err.message);
+        }
+      } else if (action === 'reject' || action === 'update_feedback') {
+        const isUpdate = action === 'update_feedback';
+        const lastPending = [...existingVerifications].reverse().find(v => v.status === 'changes_requested' || v.status === 'pending_approval');
+        if (lastPending) {
+          lastPending.status = 'changes_requested';
+          lastPending.reviewed_by_id = req.user.id;
+          lastPending.reviewed_by_name = req.user.name;
+          lastPending.review_comment = (sv.comment || '').trim();
+          lastPending.reviewed_at = new Date().toISOString();
+        } else {
+          existingVerifications.push({
+            id: Date.now(),
+            type: 'stage_rejection',
+            stage_label: stageLabel,
+            from_stage: sv.from_stage || currentTask.status,
+            to_stage: sv.to_stage,
+            from_stage_label: sv.from_stage_label || sv.from_stage,
+            to_stage_label: sv.to_stage_label || sv.to_stage,
+            reviewed_by_id: req.user.id,
+            reviewed_by_name: req.user.name,
+            review_comment: (sv.comment || '').trim(),
+            status: 'changes_requested',
+            timestamp: new Date().toISOString()
+          });
+        }
+        req.body.stage_verifications = JSON.stringify(existingVerifications);
+        delete req.body.status;
+
+        const commentPrefix = isUpdate ? 'Stage Revision Feedback Updated' : 'Stage Revision Requested';
+        try {
+          await db.query(
+            'INSERT INTO admin_comments (task_id, admin_id, comment_text) VALUES ($1, $2, $3)',
+            [id, req.user.id, `${commentPrefix} - ${stageLabel}: ${(sv.comment || '').trim()}`]
+          );
+        } catch (err) {
+          console.error('Failed to insert revision comment:', err.message);
+        }
+
+        try {
+          const notifMsg = isUpdate
+            ? `ℹ️ ${req.user.name} updated the review feedback for "${currentTask.title}": "${(sv.comment || '').trim()}".`
+            : `⚠️ ${req.user.name} requested changes on stage plan for "${currentTask.title}": "${(sv.comment || '').trim()}".`;
+          await notifyRelevantUsers(req.user.id, notifMsg, id, currentTask.verifier_id ? [currentTask.verifier_id] : []);
+        } catch (err) {
+          console.error('Failed to notify users of stage revision:', err.message);
+        }
+      } else {
+        // Approve / Direct Advance
+        const lastPending = [...existingVerifications].reverse().find(v => v.status === 'pending_approval' || v.status === 'changes_requested');
+        if (lastPending) {
+          lastPending.status = 'approved';
+          lastPending.reviewed_by_id = req.user.id;
+          lastPending.reviewed_by_name = req.user.name;
+          lastPending.review_comment = (sv.comment || '').trim();
+          lastPending.reviewed_at = new Date().toISOString();
+        }
+
+        const newVerification = {
+          id: Date.now(),
+          type: 'stage_approval',
+          from_stage: sv.from_stage || currentTask.status,
+          to_stage: sv.to_stage || req.body.status || currentTask.status,
+          stage_label: stageLabel,
+          verified_by_id: req.user.id,
+          verified_by_name: req.user.name,
+          verified_by_role: req.user.role,
+          comment: (sv.comment || 'Stage plan approved & verified').trim(),
+          status: 'approved',
+          timestamp: new Date().toISOString()
+        };
+        existingVerifications.push(newVerification);
+        req.body.stage_verifications = JSON.stringify(existingVerifications);
+
+        if (sv.to_stage) {
+          req.body.status = sv.to_stage;
+        }
+
+        try {
+          await db.query(
+            'INSERT INTO admin_comments (task_id, admin_id, comment_text) VALUES ($1, $2, $3)',
+            [id, req.user.id, `Stage Approved - ${newVerification.stage_label}: ${newVerification.comment}`]
+          );
+        } catch (err) {
+          console.error('Failed to insert stage verification comment:', err.message);
+        }
+
+        try {
+          const notifMsg = `✅ ${req.user.name} approved stage plan for "${currentTask.title}". Task advanced to ${sv.to_stage_label || sv.to_stage}.`;
+          await notifyRelevantUsers(req.user.id, notifMsg, id, currentTask.verifier_id ? [currentTask.verifier_id] : []);
+        } catch (err) {
+          console.error('Failed to notify users of stage approval:', err.message);
+        }
       }
     }
 
     const fields = ['title', 'description', 'color', 'status', 'priority', 'category', 'pillar', 'product_line', 'product_line_other', 'duration_type',
       'is_red_flagged', 'red_flag_reason',
       'progress_percent', 'start_date', 'due_date', 'estimated_hours',
-      'logical_explanation', 'project_id', 'verifier_id', 'verified_at', 'completed_by', 'stage_verifications',
+      'logical_explanation', 'project_id', 'verifier_id', 'verifier_verified_at', 'verifier_comment', 'verified_at', 'completed_by', 'stage_verifications',
       'vacancies_count', 'hiring_stage', 'hiring_stage_updated_by', 'hiring_stage_updated_at', 'hr_strategy_notes',
       'hiring_department', 'hiring_lead_id', 'way_of_hiring',
       'training_module', 'training_level', 'training_video_url', 'training_doc_url'];
@@ -1585,23 +1993,27 @@ router.put('/tasks/:id', auth, async (req, res) => {
     }
     await enrichTask(updated);
     updated.verificationRequired = verificationRequired;
-    await notifyRelevantUsers(req.user.id, msg, updated.id);
 
     const verificationComment = (req.body.verification_comment || req.body.comment_text || '').trim();
     if (verificationComment && updated.status === 'completed') {
       await db.query(
         'INSERT INTO admin_comments (task_id, admin_id, comment_text) VALUES ($1, $2, $3)',
-        [id, req.user.id, `[Verification Review] ${verificationComment}`]
+        [id, req.user.id, `Verification Review: ${verificationComment}`]
       );
     }
 
-    if (verificationRequired && updated.verifier_id && Number(updated.verifier_id) !== Number(req.user.id)) {
-      await createNotification(updated.verifier_id, req.user.id, `${req.user.name} submitted task "${updated.title}" for your verification & review`, updated.id);
-    } else if (updated.status === 'completed' && isVerifierOrAdmin && updated.assignee_id && Number(updated.assignee_id) !== Number(req.user.id)) {
-      const notifMsg = verificationComment 
-        ? `${req.user.name} verified & completed task "${updated.title}" with review: "${verificationComment.substring(0, 50)}${verificationComment.length > 50 ? '...' : ''}"`
-        : `${req.user.name} verified and approved task: "${updated.title}" as completed!`;
-      await createNotification(updated.assignee_id, req.user.id, notifMsg, updated.id);
+    const isStageVerificationAction = Boolean(req.body.stage_verification || req.body.move_back_reason || req.body.admin_redo_stage);
+    if (!isStageVerificationAction) {
+      if (updated.status === 'completed' && isVerifierOrAdmin) {
+        const notifMsg = verificationComment 
+          ? `${req.user.name} verified & completed task "${updated.title}" with review: "${verificationComment.substring(0, 50)}${verificationComment.length > 50 ? '...' : ''}"`
+          : `${req.user.name} verified and approved task: "${updated.title}" as completed!`;
+        await notifyRelevantUsers(req.user.id, notifMsg, updated.id);
+      } else if (verificationRequired && updated.verifier_id) {
+        await notifyRelevantUsers(req.user.id, `${req.user.name} submitted task "${updated.title}" for verification & review`, updated.id);
+      } else {
+        await notifyRelevantUsers(req.user.id, msg, updated.id);
+      }
     }
 
     res.json(updated);
@@ -4121,7 +4533,7 @@ router.put('/sales/targets/:id/actual', auth, salesWriteOnly, async (req, res) =
 // ── Quota Endpoint ──
 router.get('/sales/leads/quota', auth, salesAccessOnly, async (req, res) => {
   try {
-    if (['admin', 'manager', 'sales_manager'].includes(req.user.role)) {
+    if (['admin', 'sales_manager'].includes(req.user.role)) {
       return res.json({ role: req.user.role, isRestricted: false });
     }
     const { rows: weekRows } = await db.query(`

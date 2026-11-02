@@ -1,12 +1,13 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import {
   Clock, User, Check, AlertCircle, AlertTriangle, ShieldCheck,
   ChevronRight, ArrowRight, ArrowLeft, Plus, Filter, Tag, Layers, RefreshCw,
-  MoreHorizontal, Edit3, Trash2
+  MoreHorizontal, Edit3, Trash2, ClipboardList, RotateCcw
 } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth } from '../App';
 import StageVerificationModal from './StageVerificationModal';
+import MoveBackModal from './MoveBackModal';
 
 const GENERAL_STAGES = [
   { key: 'todo', label: 'Pending', fullTitle: 'To Do / Pending', description: 'Tasks awaiting initial pickup and action', color: 'border-slate-300 bg-slate-50/80 text-slate-800', headerBg: 'bg-slate-100 border-slate-200' },
@@ -19,7 +20,8 @@ const VISHWAS_STAGES = [
   { key: 'todo', label: 'Issue', fullTitle: '🔍 Issue Logged', description: 'Initial quality defect or issue logged for tracking', color: 'border-rose-300 bg-rose-50/60 text-rose-900', headerBg: 'bg-rose-50 border-rose-200' },
   { key: 'rca_in_progress', label: 'Analysis', fullTitle: '🔬 Root Cause Analysis', description: 'Deep-dive investigation into underlying failure factors', color: 'border-amber-300 bg-amber-50/60 text-amber-900', headerBg: 'bg-amber-50 border-amber-200' },
   { key: 'in_progress', label: 'Action', fullTitle: '🛠️ Action in Progress', description: 'Executing corrective action and preventive measures', color: 'border-blue-300 bg-blue-50/60 text-blue-900', headerBg: 'bg-blue-50 border-blue-200' },
-  { key: 'under_review', label: 'Audit', fullTitle: '🧪 QA Audit & Testing', description: 'Quality assurance testing, verification, and inspection', color: 'border-purple-300 bg-purple-50/60 text-purple-900', headerBg: 'bg-purple-50 border-purple-200' },
+  { key: 'test_strategy', label: 'Test Strategy', fullTitle: '📋 Test Strategy', description: 'Formulating comprehensive test plan, methodology & criteria', color: 'border-indigo-300 bg-indigo-50/60 text-indigo-900', headerBg: 'bg-indigo-50 border-indigo-200' },
+  { key: 'under_review', label: 'Testing', fullTitle: '🧪 Testing & QA Verification', description: 'Rigorous testing execution, verification & audit inspection', color: 'border-purple-300 bg-purple-50/60 text-purple-900', headerBg: 'bg-purple-50 border-purple-200' },
   { key: 'completed', label: 'Resolved', fullTitle: '🛡️ Verified & Standardized', description: 'Fully verified fix, standardized into SOP/workflow', color: 'border-emerald-300 bg-emerald-50/60 text-emerald-900', headerBg: 'bg-emerald-50 border-emerald-200' }
 ];
 
@@ -27,7 +29,9 @@ const AVISHKAR_STAGES = [
   { key: 'todo', label: 'Idea', fullTitle: '💡 Idea & Proposal', description: 'Initial innovative idea or project proposal submitted', color: 'border-amber-300 bg-amber-50/60 text-amber-900', headerBg: 'bg-amber-50 border-amber-200' },
   { key: 'feasibility_planning', label: 'Planning', fullTitle: '📐 Feasibility & Planning', description: 'Assessing technical viability, resources, and scope', color: 'border-indigo-300 bg-indigo-50/60 text-indigo-900', headerBg: 'bg-indigo-50 border-indigo-200' },
   { key: 'in_progress', label: 'Prototype', fullTitle: '🧪 PoC / Prototype', description: 'Building initial proof of concept or prototype', color: 'border-blue-300 bg-blue-50/60 text-blue-900', headerBg: 'bg-blue-50 border-blue-200' },
-  { key: 'under_review', label: 'Trial', fullTitle: '🚀 Testing & Trial', description: 'Real-world field trial and user feedback evaluation', color: 'border-purple-300 bg-purple-50/60 text-purple-900', headerBg: 'bg-purple-50 border-purple-200' },
+  { key: 'trial', label: 'Trial', fullTitle: '🚀 Testing & Trial', description: 'Real-world field trial and initial user feedback evaluation', color: 'border-purple-300 bg-purple-50/60 text-purple-900', headerBg: 'bg-purple-50 border-purple-200' },
+  { key: 'test_strategy', label: 'Test Strategy', fullTitle: '📋 Test Strategy', description: 'Defining test coverage, criteria & standardization parameters', color: 'border-teal-300 bg-teal-50/60 text-teal-900', headerBg: 'bg-teal-50 border-teal-200' },
+  { key: 'testing', label: 'Testing', fullTitle: '🧪 Testing & QA', description: 'Full-scale testing, performance validation & QA sign-off', color: 'border-violet-300 bg-violet-50/60 text-violet-900', headerBg: 'bg-violet-50 border-violet-200' },
   { key: 'completed', label: 'Deployed', fullTitle: '🌟 Deployed & Adopted', description: 'Successfully deployed and adopted into operations', color: 'border-emerald-300 bg-emerald-50/60 text-emerald-900', headerBg: 'bg-emerald-50 border-emerald-200' }
 ];
 
@@ -62,6 +66,7 @@ export default function TaskKanbanBoard({
   const user = useAuth();
   const [priorityFilter, setPriorityFilter] = useState('all'); // 'all' | 'urgent' | 'high' | 'medium' | 'low'
   const [productLineFilter, setProductLineFilter] = useState('all'); // 'all' | 'general' | 'home_automation' | ...
+  const [projectFilter, setProjectFilter] = useState('all'); // 'all' | 'projects_only' | 'no_project' | projectId
   const [openMenuTaskId, setOpenMenuTaskId] = useState(null);
   const [movingTaskId, setMovingTaskId] = useState(null);
   const [stageVerificationTask, setStageVerificationTask] = useState(null);
@@ -69,10 +74,43 @@ export default function TaskKanbanBoard({
     fromStageLabel: '',
     toStageLabel: '',
     fromStageKey: '',
-    toStageKey: ''
+    toStageKey: '',
+    mode: 'submit_plan',
+    pendingPlan: null
   });
   const [transferPillarTaskId, setTransferPillarTaskId] = useState(null);
   const [targetPillar, setTargetPillar] = useState('');
+  const [moveBackModalState, setMoveBackModalState] = useState({
+    isOpen: false,
+    task: null,
+    targetStage: null,
+    fromStage: null
+  });
+
+  const getStagePlanDetails = (task) => {
+    if (!task) return null;
+    let svs = [];
+    try {
+      const raw = task.stage_verifications;
+      svs = typeof raw === 'string' ? JSON.parse(raw) : (raw || []);
+    } catch (e) {
+      svs = [];
+    }
+    if (!Array.isArray(svs) || svs.length === 0) return null;
+    const last = svs[svs.length - 1];
+    if (!last) return null;
+    return {
+      ...last,
+      isPending: last.status === 'pending_approval',
+      isChangesRequested: last.status === 'changes_requested',
+      isApproved: last.status === 'approved'
+    };
+  };
+
+  const getPendingStagePlan = (task) => {
+    const details = getStagePlanDetails(task);
+    return details?.isPending ? details : null;
+  };
 
   const handleConfirmStageVerification = async (verificationPayload) => {
     if (!stageVerificationTask) return;
@@ -80,12 +118,17 @@ export default function TaskKanbanBoard({
       let backendStatus = verificationPayload.to_stage;
       if (backendStatus === 'todo') backendStatus = 'pending';
 
-      await api.updateTask(stageVerificationTask.id, {
-        status: backendStatus,
+      const updatePayload = {
         stage_verification: verificationPayload
-      });
+      };
+      // For approval or direct advance, advance task status
+      if (verificationPayload.action === 'approve' || verificationPayload.action === 'direct_advance') {
+        updatePayload.status = backendStatus;
+      }
+
+      const updated = await api.updateTask(stageVerificationTask.id, updatePayload);
       setStageVerificationTask(null);
-      if (onRefresh) onRefresh();
+      if (onRefresh) onRefresh(updated);
     } catch (err) {
       alert(err.message || 'Failed to verify and update stage');
     }
@@ -114,7 +157,8 @@ export default function TaskKanbanBoard({
       if (!status || status === 'pending' || status === 'todo' || status === 'issue_logged') return 'todo';
       if (status === 'rca' || status === 'rca_in_progress') return 'rca_in_progress';
       if (status === 'in_progress' || status === 'action_in_progress') return 'in_progress';
-      if (status === 'under_review' || status === 'review' || status === 'qa_testing') return 'under_review';
+      if (status === 'test_strategy') return 'test_strategy';
+      if (status === 'under_review' || status === 'review' || status === 'qa_testing' || status === 'testing' || status === 'audit') return 'under_review';
       if (status === 'completed' || status === 'verified_standardized') return 'completed';
       return 'todo';
     }
@@ -122,7 +166,9 @@ export default function TaskKanbanBoard({
       if (!status || status === 'pending' || status === 'todo' || status === 'idea_proposal') return 'todo';
       if (status === 'feasibility' || status === 'feasibility_planning') return 'feasibility_planning';
       if (status === 'in_progress' || status === 'poc_prototype') return 'in_progress';
-      if (status === 'under_review' || status === 'review' || status === 'testing_trial') return 'under_review';
+      if (status === 'trial' || status === 'under_review' || status === 'review' || status === 'testing_trial') return 'trial';
+      if (status === 'test_strategy') return 'test_strategy';
+      if (status === 'testing' || status === 'qa_testing') return 'testing';
       if (status === 'completed' || status === 'deployed_adopted') return 'completed';
       return 'todo';
     }
@@ -133,7 +179,18 @@ export default function TaskKanbanBoard({
     return 'todo';
   };
 
-  // Filter tasks by selected priority & product line if active
+  // Extract unique projects present in tasks for filtering
+  const projectOptions = useMemo(() => {
+    const map = new Map();
+    tasks.forEach(t => {
+      if (t.project_id) {
+        map.set(String(t.project_id), t.project_name || `Project #${t.project_id}`);
+      }
+    });
+    return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
+  }, [tasks]);
+
+  // Filter tasks by selected priority, product line & project if active
   const filteredTasks = tasks.filter(t => {
     if (priorityFilter !== 'all') {
       const tPri = (t.priority || 'medium').toLowerCase();
@@ -143,6 +200,15 @@ export default function TaskKanbanBoard({
     if (productLineFilter !== 'all') {
       const tProd = (t.product_line || 'general').toLowerCase();
       if (tProd !== productLineFilter) return false;
+    }
+    if (projectFilter !== 'all') {
+      if (projectFilter === 'projects_only') {
+        if (!t.project_id) return false;
+      } else if (projectFilter === 'no_project') {
+        if (t.project_id) return false;
+      } else {
+        if (String(t.project_id) !== String(projectFilter)) return false;
+      }
     }
     return true;
   });
@@ -184,75 +250,129 @@ export default function TaskKanbanBoard({
     const currIdx = taskStages.findIndex(s => s.key === currStageKey);
     if (currIdx === -1) return;
 
-    const targetIdx = direction === 'next' ? currIdx + 1 : currIdx - 1;
-    if (targetIdx < 0 || targetIdx >= taskStages.length) return;
+    if (direction === 'prev') {
+      const targetIdx = currIdx - 1;
+      if (targetIdx < 0) return;
+      const targetStage = taskStages[targetIdx];
+      const fromStage = taskStages[currIdx];
+
+      setMoveBackModalState({
+        isOpen: true,
+        task,
+        targetStage,
+        fromStage
+      });
+      return;
+    }
+
+    const targetIdx = currIdx + 1;
+    if (targetIdx >= taskStages.length) return;
 
     const targetStage = taskStages[targetIdx];
-    let backendStatus = targetStage.key;
-    if (backendStatus === 'todo') backendStatus = 'pending';
+    const fromStage = taskStages[currIdx];
 
-    const isInternTask = task.assignee_role === 'intern' || Boolean(task.assignee_mentor_id);
     const mentorId = Number(task.assignee_mentor_id || task.mentor_id);
     const isAssignedMentor = Boolean(mentorId && Number(user?.id) === mentorId);
+    const isVerifier = Boolean(task.verifier_id && Number(task.verifier_id) === Number(user?.id));
+    const isAdminOrManager = user?.role === 'admin' || user?.role === 'manager';
+    const canVerifyStage = task.verifier_id ? isVerifier : (user?.role === 'admin');
     const isAssignee = Number(task.assignee_id) === Number(user?.id);
 
-    // If task is assigned to an Intern:
-    if (isInternTask) {
-      if (isAssignedMentor) {
-        // Mentor is moving stage for an Intern task -> Open StageVerificationModal for written review
+    const planDetails = getStagePlanDetails(task);
+
+    // If changes were requested on stage plan:
+    if (planDetails && planDetails.isChangesRequested) {
+      const isViewerReviewer = canVerifyStage && (!isAssignee || Number(user?.id) === Number(planDetails.reviewed_by_id));
+      setStageMoveDetails({
+        fromStageLabel: planDetails.from_stage_label || fromStage?.label || currStageKey,
+        toStageLabel: planDetails.to_stage_label || targetStage?.label || targetStage.key,
+        fromStageKey: planDetails.from_stage || currStageKey,
+        toStageKey: planDetails.to_stage || targetStage.key,
+        mode: isViewerReviewer ? 'edit_feedback' : 'revise_plan',
+        pendingPlan: planDetails
+      });
+      setStageVerificationTask(task);
+      return;
+    }
+
+    // If there is already a pending stage plan submitted:
+    if (planDetails && planDetails.isPending) {
+      if (canVerifyStage) {
         setStageMoveDetails({
-          fromStageLabel: taskStages[currIdx]?.label || currStageKey,
-          toStageLabel: targetStage?.label || targetStage.key,
-          fromStageKey: currStageKey,
-          toStageKey: targetStage.key
+          fromStageLabel: planDetails.from_stage_label || fromStage?.label || currStageKey,
+          toStageLabel: planDetails.to_stage_label || targetStage?.label || targetStage.key,
+          fromStageKey: planDetails.from_stage || currStageKey,
+          toStageKey: planDetails.to_stage || targetStage.key,
+          mode: 'approve',
+          pendingPlan: planDetails
         });
         setStageVerificationTask(task);
-        return;
+      } else {
+        setStageMoveDetails({
+          fromStageLabel: planDetails.from_stage_label || fromStage?.label || currStageKey,
+          toStageLabel: planDetails.to_stage_label || targetStage?.label || targetStage.key,
+          fromStageKey: planDetails.from_stage || currStageKey,
+          toStageKey: planDetails.to_stage || targetStage.key,
+          mode: 'awaiting_verification',
+          pendingPlan: planDetails
+        });
+        setStageVerificationTask(task);
       }
-
-      let stageVerifications = [];
-      try {
-        const raw = task.stage_verifications;
-        stageVerifications = typeof raw === 'string' ? JSON.parse(raw) : (raw || []);
-      } catch (e) {
-        stageVerifications = [];
-      }
-      const mentorHasVerified = Array.isArray(stageVerifications) && stageVerifications.some(sv => Number(sv.verified_by_id) === mentorId);
-
-      if (!isAssignee && !mentorHasVerified && user?.role !== 'admin' && user?.role !== 'manager') {
-        const mentorDisplayName = task.mentor_name || 'Assigned Mentor';
-        alert(`Mentor Verification Required: This task assigned to Intern "${task.assignee_name || 'Intern'}" must first be stage-verified by their assigned Mentor (${mentorDisplayName}).`);
-        return;
-      }
+      return;
     }
 
-    const isAuthorizedVerifier = user?.role === 'admin' || 
-      (task.verifier_id && Number(task.verifier_id) === Number(user?.id)) ||
-      (task.completed_by && Number(task.completed_by) === Number(user?.id));
-
-    // If attempting to move to final stage or if moving away from review stage:
-    if (targetIdx === taskStages.length - 1 || currStageKey === 'under_review') {
-      if (targetIdx === taskStages.length - 1) {
-        if (!isAuthorizedVerifier) {
-          alert(`Verification Required: Only the assigned verifier (${task.verifier_name || 'Admin'}) or an Admin can review and approve a task in Review stage.`);
-        }
-        // Always open the Task Detail Modal so the reviewer can write their review & perform verification
-        if (onViewDetail) {
-          onViewDetail(task);
-        }
-        return;
+    // If attempting to move to final completed stage:
+    if (targetIdx === taskStages.length - 1) {
+      if (onViewDetail) {
+        onViewDetail(task);
       }
+      return;
     }
+
+    // If user is authorized verifier for intermediate stages: direct verification & advance
+    if (canVerifyStage) {
+      setStageMoveDetails({
+        fromStageLabel: fromStage?.label || currStageKey,
+        toStageLabel: targetStage?.label || targetStage.key,
+        fromStageKey: currStageKey,
+        toStageKey: targetStage.key,
+        mode: 'direct_advance',
+        pendingPlan: null
+      });
+      setStageVerificationTask(task);
+      return;
+    }
+
+    // General employee/intern must document their stage plan & thought!
+    setStageMoveDetails({
+      fromStageLabel: fromStage?.label || currStageKey,
+      toStageLabel: targetStage?.label || targetStage.key,
+      fromStageKey: currStageKey,
+      toStageKey: targetStage.key,
+      mode: 'submit_plan',
+      pendingPlan: null
+    });
+    setStageVerificationTask(task);
+  };
+
+  const handleConfirmMoveBack = async ({ target_stage, target_stage_label, from_stage, from_stage_label, reason }) => {
+    if (!moveBackModalState?.task) return;
+    const task = moveBackModalState.task;
+    let backendStatus = target_stage;
+    if (backendStatus === 'todo') backendStatus = 'pending';
 
     setMovingTaskId(task.id);
     try {
-      const result = await api.updateTask(task.id, { status: backendStatus });
-      if (result && result.verificationRequired) {
-        alert(`Task submitted for Review. It requires verification by ${task.verifier_name || 'Admin'} before it can be marked Completed.`);
-      }
-      if (onRefresh) onRefresh();
+      const updated = await api.updateTask(task.id, {
+        status: backendStatus,
+        move_back_reason: reason,
+        from_stage_label,
+        to_stage_label: target_stage_label
+      });
+      setMoveBackModalState({ isOpen: false, task: null, targetStage: null, fromStage: null });
+      if (onRefresh) onRefresh(updated);
     } catch (err) {
-      alert(err.message || 'Failed to update task status');
+      alert(err.message || 'Failed to move task back');
     } finally {
       setMovingTaskId(null);
     }
@@ -262,10 +382,10 @@ export default function TaskKanbanBoard({
   const handleTransferPillar = async (taskId) => {
     if (!targetPillar) return;
     try {
-      await api.updateTask(taskId, { pillar: targetPillar });
+      const updated = await api.updateTask(taskId, { pillar: targetPillar });
       setTransferPillarTaskId(null);
       setTargetPillar('');
-      if (onRefresh) onRefresh();
+      if (onRefresh) onRefresh(updated);
     } catch (err) {
       alert(err.message || 'Failed to transfer task pillar');
     }
@@ -339,11 +459,32 @@ export default function TaskKanbanBoard({
               <option value="other">📌 Other</option>
             </select>
           </div>
+
+          {/* Project Filter */}
+          {projectOptions.length > 0 && (
+            <div className="flex items-center gap-1.5 bg-gray-100 p-1 rounded-lg border border-gray-200">
+              <span className="text-[10px] font-bold text-gray-500 uppercase px-1.5 flex items-center gap-1">
+                📁 Project:
+              </span>
+              <select
+                value={projectFilter}
+                onChange={e => setProjectFilter(e.target.value)}
+                className="text-xs font-semibold bg-white border border-gray-300 rounded-md px-2 py-1 text-gray-800 focus:outline-none focus:ring-1 focus:ring-amber-500 cursor-pointer"
+              >
+                <option value="all">All ({tasks.length})</option>
+                <option value="projects_only">📁 All Project Tasks ({tasks.filter(t => t.project_id).length})</option>
+                <option value="no_project">📋 Non-Project Tasks ({tasks.filter(t => !t.project_id).length})</option>
+                {projectOptions.map(p => (
+                  <option key={p.id} value={p.id}>📁 {p.name} ({tasks.filter(t => String(t.project_id) === String(p.id)).length})</option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Status Kanban Columns */}
-      <div className={`grid grid-cols-1 ${stages.length === 5 ? 'md:grid-cols-5' : 'md:grid-cols-4'} gap-3 items-start`}>
+      {/* Status Kanban Columns (Horizontal scrolling on all screens like Sales Kanban) */}
+      <div className="flex gap-3 overflow-x-auto pb-6 pt-1 min-h-[580px] scrollbar-thin">
         {stages.map((stage, sIdx) => {
           const stageTasks = filteredTasks
             .filter(t => normalizeStatus(t.status, t.pillar) === stage.key)
@@ -354,7 +495,10 @@ export default function TaskKanbanBoard({
             });
 
           return (
-            <div key={stage.key} className="bg-gray-100/70 border border-gray-200 rounded-xl p-3 flex flex-col space-y-3 min-h-[520px] max-h-[calc(100vh-280px)]">
+            <div
+              key={stage.key}
+              className="w-72 sm:w-80 shrink-0 flex flex-col bg-gray-100/70 border border-gray-200 rounded-xl p-3 space-y-3 min-h-[520px] max-h-[calc(100vh-280px)] shadow-xs"
+            >
               {/* Column Header with Hover Tooltip Popup */}
               <div
                 title={`${stage.fullTitle}: ${stage.description}`}
@@ -452,27 +596,89 @@ export default function TaskKanbanBoard({
                         {/* Title & Description */}
                         <div>
                           <h4 className="font-semibold text-xs text-gray-900 line-clamp-2 leading-snug">{t.title}</h4>
-                          {t.project_name && (
-                            <span className="text-[9px] font-semibold text-blue-700 bg-blue-50 border border-blue-200 px-1.5 py-0.5 rounded inline-block mt-1">
-                              📁 {t.project_name}
+                          {(t.project_name || t.project_id) && (
+                            <span className="text-[9px] font-semibold text-blue-700 bg-blue-50 border border-blue-200 px-1.5 py-0.5 rounded inline-flex items-center gap-1 mt-1" title={`Project: ${t.project_name || `#${t.project_id}`}`}>
+                              📁 {t.project_name || `Project #${t.project_id}`}
                             </span>
                           )}
                         </div>
 
                         {/* Assignee & Dates */}
                         <div className="text-[11px] text-gray-600 space-y-1 pt-1 border-t border-gray-100">
-                          {t.assignee_name && (
-                            <div className="flex items-center gap-1">
-                              <User className="w-3 h-3 text-gray-400 shrink-0" />
-                              <span className="truncate">Assignee: <strong>{t.assignee_name}</strong></span>
-                            </div>
-                          )}
-                          {t.verifier_name && (
-                            <div className="flex items-center gap-1 text-[10px]">
-                              <ShieldCheck className="w-3 h-3 text-amber-600 shrink-0" />
-                              <span className="truncate text-amber-800">Verifier: <strong>{t.verifier_name}</strong></span>
-                            </div>
-                          )}
+                          {(() => {
+                            const isGroupTask = t.group_assignees && t.group_assignees.length > 1;
+                            const targetEmp = selectedEmp || (user?.role !== 'admin' && user?.role !== 'manager' ? user : null);
+                            const isTargetInGroup = isGroupTask && targetEmp && t.group_assignee_ids && t.group_assignee_ids.map(Number).includes(Number(targetEmp.id));
+
+                            if (targetEmp && isTargetInGroup) {
+                              const isSelfCreated = Boolean(t.creator_id && Number(t.creator_id) === Number(targetEmp.id));
+                              return (
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <div className="flex items-center gap-1 min-w-0">
+                                    <User className="w-3 h-3 text-gray-400 shrink-0" />
+                                    <span className="truncate">
+                                      {isSelfCreated ? 'Self Created: ' : 'Assigned to: '}
+                                      <strong>{targetEmp.name}</strong>
+                                    </span>
+                                  </div>
+                                  <span
+                                    className="text-[9px] font-semibold bg-purple-50 text-purple-700 border border-purple-200 px-1.5 py-0.5 rounded shrink-0 cursor-help"
+                                    title={`Group Task with: ${t.group_assignees.join(', ')}`}
+                                  >
+                                    👥 Group Task
+                                  </span>
+                                </div>
+                              );
+                            }
+
+                            if (isGroupTask) {
+                              return (
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <div className="flex items-center gap-1 min-w-0">
+                                    <User className="w-3 h-3 text-gray-400 shrink-0" />
+                                    <span className="truncate" title={t.group_assignees.join(', ')}>
+                                      Assigned to: <strong>{t.group_assignees.join(', ')}</strong>
+                                    </span>
+                                  </div>
+                                  <span
+                                    className="text-[9px] font-semibold bg-purple-50 text-purple-700 border border-purple-200 px-1.5 py-0.5 rounded shrink-0"
+                                  >
+                                    👥 Group Task
+                                  </span>
+                                </div>
+                              );
+                            }
+
+                            if (t.assignee_name) {
+                              const isSelfCreated = Boolean(t.creator_id && Number(t.creator_id) === Number(t.assignee_id));
+                              return (
+                                <div className="flex items-center gap-1">
+                                  <User className="w-3 h-3 text-gray-400 shrink-0" />
+                                  <span className="truncate">
+                                    {isSelfCreated ? 'Self Created: ' : 'Assigned to: '}
+                                    <strong>{t.assignee_name}</strong>
+                                  </span>
+                                </div>
+                              );
+                            }
+
+                            if (t.creator_name) {
+                              return (
+                                <div className="flex items-center gap-1">
+                                  <User className="w-3 h-3 text-gray-400 shrink-0" />
+                                  <span className="truncate">
+                                    Self Created: <strong>{t.creator_name}</strong>
+                                  </span>
+                                </div>
+                              );
+                            }
+
+                            return null;
+                          })()}
+                          <div className="flex items-center gap-1 text-[10px]" title={`Verifier: ${(t.verifier_name && t.verifier_name.toLowerCase() !== 'admin') ? t.verifier_name : 'Reviewer & Verifier'}`}>
+                            <ShieldCheck className="w-3 h-3 text-amber-600 shrink-0" />
+                            <span className="truncate text-amber-800">Verifier: <strong>{(t.verifier_name && t.verifier_name.toLowerCase() !== 'admin') ? t.verifier_name : 'Reviewer & Verifier'}</strong></span>
+                          </div>
                           {(t.start_date || t.due_date) && (
                             <div className={`flex items-center gap-1 text-[10px] ${isOverdue ? 'text-red-600 font-bold' : 'text-gray-500'}`}>
                               <Clock className="w-3 h-3 shrink-0" />
@@ -481,6 +687,87 @@ export default function TaskKanbanBoard({
                             </div>
                           )}
                         </div>
+
+                        {/* Stage Plan Review / Revision Banner on Kanban Card */}
+                        {(() => {
+                          const planDetails = getStagePlanDetails(t);
+                          if (!planDetails) return null;
+                          const tMentorId = Number(t.assignee_mentor_id || t.mentor_id);
+                          const isAssignedMentor = Boolean(tMentorId && Number(user?.id) === tMentorId);
+                          const isVerifier = Boolean(t.verifier_id && Number(t.verifier_id) === Number(user?.id));
+                          const isAdminOrManager = user?.role === 'admin' || user?.role === 'manager';
+                          const canVerifyStage = t.verifier_id ? isVerifier : (user?.role === 'admin');
+                          const isAssignee = Number(t.assignee_id) === Number(user?.id);
+
+                          if (planDetails.isChangesRequested) {
+                            const isViewerReviewer = canVerifyStage && (!isAssignee || Number(user?.id) === Number(planDetails.reviewed_by_id));
+                            return (
+                              <div className="bg-amber-50/90 border border-amber-300 rounded-lg p-2 text-xs space-y-1 mt-1">
+                                <div className="flex items-center gap-1.5 text-amber-900 font-bold text-[10px] uppercase">
+                                  <AlertTriangle className="w-3 h-3 text-amber-600 shrink-0" />
+                                  <span className="truncate">Plan Revision Requested</span>
+                                </div>
+                                {planDetails.review_comment && (
+                                  <p className="text-[11px] text-gray-800 line-clamp-2 italic">
+                                    "{planDetails.review_comment}"
+                                  </p>
+                                )}
+                                {isViewerReviewer ? (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleStageMove(t, 'next');
+                                    }}
+                                    className="w-full mt-1 bg-amber-600 hover:bg-amber-700 text-white font-bold py-1 px-2 rounded text-[10px] flex items-center justify-center gap-1 shadow-2xs transition-colors cursor-pointer"
+                                  >
+                                    <Edit3 className="w-3 h-3" /> Edit Feedback / Review
+                                  </button>
+                                ) : (canManageTask(t) && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleStageMove(t, 'next');
+                                    }}
+                                    className="w-full mt-1 bg-amber-600 hover:bg-amber-700 text-white font-bold py-1 px-2 rounded text-[10px] flex items-center justify-center gap-1 shadow-2xs transition-colors cursor-pointer"
+                                  >
+                                    <Edit3 className="w-3 h-3" /> Update / Revise Plan
+                                  </button>
+                                ))}
+                              </div>
+                            );
+                          }
+
+                          if (planDetails.isPending) {
+                            return (
+                              <div className="bg-amber-50/90 border border-amber-200 rounded-lg p-2 text-xs space-y-1 mt-1">
+                                <div className="flex items-center gap-1.5 text-amber-900 font-bold text-[10px] uppercase">
+                                  <Clock className="w-3 h-3 text-amber-600 shrink-0" />
+                                  <span className="truncate">Stage Review Pending: {planDetails.to_stage_label || planDetails.to_stage}</span>
+                                </div>
+                                <div className="text-[10px] text-amber-800 truncate">
+                                  Verifier: <strong>{(t.verifier_name && t.verifier_name.toLowerCase() !== 'admin') || (planDetails.verifier_name && planDetails.verifier_name.toLowerCase() !== 'admin') || 'Reviewer & Verifier'}</strong>
+                                </div>
+                                {canVerifyStage ? (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleStageMove(t, 'next');
+                                    }}
+                                    className="w-full mt-1 bg-amber-600 hover:bg-amber-700 text-white font-bold py-1 px-2 rounded text-[10px] flex items-center justify-center gap-1 shadow-2xs transition-colors cursor-pointer"
+                                  >
+                                    <ShieldCheck className="w-3 h-3" /> Review &amp; Approve Stage
+                                  </button>
+                                ) : (
+                                  <div className="mt-1 text-[10px] text-gray-500 italic bg-white/60 p-1 rounded border border-amber-100 text-center">
+                                    ⏳ Awaiting {(t.verifier_name && t.verifier_name.toLowerCase() !== 'admin') ? t.verifier_name : 'Reviewer & Verifier'} verification
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          }
+
+                          return null;
+                        })()}
 
                         {/* Stage Controls & Transfer Pillar Actions */}
                         {canManageTask(t) ? (
@@ -496,16 +783,57 @@ export default function TaskKanbanBoard({
                                   <ArrowLeft className="w-3.5 h-3.5" />
                                 </button>
                               )}
-                              {sIdx < stages.length - 1 && (
-                                <button
-                                  onClick={() => handleStageMove(t, 'next')}
-                                  className="p-1 hover:bg-amber-100 rounded text-amber-700 font-semibold transition-colors flex items-center gap-0.5 text-[10px]"
-                                  title="Advance Stage"
-                                >
-                                  <span>Move</span>
-                                  <ArrowRight className="w-3.5 h-3.5" />
-                                </button>
-                              )}
+                              {sIdx < stages.length - 1 && (() => {
+                                const planDetails = getStagePlanDetails(t);
+                                const tMentorId = Number(t.assignee_mentor_id || t.mentor_id);
+                                const isAssignedMentor = Boolean(tMentorId && Number(user?.id) === tMentorId);
+                                const isVerifier = Boolean(t.verifier_id && Number(t.verifier_id) === Number(user?.id));
+                                const isAdminOrManager = user?.role === 'admin' || user?.role === 'manager';
+                                const canVerifyStage = t.verifier_id ? isVerifier : (user?.role === 'admin');
+                                const isAssignee = Number(t.assignee_id) === Number(user?.id);
+
+                                if (planDetails?.isChangesRequested) {
+                                  const isViewerReviewer = canVerifyStage && (!isAssignee || Number(user?.id) === Number(planDetails.reviewed_by_id));
+                                  return (
+                                    <button
+                                      onClick={() => handleStageMove(t, 'next')}
+                                      className="p-1 rounded font-semibold transition-colors flex items-center gap-0.5 text-[10px] bg-amber-100 text-amber-900 hover:bg-amber-200 cursor-pointer"
+                                      title={isViewerReviewer ? "Edit Review Feedback or Approve Stage" : "Revision Requested: Update Plan"}
+                                    >
+                                      <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
+                                      <span>{isViewerReviewer ? "Edit Feedback" : "Revise Plan"}</span>
+                                    </button>
+                                  );
+                                }
+
+                                if (planDetails?.isPending) {
+                                  return (
+                                    <button
+                                      onClick={() => handleStageMove(t, 'next')}
+                                      className={`p-1 rounded font-semibold transition-colors flex items-center gap-0.5 text-[10px] cursor-pointer ${
+                                        canVerifyStage 
+                                          ? 'bg-amber-100 text-amber-800 hover:bg-amber-200' 
+                                          : 'bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200 shadow-2xs'
+                                      }`}
+                                      title={canVerifyStage ? 'Review & Approve Stage' : `Stage Review Pending by ${t.verifier_name || 'Verifier'} (Click to view & WhatsApp)`}
+                                    >
+                                      <Clock className="w-3.5 h-3.5 text-amber-600" />
+                                      <span>{canVerifyStage ? 'Review' : 'Pending'}</span>
+                                    </button>
+                                  );
+                                }
+
+                                return (
+                                  <button
+                                    onClick={() => handleStageMove(t, 'next')}
+                                    className="p-1 hover:bg-amber-100 rounded text-amber-700 font-semibold transition-colors flex items-center gap-0.5 text-[10px] cursor-pointer"
+                                    title="Advance Stage"
+                                  >
+                                    <span>Move</span>
+                                    <ArrowRight className="w-3.5 h-3.5" />
+                                  </button>
+                                );
+                              })()}
                             </div>
 
                             {/* Explicit Pillar Transfer (General ↔ Vishwas ↔ Avishkar) */}
@@ -574,7 +902,18 @@ export default function TaskKanbanBoard({
         toStageLabel={stageMoveDetails.toStageLabel}
         fromStageKey={stageMoveDetails.fromStageKey}
         toStageKey={stageMoveDetails.toStageKey}
+        mode={stageMoveDetails.mode}
+        pendingPlan={stageMoveDetails.pendingPlan}
         onConfirm={handleConfirmStageVerification}
+      />
+
+      <MoveBackModal
+        isOpen={moveBackModalState.isOpen}
+        onClose={() => setMoveBackModalState({ isOpen: false, task: null, targetStage: null, fromStage: null })}
+        task={moveBackModalState.task}
+        targetStage={moveBackModalState.targetStage}
+        fromStage={moveBackModalState.fromStage}
+        onConfirm={handleConfirmMoveBack}
       />
     </div>
   );

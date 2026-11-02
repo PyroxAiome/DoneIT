@@ -1,5 +1,5 @@
-import { Clock, User, MessageSquare, ChevronRight, MoreHorizontal, Edit3, Trash2 } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { Clock, User, MessageSquare, ChevronRight, MoreHorizontal, Edit3, Trash2, RotateCcw, ShieldCheck } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
 import { api } from '../lib/api';
 import { useAuth } from '../App';
 
@@ -74,7 +74,7 @@ const formatDescription = (desc) => {
   return desc.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1');
 };
 
-export default function TaskCard({ task, compact, onEdit, onDelete, onSelect, onViewDetail, onVerificationNeeded, readOnly }) {
+function TaskCard({ task, compact, onEdit, onDelete, onSelect, onViewDetail, onVerificationNeeded, readOnly }) {
   const user = useAuth();
   const colors = priorityColorMap[task.priority] || priorityColorMap.medium;
   const [showMenu, setShowMenu] = useState(false);
@@ -263,6 +263,10 @@ export default function TaskCard({ task, compact, onEdit, onDelete, onSelect, on
                 {task.assignee_name}
               </span>
             ) : null}
+            <span className="flex items-center gap-1 font-medium text-amber-800 text-[9px] sm:text-[10px]" title={`Verifier: ${(task.verifier_name && task.verifier_name.toLowerCase() !== 'admin') ? task.verifier_name : 'Reviewer & Verifier'}`}>
+              <ShieldCheck className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-amber-600" />
+              Verifier: <strong className="font-semibold">{(task.verifier_name && task.verifier_name.toLowerCase() !== 'admin') ? task.verifier_name : 'Reviewer & Verifier'}</strong>
+            </span>
             {task.duration_type === 'short_term' ? (
               <span className="text-[9px] sm:text-[10px] px-1.5 py-0.5 rounded border font-semibold bg-amber-50 text-amber-800 border-amber-300 flex items-center gap-1">
                 ⚡ Short-Term Task
@@ -284,6 +288,38 @@ export default function TaskCard({ task, compact, onEdit, onDelete, onSelect, on
             {task.estimated_hours > 0 && (
               <span>{task.estimated_hours}h est.</span>
             )}
+            {(() => {
+              let svs = [];
+              try {
+                const raw = task.stage_verifications;
+                svs = typeof raw === 'string' ? JSON.parse(raw) : (raw || []);
+              } catch (e) {
+                svs = [];
+              }
+              const last = Array.isArray(svs) && svs.length > 0 ? svs[svs.length - 1] : null;
+              if (last?.type === 'stage_move_back' || last?.type === 'admin_redo_request' || last?.status === 'redo_required') {
+                return (
+                  <span className="text-[9px] sm:text-[10px] px-1.5 py-0.5 rounded border font-semibold bg-amber-50 text-amber-900 border-amber-300 flex items-center gap-1" title={last.reason ? `Moved Back: ${last.reason}` : 'Returned to earlier stage'}>
+                    <RotateCcw className="w-2.5 h-2.5 text-amber-600" /> Moved Back
+                  </span>
+                );
+              }
+              if (last?.status === 'changes_requested') {
+                return (
+                  <span className="text-[9px] sm:text-[10px] px-1.5 py-0.5 rounded border font-semibold bg-amber-50 text-amber-900 border-amber-300 flex items-center gap-1">
+                    ⚠️ Plan Revision Requested
+                  </span>
+                );
+              }
+              if (last?.status === 'pending_approval') {
+                return (
+                  <span className="text-[9px] sm:text-[10px] px-1.5 py-0.5 rounded border font-semibold bg-amber-50 text-amber-800 border-amber-200 flex items-center gap-1">
+                    <Clock className="w-2.5 h-2.5" /> Stage Review Pending
+                  </span>
+                );
+              }
+              return null;
+            })()}
           </div>
         </div>
 
@@ -373,9 +409,9 @@ export default function TaskCard({ task, compact, onEdit, onDelete, onSelect, on
 
       <div className="mt-2 sm:mt-2.5 pt-1 sm:pt-1.5 border-t border-dashed border-gray-100 flex items-center justify-between gap-1.5 text-[9px] sm:text-[10px] text-gray-400 flex-wrap">
         <div>
-          {task.creator_id === task.assignee_id ? (
+          {task.creator_id && Number(task.creator_id) === Number(task.assignee_id) ? (
             <span className="bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded font-medium">
-              Created by <span className="font-bold text-gray-800">{task.creator_name || 'Self'}</span> (Self Assigned)
+              Self Created: <span className="font-bold text-gray-800">{task.creator_name || 'Self'}</span>
             </span>
           ) : (
             <span>
@@ -395,28 +431,36 @@ export default function TaskCard({ task, compact, onEdit, onDelete, onSelect, on
 
         {task.status === 'completed' ? (
           <span 
-            className="text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200/60 font-medium text-[9px]"
-            title={task.completer_name && task.verifier_name && task.completer_name !== task.verifier_name ? `Verified by ${task.completer_name} (Assigned Verifier: ${task.verifier_name})` : `Verified by ${task.completer_name && task.completer_name !== 'Admin' ? task.completer_name : (task.verifier_name && task.verifier_name !== 'Admin' ? task.verifier_name : task.completer_name || task.verifier_name || 'Admin')}`}
+            className="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200/80 font-medium text-[9px] flex items-center gap-1"
+            title={task.verifier_name && task.verifier_name !== 'Admin' ? `Verified by assigned verifier (${task.verifier_name}) & finalized by ${task.completer_name || 'Admin'}` : `Verified by ${task.completer_name || 'Admin'}`}
           >
-            Verified: {task.completer_name && task.completer_name !== 'Admin' ? task.completer_name : (task.verifier_name && task.verifier_name !== 'Admin' ? task.verifier_name : task.completer_name || task.verifier_name || 'Admin')}
+            ✅ Verified: {task.verifier_name && task.verifier_name !== 'Admin' ? `${task.verifier_name} & ${task.completer_name || 'Admin'}` : (task.completer_name || task.verifier_name || 'Admin')}
           </span>
+        ) : task.status === 'under_review' ? (
+          <div className="flex items-center gap-1 flex-wrap justify-end">
+            {task.verifier_verified_at ? (
+              <span className="text-blue-800 bg-blue-50 px-2 py-0.5 rounded border border-blue-300 font-medium text-[9px]" title={`Verified by assigned verifier (${task.verifier_name || 'Verifier'}). Awaiting Admin final completion.`}>
+                🛡️ Verified by {Number(task.verifier_id) === Number(user?.id) ? 'You' : (task.verifier_name || 'Verifier')} (Pending Admin)
+              </span>
+            ) : (
+              <span className={`px-2 py-0.5 rounded border font-medium text-[9px] ${
+                Number(task.verifier_id) === Number(user?.id)
+                  ? 'bg-amber-100 text-amber-900 border-amber-300 font-bold animate-pulse'
+                  : 'bg-amber-50 text-amber-800 border-amber-200'
+              }`} title={`Awaiting verification review by ${(task.verifier_name && task.verifier_name.toLowerCase() !== 'admin') ? task.verifier_name : 'Reviewer & Verifier'}`}>
+                🛡️ Verifier: {Number(task.verifier_id) === Number(user?.id) ? 'You (Review)' : `${(task.verifier_name && task.verifier_name.toLowerCase() !== 'admin') ? task.verifier_name : 'Reviewer & Verifier'} (Review)`}
+              </span>
+            )}
+          </div>
         ) : (
           <div className="flex items-center gap-1 flex-wrap justify-end">
-            {task.completed_by && Number(task.completed_by) !== Number(task.verifier_id) && (
-              <span className="text-emerald-700 bg-emerald-50/90 px-1.5 py-0.5 rounded border border-emerald-200/60 font-medium text-[9px]" title={`Previously verified by ${task.completer_name || 'Admin'}`}>
-                Prev. Verified: {task.completer_name && task.completer_name !== 'Admin' ? task.completer_name : (task.verifier_name && task.verifier_name !== 'Admin' ? task.verifier_name : task.completer_name || 'Admin')}
-              </span>
-            )}
-            {task.verifier_name && (
-              <span className={`px-1.5 py-0.5 rounded border font-medium text-[9px] ${
-                Number(task.verifier_id) === Number(user?.id)
-                  ? (task.status === 'under_review' ? 'bg-amber-100 text-amber-900 border-amber-300 font-bold animate-pulse' : 'bg-purple-100 text-purple-900 border-purple-300 font-semibold')
-                  : (task.completed_by && Number(task.completed_by) !== Number(task.verifier_id) ? 'text-amber-800 bg-amber-50 border-amber-200' : 'text-purple-700 bg-purple-50 border-purple-200/60')
-              }`} title={`Task verifier: ${task.verifier_name} (${task.verifier_role || 'Verifier'})`}>
-                🛡️ {task.completed_by && Number(task.completed_by) !== Number(task.verifier_id) ? 'Re-Verify:' : 'Verifier:'} {Number(task.verifier_id) === Number(user?.id) ? 'You' : task.verifier_name}
-                {Number(task.verifier_id) === Number(user?.id) && task.status === 'under_review' ? ' (Review)' : ''}
-              </span>
-            )}
+            <span className={`px-1.5 py-0.5 rounded border font-medium text-[9px] ${
+              task.verifier_id && Number(task.verifier_id) === Number(user?.id)
+                ? 'bg-purple-100 text-purple-900 border-purple-300 font-semibold'
+                : 'text-purple-700 bg-purple-50 border-purple-200/60'
+            }`} title={`Task verifier: ${(task.verifier_name && task.verifier_name.toLowerCase() !== 'admin') ? task.verifier_name : 'Reviewer & Verifier'} (${task.verifier_role || (task.verifier_id ? 'Verifier' : 'Reviewer & Verifier')})`}>
+              🛡️ Verifier: {task.verifier_id && Number(task.verifier_id) === Number(user?.id) ? 'You' : ((task.verifier_name && task.verifier_name.toLowerCase() !== 'admin') ? task.verifier_name : 'Reviewer & Verifier')}
+            </span>
           </div>
         )}
       </div>
@@ -437,3 +481,5 @@ export default function TaskCard({ task, compact, onEdit, onDelete, onSelect, on
     </div>
   );
 }
+
+export default React.memo(TaskCard);

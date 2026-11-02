@@ -32,9 +32,12 @@ export default function ProjectDetail({ project, user, onBack, onUpdate }) {
   const [pendingManagerDocs, setPendingManagerDocs] = useState([]);
   const [pendingAdminDocs, setPendingAdminDocs] = useState([]);
 
-  const loadProjectData = async () => {
+  const loadProjectData = async (isSilent = false) => {
     try {
-      setLoading(true);
+      const silent = isSilent === true || (isSilent && typeof isSilent === 'object');
+      if (!silent && (!tasks || tasks.length === 0)) {
+        setLoading(true);
+      }
       const [tasksData, membersData, invData, docsData] = await Promise.all([
         api.getProjectTasks(project.id),
         api.getProjectMembers(project.id),
@@ -102,7 +105,7 @@ export default function ProjectDetail({ project, user, onBack, onUpdate }) {
       setSelectedUserId('');
       setAddMemberPermissions({ can_access_inventory: false, can_access_documents: false });
       setShowAddMember(false);
-      loadProjectData();
+      loadProjectData(true);
     } catch (err) {
       alert(err.message);
     }
@@ -115,7 +118,7 @@ export default function ProjectDetail({ project, user, onBack, onUpdate }) {
         can_access_documents: field === 'documents' ? !member.can_access_documents : member.can_access_documents,
       };
       await api.updateProjectMemberPermissions(project.id, member.id, updated);
-      loadProjectData();
+      loadProjectData(true);
     } catch (err) {
       alert(err.message);
     }
@@ -125,14 +128,21 @@ export default function ProjectDetail({ project, user, onBack, onUpdate }) {
     if (!confirm('Remove member from project?')) return;
     try {
       await api.removeProjectMember(project.id, userId);
-      loadProjectData();
+      loadProjectData(true);
     } catch (err) {
       alert(err.message);
     }
   };
 
-  const handleTaskSaved = () => {
-    loadProjectData();
+  const handleTaskSaved = (savedTask) => {
+    if (savedTask && savedTask.id) {
+      setTasks(prev => {
+        const exists = prev.some(t => t.id === savedTask.id);
+        if (exists) return prev.map(t => t.id === savedTask.id ? { ...t, ...savedTask } : t);
+        return [savedTask, ...prev];
+      });
+    }
+    loadProjectData(true);
     setShowTaskModal(false);
     setDetailTask(null);
     setVerificationTask(null);
@@ -142,7 +152,8 @@ export default function ProjectDetail({ project, user, onBack, onUpdate }) {
     if (deleteTarget) {
       try {
         await api.deleteTask(deleteTarget.id);
-        loadProjectData();
+        setTasks(prev => prev.filter(t => t.id !== deleteTarget.id));
+        loadProjectData(true);
       } catch (err) {
         alert(err.message);
       }
@@ -294,7 +305,7 @@ export default function ProjectDetail({ project, user, onBack, onUpdate }) {
             </div>
             
             <div className="p-5">
-              {loading ? (
+              {loading && (!tasks || tasks.length === 0) ? (
                 <div className="flex justify-center py-8">
                   <div className="animate-spin w-8 h-8 border-2 border-gray-300 border-t-amber-600 rounded-full" />
                 </div>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { api } from '../lib/api';
 import TaskCard from './TaskCard';
 import TaskModal from './TaskModal';
@@ -72,7 +72,20 @@ export default function ManagerDashboard({ user }) {
   const [searchText, setSearchText] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
-  const [pillarFilter, setPillarFilter] = useState('general');
+  const [pillarFilter, setPillarFilter] = useState(() => {
+    try {
+      return localStorage.getItem('doneit_pillar_filter') || 'general';
+    } catch {
+      return 'general';
+    }
+  });
+
+  const handlePillarSelect = (p) => {
+    setPillarFilter(p);
+    try {
+      localStorage.setItem('doneit_pillar_filter', p);
+    } catch {}
+  };
   const [priorityFilter, setPriorityFilter] = useState('');
   const [dateRangeFilter, setDateRangeFilter] = useState('');
   const [customFromDate, setCustomFromDate] = useState('');
@@ -89,7 +102,7 @@ export default function ManagerDashboard({ user }) {
   const [selectedProject, setSelectedProject] = useState(null);
   const [salesPersonFilter, setSalesPersonFilter] = useState('');
   const [salesLeadFilter, setSalesLeadFilter] = useState(null);
-  const userHasSales = user?.role === 'admin' || user?.role === 'manager' || user?.role === 'sales_manager' || user?.role === 'sales_executive' || !!user?.can_access_sales;
+  const userHasSales = user?.role === 'admin' || user?.role === 'sales_manager' || user?.role === 'sales_executive' || !!user?.can_access_sales;
 
   // Admin Feedback state
   const [feedbackNotes, setFeedbackNotes] = useState([]);
@@ -116,7 +129,8 @@ export default function ManagerDashboard({ user }) {
   }, [activeTab, user?.id]);
 
   const fetchTasksOnly = (isSilent = false) => {
-    if (!isSilent) setLoading(true);
+    const silent = isSilent === true || (isSilent && typeof isSilent === 'object');
+    if (!silent && (!tasks || tasks.length === 0)) setLoading(true);
     const params = {};
     if (statusFilter) params.status = statusFilter;
     if (categoryFilter) params.category = categoryFilter;
@@ -130,16 +144,17 @@ export default function ManagerDashboard({ user }) {
         if (customToDate) params.to = customToDate;
       }
     }
-    api.getTasks(params)
+    return api.getTasks(params)
       .then(setTasks)
       .catch(() => {})
       .finally(() => {
-        if (!isSilent) setLoading(false);
+        if (!silent) setLoading(false);
       });
   };
 
   const fetchAll = (isSilent = false) => {
-    if (!isSilent) setLoading(true);
+    const silent = isSilent === true || (isSilent && typeof isSilent === 'object');
+    if (!silent && (!tasks || tasks.length === 0)) setLoading(true);
     const params = {};
     if (statusFilter) params.status = statusFilter;
     if (categoryFilter) params.category = categoryFilter;
@@ -153,7 +168,7 @@ export default function ManagerDashboard({ user }) {
         if (customToDate) params.to = customToDate;
       }
     }
-    Promise.allSettled([
+    return Promise.allSettled([
       api.getDashboardStats(),
       api.getTasks(params),
       api.getEmployees()
@@ -170,15 +185,34 @@ export default function ManagerDashboard({ user }) {
         }
       }
     }).finally(() => {
-      if (!isSilent) setLoading(false);
+      if (!silent) setLoading(false);
     });
+  };
+
+  const handleTaskUpdated = (updatedTask) => {
+    if (updatedTask && updatedTask.id) {
+      setTasks(prev => prev.map(t => t.id === updatedTask.id ? { ...t, ...updatedTask } : t));
+    }
+    fetchTasksOnly(true);
+  };
+
+  const handleTaskSaved = (savedTask) => {
+    if (savedTask && savedTask.id) {
+      setTasks(prev => {
+        const exists = prev.some(t => t.id === savedTask.id);
+        if (exists) {
+          return prev.map(t => t.id === savedTask.id ? { ...t, ...savedTask } : t);
+        }
+        return [savedTask, ...prev];
+      });
+    }
+    fetchAll(true);
   };
 
   useEffect(() => {
     const handleHashChange = () => {
       const hash = window.location.hash;
       setStatusFilter('');
-      setPillarFilter('general');
       if (!hash || hash === '#' || hash === '#overview') {
         setActiveTab('overview');
         setEmployeeFilter(null);
@@ -206,7 +240,7 @@ export default function ManagerDashboard({ user }) {
           const emp = employees.find(e => e.id === empId);
           if (emp) {
             const isSalesOnly = emp.role === 'sales_manager' || emp.role === 'sales_executive';
-            const userHasSales = user?.role === 'admin' || user?.role === 'manager' || user?.role === 'sales_manager' || user?.role === 'sales_executive' || !!user?.can_access_sales;
+            const userHasSales = user?.role === 'admin' || user?.role === 'sales_manager' || user?.role === 'sales_executive' || !!user?.can_access_sales;
             if (emp.id !== user?.id && isSalesOnly && !userHasSales) {
               alert("You don't have access to view Sales team member profiles.");
               window.location.hash = 'team';
@@ -241,8 +275,13 @@ export default function ManagerDashboard({ user }) {
     return () => window.removeEventListener('task-updated', fetchAll);
   }, []);
 
+  const hasMountedTasksRef = useRef(false);
   useEffect(() => {
-    fetchTasksOnly();
+    if (!hasMountedTasksRef.current) {
+      hasMountedTasksRef.current = true;
+      return;
+    }
+    fetchTasksOnly(true);
   }, [statusFilter, categoryFilter, search, employeeFilter, priorityFilter, dateRangeFilter, customFromDate, customToDate]);
 
   useEffect(() => {
@@ -258,7 +297,6 @@ export default function ManagerDashboard({ user }) {
     setStatusFilter('');
     setPriorityFilter('');
     setCategoryFilter('');
-    setPillarFilter('general');
     setDateRangeFilter('');
     setCustomFromDate('');
     setCustomToDate('');
@@ -268,7 +306,7 @@ export default function ManagerDashboard({ user }) {
     if (!emp) return true;
     if (emp.id === user?.id) return true;
     const isSalesOnly = emp.role === 'sales_manager' || emp.role === 'sales_executive';
-    const userHasSales = user?.role === 'admin' || user?.role === 'manager' || user?.role === 'sales_manager' || user?.role === 'sales_executive' || !!user?.can_access_sales;
+    const userHasSales = user?.role === 'admin' || user?.role === 'sales_manager' || user?.role === 'sales_executive' || !!user?.can_access_sales;
     if (isSalesOnly && !userHasSales) {
       alert("You don't have access to view Sales team member profiles.");
       return false;
@@ -281,7 +319,6 @@ export default function ManagerDashboard({ user }) {
     setStatusFilter('');
     setPriorityFilter('');
     setCategoryFilter('');
-    setPillarFilter('general');
     window.location.hash = `all/employee/${emp.id}`;
   };
 
@@ -290,7 +327,6 @@ export default function ManagerDashboard({ user }) {
     setStatusFilter('');
     setPriorityFilter('');
     setCategoryFilter('');
-    setPillarFilter('general');
     const targetTab = status === 'completed' ? 'completed' : 'work';
     window.location.hash = `${targetTab}/employee/${emp.id}`;
     if (status !== 'completed') {
@@ -303,7 +339,6 @@ export default function ManagerDashboard({ user }) {
     setStatusFilter('');
     setPriorityFilter('');
     setCategoryFilter('');
-    setPillarFilter('general');
     setDateRangeFilter(dateRange);
     setCustomFromDate('');
     setCustomToDate('');
@@ -342,9 +377,6 @@ export default function ManagerDashboard({ user }) {
   };
 
   const workBaseTasks = tasks.filter(t => {
-    // Main workspace views strictly exclude project tasks
-    if (t.project_id) return false;
-
     if (activeTab === 'to_verify') {
       // To Verify shows BOTH project tasks and normal tasks where user is verifier or mentor
       const isVerifierTask = (
@@ -385,7 +417,7 @@ export default function ManagerDashboard({ user }) {
         return isCompleted;
       }
       if (activeTab === 'work') {
-        const isActive = isMine && t.status !== 'completed';
+        const isActive = isMine;
         if (statusFilter && t.status !== statusFilter) return false;
         return isActive;
       }
@@ -393,9 +425,6 @@ export default function ManagerDashboard({ user }) {
       if (statusFilter && t.status !== statusFilter) return false;
       return isMine;
     }
-
-    // Main workspace views strictly exclude project tasks
-    if (t.project_id) return false;
 
     if (myTasksOnly && t.creator_id !== user.id && !isAssignedToEmp(t, user.id)) {
       return false;
@@ -405,7 +434,6 @@ export default function ManagerDashboard({ user }) {
       if (statusFilter && statusFilter !== 'completed') return false;
       return true;
     } else if (activeTab === 'work') {
-      if (t.status === 'completed') return false;
       if (statusFilter && t.status !== statusFilter) return false;
       return true;
     } else {
@@ -443,11 +471,11 @@ export default function ManagerDashboard({ user }) {
     return 0;
   });
 
-  const empAllTasksCount = selectedEmp ? tasks.filter(t => !t.project_id && isAssignedToEmp(t, selectedEmp.id)).length : 0;
-  const empActiveTasksCount = selectedEmp ? tasks.filter(t => !t.project_id && isAssignedToEmp(t, selectedEmp.id) && t.status !== 'completed').length : 0;
-  const empCompletedTasksCount = selectedEmp ? tasks.filter(t => !t.project_id && isAssignedToEmp(t, selectedEmp.id) && t.status === 'completed').length : 0;
-  const empCreatedForOthersCount = selectedEmp ? tasks.filter(t => !t.project_id && Number(t.creator_id) === Number(selectedEmp.id) && !isAssignedToEmp(t, selectedEmp.id) && (!t.parent_id || t.id === t.parent_id)).length : 0;
-  const empVerifiedTasksCount = selectedEmp ? tasks.filter(t => !t.project_id && t.status === 'completed' && (Number(t.completed_by) === Number(selectedEmp.id) || Number(t.verifier_id) === Number(selectedEmp.id)) && !isAssignedToEmp(t, selectedEmp.id)).length : 0;
+  const empAllTasksCount = selectedEmp ? tasks.filter(t => isAssignedToEmp(t, selectedEmp.id)).length : 0;
+  const empActiveTasksCount = selectedEmp ? tasks.filter(t => isAssignedToEmp(t, selectedEmp.id) && t.status !== 'completed').length : 0;
+  const empCompletedTasksCount = selectedEmp ? tasks.filter(t => isAssignedToEmp(t, selectedEmp.id) && t.status === 'completed').length : 0;
+  const empCreatedForOthersCount = selectedEmp ? tasks.filter(t => Number(t.creator_id) === Number(selectedEmp.id) && !isAssignedToEmp(t, selectedEmp.id) && (!t.parent_id || t.id === t.parent_id)).length : 0;
+  const empVerifiedTasksCount = selectedEmp ? tasks.filter(t => t.status === 'completed' && (Number(t.completed_by) === Number(selectedEmp.id) || Number(t.verifier_id) === Number(selectedEmp.id)) && !isAssignedToEmp(t, selectedEmp.id)).length : 0;
 
   const metricCards = stats ? [
     { label: 'Total Tasks', value: stats.totalTasks, icon: ListTodo, color: 'text-gray-500' },
@@ -459,37 +487,57 @@ export default function ManagerDashboard({ user }) {
   return (
     <div className="space-y-6">
       {selectedEmp ? (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between bg-white border border-gray-200 rounded-xl p-3 sm:p-4 shadow-sm">
-            <div>
-              <h2 className="text-sm sm:text-base font-bold text-gray-900">{selectedEmp.name}'s Profile / Work</h2>
-              <p className="text-[9px] sm:text-[11px] text-gray-400 mt-0.5 uppercase font-semibold">{selectedEmp.role ? selectedEmp.role.replace('_', ' ') : ''} &middot; {selectedEmp.department} &middot; {selectedEmp.email}</p>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => { setEditTask(null); setDefaultAssigneeId(selectedEmp.id); setShowTaskModal(true); }}
-                className="bg-amber-500 hover:bg-amber-600 text-white text-[10px] sm:text-xs font-bold px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
-              >
-                <Plus className="w-3.5 h-3.5" /> Assign Task to {selectedEmp.name ? selectedEmp.name.split(' ')[0] : 'Employee'}
-              </button>
-              {(selectedEmp.role === 'sales_manager' || selectedEmp.role === 'sales_executive' || selectedEmp.can_access_sales) && userHasSales && (
-                <button
-                  onClick={() => {
-                    setSalesPersonFilter(String(selectedEmp.id));
-                    setActiveTab('sales');
-                    window.location.hash = 'sales';
-                  }}
-                  className="bg-amber-600 hover:bg-amber-700 text-white text-[10px] sm:text-xs font-semibold px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg transition-all shadow-sm flex items-center gap-1.5 cursor-pointer"
-                >
-                  💼 View {selectedEmp.name ? selectedEmp.name.split(' ')[0] : 'Employee'}'s Sales Pipeline
-                </button>
+        <div className="flex items-center justify-between bg-white border border-gray-200 rounded-xl p-3 sm:p-4 shadow-sm">
+          <div>
+            <h2 className="text-sm sm:text-base font-bold text-gray-900">{selectedEmp.name}'s Profile / Work</h2>
+            <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+              <p className="text-[9px] sm:text-[11px] text-gray-400 uppercase font-semibold">{selectedEmp.role ? selectedEmp.role.replace('_', ' ') : ''} &middot; {selectedEmp.department} &middot; {selectedEmp.email}</p>
+              {selectedEmp.role !== 'sales_manager' && selectedEmp.role !== 'sales_executive' && (
+                <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded border ${
+                  selectedEmp.can_access_sales
+                    ? 'text-emerald-700 bg-emerald-50 border-emerald-200'
+                    : 'text-gray-400 bg-gray-50 border-gray-200'
+                }`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${selectedEmp.can_access_sales ? 'bg-emerald-500' : 'bg-gray-300'}`}></span>
+                  {selectedEmp.can_access_sales ? '💼 Whole Sales Access' : 'No Sales Access'}
+                </span>
               )}
-              <button onClick={clearEmployeeFilter} className="bg-gray-800 hover:bg-gray-700 text-white text-[10px] sm:text-xs font-semibold px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg transition-all shadow-sm">
-                Back to Team
-              </button>
             </div>
           </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => { setEditTask(null); setDefaultAssigneeId(selectedEmp.id); setShowTaskModal(true); }}
+              className="bg-amber-500 hover:bg-amber-600 text-white text-[10px] sm:text-xs font-bold px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+            >
+              <Plus className="w-3.5 h-3.5" /> Assign Task to {selectedEmp.name ? selectedEmp.name.split(' ')[0] : 'Employee'}
+            </button>
+            {(selectedEmp.role === 'sales_manager' || selectedEmp.role === 'sales_executive' || selectedEmp.can_access_sales) && userHasSales && (
+              <button
+                onClick={() => {
+                  setSalesPersonFilter(String(selectedEmp.id));
+                  setActiveTab('sales');
+                  window.location.hash = 'sales';
+                }}
+                className="bg-amber-600 hover:bg-amber-700 text-white text-[10px] sm:text-xs font-semibold px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg transition-all shadow-sm flex items-center gap-1.5 cursor-pointer"
+              >
+                💼 View {selectedEmp.name ? selectedEmp.name.split(' ')[0] : 'Employee'}'s Sales Pipeline
+              </button>
+            )}
+            <button onClick={clearEmployeeFilter} className="bg-gray-800 hover:bg-gray-700 text-white text-[10px] sm:text-xs font-semibold px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg transition-all shadow-sm">
+              Back to Team
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div>
+          <h2 className="text-lg font-semibold text-gray-900">Manager Dashboard</h2>
+          <p className="text-sm text-gray-500">Team overview & task management</p>
+        </div>
+      )}
 
+      {/* Sticky Navigation Bar */}
+      <div className="sticky top-12 sm:top-14 z-30 bg-gray-100/95 backdrop-blur-md py-2 -mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 border-b border-gray-200/60 shadow-xs transition-all">
+        {selectedEmp ? (
           <div className="flex gap-1 bg-gray-200 p-1 rounded-xl w-fit flex-wrap">
             <button
               onClick={() => { window.location.hash = `work/employee/${selectedEmp.id}`; }}
@@ -548,14 +596,7 @@ export default function ManagerDashboard({ user }) {
               </button>
             )}
           </div>
-        </div>
-      ) : (
-        <div className="space-y-6">
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900">Manager Dashboard</h2>
-            <p className="text-sm text-gray-500">Team overview & task management</p>
-          </div>
-
+        ) : (
           <div className="flex gap-1 bg-gray-200 p-1 rounded-xl w-full overflow-x-auto scrollbar-none shrink-0">
             {tabs
               .filter(tab => {
@@ -593,8 +634,8 @@ export default function ManagerDashboard({ user }) {
               );
             })}
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {activeTab === 'overview' && !selectedEmp && (
         <div className="space-y-6">
@@ -750,11 +791,22 @@ export default function ManagerDashboard({ user }) {
                             Mentor: {emp.mentor_name || <span className="text-gray-400 italic">Not Assigned</span>}
                           </p>
                         )}
-                        {(emp.role === 'sales_manager' || emp.role === 'sales_executive' || emp.can_access_sales) && (
-                          <div className="mt-1 flex items-center gap-1 text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 w-fit font-medium">
-                            💼 Sales Representative
-                          </div>
-                        )}
+                        <div className="mt-1 flex items-center gap-1.5 flex-wrap">
+                          {emp.role === 'sales_manager' || emp.role === 'sales_executive' ? (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200/60">
+                              💼 Core Sales Role
+                            </span>
+                          ) : (
+                            <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded border ${
+                              emp.can_access_sales
+                                ? 'text-emerald-700 bg-emerald-50 border-emerald-200/80'
+                                : 'text-gray-400 bg-gray-50 border-gray-200/60'
+                            }`}>
+                              <span className={`w-1.5 h-1.5 rounded-full ${emp.can_access_sales ? 'bg-emerald-500' : 'bg-gray-300'}`}></span>
+                              {emp.can_access_sales ? '💼 Whole Sales Access' : 'No Sales Access'}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -849,7 +901,7 @@ export default function ManagerDashboard({ user }) {
           {/* Work Pillars: General Tasks, Vishwas, Avishkar, Nirantar, Saksham */}
           <div className="flex items-center gap-2 p-1.5 bg-gray-100/90 rounded-xl border border-gray-200/80 w-fit flex-wrap mb-3 shadow-xs">
             <button
-              onClick={() => setPillarFilter('general')}
+              onClick={() => handlePillarSelect('general')}
               className={`px-3.5 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-all duration-150 flex items-center gap-2 cursor-pointer ${
                 pillarFilter === 'general'
                   ? 'bg-amber-500 text-white shadow-xs'
@@ -866,7 +918,7 @@ export default function ManagerDashboard({ user }) {
               </span>
             </button>
             <button
-              onClick={() => setPillarFilter('vishwas')}
+              onClick={() => handlePillarSelect('vishwas')}
               className={`px-3.5 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-all duration-150 flex items-center gap-2 cursor-pointer ${
                 pillarFilter === 'vishwas'
                   ? 'bg-amber-500 text-white shadow-xs'
@@ -883,7 +935,7 @@ export default function ManagerDashboard({ user }) {
               </span>
             </button>
             <button
-              onClick={() => setPillarFilter('avishkar')}
+              onClick={() => handlePillarSelect('avishkar')}
               className={`px-3.5 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-all duration-150 flex items-center gap-2 cursor-pointer ${
                 pillarFilter === 'avishkar'
                   ? 'bg-amber-500 text-white shadow-xs'
@@ -901,7 +953,7 @@ export default function ManagerDashboard({ user }) {
             </button>
             {(user?.role === 'admin' || user?.can_access_nirantar || selectedEmp?.can_access_nirantar || nirantarPillarCount > 0) && (
               <button
-                onClick={() => setPillarFilter('nirantar')}
+                onClick={() => handlePillarSelect('nirantar')}
                 className={`px-3.5 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-all duration-150 flex items-center gap-2 cursor-pointer ${
                   pillarFilter === 'nirantar'
                     ? 'bg-amber-500 text-white shadow-xs'
@@ -920,7 +972,7 @@ export default function ManagerDashboard({ user }) {
             )}
             {(user?.role === 'admin' || user?.can_access_saksham || selectedEmp?.can_access_saksham || sakshamPillarCount > 0) && (
               <button
-                onClick={() => setPillarFilter('saksham')}
+                onClick={() => handlePillarSelect('saksham')}
                 className={`px-3.5 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-all duration-150 flex items-center gap-2 cursor-pointer ${
                   pillarFilter === 'saksham'
                     ? 'bg-amber-500 text-white shadow-xs'
@@ -939,7 +991,7 @@ export default function ManagerDashboard({ user }) {
             )}
             {(user?.role === 'admin' || user?.can_access_upakaram || selectedEmp?.can_access_upakaram || upakaramPillarCount > 0) && (
               <button
-                onClick={() => setPillarFilter('upakaram')}
+                onClick={() => handlePillarSelect('upakaram')}
                 className={`px-3.5 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-all duration-150 flex items-center gap-2 cursor-pointer ${
                   pillarFilter === 'upakaram'
                     ? 'bg-purple-600 text-white shadow-xs'
@@ -1100,7 +1152,7 @@ export default function ManagerDashboard({ user }) {
             )}
           </div>
 
-          {loading ? (
+          {loading && (!tasks || tasks.length === 0) ? (
             <div className="flex justify-center py-12">
               <div className="animate-spin w-6 h-6 border-2 border-gray-300 border-t-gray-600 rounded-full" />
             </div>
@@ -1108,7 +1160,7 @@ export default function ManagerDashboard({ user }) {
             <TaskKanbanBoard
               tasks={displayedTasks}
               activePillar={pillarFilter}
-              onRefresh={() => fetchTasksOnly(true)}
+              onRefresh={(updated) => handleTaskUpdated(updated)}
               onViewDetail={setDetailTask}
               onEditTask={(t) => { setEditTask(t); setShowTaskModal(true); }}
               onDeleteTask={setDeleteTask}
@@ -1261,8 +1313,8 @@ export default function ManagerDashboard({ user }) {
         </div>
       )}
 
-      <TaskModal isOpen={showTaskModal} onClose={() => { setShowTaskModal(false); setEditTask(null); setDefaultAssigneeId(null); }} onSaved={fetchAll} task={editTask} employees={employees} onVerificationNeeded={setVerificationTask} initialPillar={pillarFilter} defaultAssigneeId={defaultAssigneeId} />
-      <TaskDetailModal isOpen={!!detailTask} onClose={() => setDetailTask(null)} task={detailTask} onTaskUpdated={fetchAll} />
+      <TaskModal isOpen={showTaskModal} onClose={() => { setShowTaskModal(false); setEditTask(null); setDefaultAssigneeId(null); }} onSaved={handleTaskSaved} task={editTask} employees={employees} onVerificationNeeded={setVerificationTask} initialPillar={pillarFilter} defaultAssigneeId={defaultAssigneeId} />
+      <TaskDetailModal isOpen={!!detailTask} onClose={() => setDetailTask(null)} task={detailTask} onTaskUpdated={handleTaskUpdated} />
       <TaskVerificationModal isOpen={!!verificationTask} onClose={() => setVerificationTask(null)} task={verificationTask} />
       <ConfirmDeleteModal isOpen={!!deleteTask} onClose={() => setDeleteTask(null)} onConfirm={handleDeleteTask}
         title="Delete Task" message={`Delete "${deleteTask?.title}"?`} />

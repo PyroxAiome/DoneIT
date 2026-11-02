@@ -2,8 +2,8 @@ import { useState, useEffect } from 'react';
 import { api } from '../lib/api';
 import { useAuth } from '../App';
 import VerificationReviewModal from './VerificationReviewModal';
-import StageVerificationModal from './StageVerificationModal';
-import { X, Send, Edit3, Trash2, Check, X as XIcon, MessageSquare, FileText, Reply, Calendar, ThumbsUp, ThumbsDown, GitMerge, ShieldCheck, ArrowRight, CheckCircle2, Clock, AlertTriangle, Star, ShieldAlert, AlertCircle, Plus } from 'lucide-react';
+import MoveBackModal from './MoveBackModal';
+import { X, Send, Edit3, Trash2, Check, X as XIcon, MessageSquare, FileText, Reply, Calendar, ThumbsUp, ThumbsDown, GitMerge, ShieldCheck, ArrowRight, ArrowLeft, CheckCircle2, Clock, AlertTriangle, Star, ShieldAlert, AlertCircle, Plus, RotateCcw } from 'lucide-react';
 
 const GENERAL_STAGES = [
   { key: 'todo', label: 'Pending' },
@@ -16,7 +16,8 @@ const VISHWAS_STAGES = [
   { key: 'todo', label: 'Issue' },
   { key: 'rca_in_progress', label: 'Analysis' },
   { key: 'in_progress', label: 'Action' },
-  { key: 'under_review', label: 'Audit' },
+  { key: 'test_strategy', label: 'Test Strategy' },
+  { key: 'under_review', label: 'Testing' },
   { key: 'completed', label: 'Resolved' }
 ];
 
@@ -24,15 +25,52 @@ const AVISHKAR_STAGES = [
   { key: 'todo', label: 'Idea' },
   { key: 'feasibility_planning', label: 'Planning' },
   { key: 'in_progress', label: 'Prototype' },
-  { key: 'under_review', label: 'Trial' },
+  { key: 'trial', label: 'Trial' },
+  { key: 'test_strategy', label: 'Test Strategy' },
+  { key: 'testing', label: 'Testing' },
   { key: 'completed', label: 'Deployed' }
 ];
+
+const getStagePlanDetails = (task) => {
+  if (!task) return null;
+  let svs = [];
+  try {
+    const raw = task.stage_verifications;
+    svs = typeof raw === 'string' ? JSON.parse(raw) : (raw || []);
+  } catch (e) {
+    svs = [];
+  }
+  if (!Array.isArray(svs) || svs.length === 0) return null;
+  const last = svs[svs.length - 1];
+  if (!last) return null;
+  return {
+    ...last,
+    isPending: last.status === 'pending_approval',
+    isChangesRequested: last.status === 'changes_requested',
+    isApproved: last.status === 'approved'
+  };
+};
+
+const getPendingStagePlan = (task) => {
+  const details = getStagePlanDetails(task);
+  return details?.isPending ? details : null;
+};
 
 const getPillarStagesList = (pillarName) => {
   const p = (pillarName || '').toLowerCase();
   if (p === 'vishwas') return VISHWAS_STAGES;
   if (p === 'avishkar') return AVISHKAR_STAGES;
   return GENERAL_STAGES;
+};
+
+const cleanReviewText = (text) => {
+  if (!text) return '';
+  return text
+    .replace(/^[📝🛡️⚠️]\s*/, '')
+    .replace(/^\[([^\]]+)\]:?/, '$1:')
+    .replace(/Stage Plan Submission/gi, 'Stage Plan')
+    .replace(/\[Plan Section:[^\]]*\]\s*/gi, '')
+    .trim();
 };
 
 const formatDescription = (desc) => {
@@ -108,7 +146,10 @@ export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated, 
    const [depText, setDepText] = useState('');
    const [replyTexts, setReplyTexts] = useState({});
    const [showVerificationReviewModal, setShowVerificationReviewModal] = useState(false);
-   const [showStageVerifyModal, setShowStageVerifyModal] = useState(false);
+   const [verificationModalConfig, setVerificationModalConfig] = useState({ title: '', subtitle: '', buttonText: '' });
+   const [showMoveBackModal, setShowMoveBackModal] = useState(false);
+   const [inlineStageComment, setInlineStageComment] = useState('');
+   const [inlinePlanNotes, setInlinePlanNotes] = useState('');
 
 
 
@@ -160,7 +201,7 @@ export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated, 
       const saved = await api.addExplanation(task.id, newExpText);
       setExplanationsList(prev => [saved, ...prev]);
       setNewExpText('');
-      onTaskUpdated?.();
+      onTaskUpdated?.(taskData || task);
     } catch {}
     setSaving(false);
   };
@@ -169,6 +210,7 @@ export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated, 
     try {
       await api.deleteExplanation(task.id, expId);
       setExplanationsList(prev => prev.filter(e => e.id !== expId));
+      onTaskUpdated?.(taskData || task);
     } catch {}
   };
 
@@ -180,7 +222,7 @@ export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated, 
       setExplanationsList(prev => prev.map(e => e.id === expId ? saved : e));
       setEditingExpId(null);
       setEditingExpText('');
-      onTaskUpdated?.();
+      onTaskUpdated?.(taskData || task);
     } catch {}
     setSaving(false);
   };
@@ -200,7 +242,7 @@ export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated, 
         }
       });
       setNewLogContent('');
-      onTaskUpdated?.();
+      onTaskUpdated?.(taskData || task);
     } catch (err) {
       console.error(err);
       alert(err.message || 'Failed to save daily log. Did you restart the server?');
@@ -216,7 +258,7 @@ export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated, 
       setDailyLogs(prev => prev.map(l => l.id === logId ? saved : l));
       setEditingLogId(null);
       setEditingLogContent('');
-      onTaskUpdated?.();
+      onTaskUpdated?.(taskData || task);
     } catch (err) {
       console.error(err);
       alert(err.message || 'Failed to update daily log.');
@@ -228,7 +270,7 @@ export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated, 
     try {
       await api.deleteDailyLog(task.id, logId);
       setDailyLogs(prev => prev.filter(l => l.id !== logId));
-      onTaskUpdated?.();
+      onTaskUpdated?.(taskData || task);
     } catch (err) {
       console.error(err);
       alert(err.message || 'Failed to delete daily log.');
@@ -368,21 +410,97 @@ export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated, 
       .catch(() => {})
   };
 
-  const handleConfirmModalStageVerification = async (verificationPayload) => {
+  const handleInlineStageAction = async (action, planDetails) => {
+    if (action === 'reject' && !inlineStageComment.trim()) {
+      alert('Please enter a note or reason in the feedback box to request changes.');
+      return;
+    }
+
+    setSaving(true);
     try {
-      let backendStatus = verificationPayload.to_stage;
+      let backendStatus = planDetails.to_stage;
       if (backendStatus === 'todo') backendStatus = 'pending';
 
-      const updatedTask = await api.updateTask(task.id, {
-        status: backendStatus,
+      const verificationPayload = {
+        action,
+        from_stage: planDetails.from_stage,
+        to_stage: planDetails.to_stage,
+        from_stage_label: planDetails.from_stage_label || planDetails.from_stage,
+        to_stage_label: planDetails.to_stage_label || planDetails.to_stage,
+        stage_label: `${planDetails.from_stage_label || planDetails.from_stage} ➔ ${planDetails.to_stage_label || planDetails.to_stage}`,
+        comment: (inlineStageComment || (action === 'approve' ? 'Stage plan approved & verified' : 'Changes requested')).trim()
+      };
+
+      const updatePayload = {
         stage_verification: verificationPayload
-      });
+      };
+      if (action === 'approve') {
+        updatePayload.status = backendStatus;
+      }
+
+      const updatedTask = await api.updateTask(task.id, updatePayload);
       setTaskData(updatedTask);
-      setShowStageVerifyModal(false);
-      onTaskUpdated?.();
+      setInlineStageComment('');
+      onTaskUpdated?.(updatedTask);
       api.getComments(task.id).then(setComments).catch(() => {});
     } catch (err) {
-      alert(err.message || 'Failed to verify stage');
+      alert(err.message || `Failed to ${action} stage`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleInlineResubmitPlan = async (planDetails) => {
+    if (!inlinePlanNotes.trim()) {
+      alert('Please enter your updated plan notes.');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const verificationPayload = {
+        action: 'submit_plan',
+        from_stage: planDetails.from_stage,
+        to_stage: planDetails.to_stage,
+        from_stage_label: planDetails.from_stage_label || planDetails.from_stage,
+        to_stage_label: planDetails.to_stage_label || planDetails.to_stage,
+        stage_label: `${planDetails.from_stage_label || planDetails.from_stage} ➔ ${planDetails.to_stage_label || planDetails.to_stage}`,
+        plan_notes: inlinePlanNotes.trim(),
+        is_revision: true
+      };
+
+      const updatedTask = await api.updateTask(task.id, { stage_verification: verificationPayload });
+      setTaskData(updatedTask);
+      setInlinePlanNotes('');
+      onTaskUpdated?.(updatedTask);
+      api.getComments(task.id).then(setComments).catch(() => {});
+    } catch (err) {
+      alert(err.message || 'Failed to resubmit stage plan');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleMoveBack = async ({ target_stage, target_stage_label, from_stage, from_stage_label, reason }) => {
+    setSaving(true);
+    try {
+      let backendStatus = target_stage;
+      if (backendStatus === 'todo') backendStatus = 'pending';
+
+      const updated = await api.updateTask(task.id, {
+        status: backendStatus,
+        move_back_reason: reason,
+        from_stage_label,
+        to_stage_label: target_stage_label
+      });
+      setTaskData(updated);
+      api.getComments(task.id).then(setComments).catch(() => {});
+      onTaskUpdated?.(updated);
+      setShowMoveBackModal(false);
+    } catch (err) {
+      alert(err.message || 'Failed to move task back.');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -393,6 +511,10 @@ export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated, 
   const isAdminOrManager = ['admin', 'manager', 'site_manager'].includes(user?.role);
   const canReview = isAdminOrManager || isVerifier || isCreator || isMentor;
   const canAddExplanation = !readOnly || isAssignee || isMentor || isVerifier || isAdminOrManager;
+
+  const currentTaskForVerification = taskData || task;
+  const hasAssignedVerifier = Boolean(currentTaskForVerification.verifier_id);
+  const canVerifyStage = hasAssignedVerifier ? isVerifier : (user?.role === 'admin');
 
   const isResolver = dependencies.some(d => Number(d.tagee_id) === Number(user.id));
 
@@ -453,9 +575,11 @@ export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated, 
               <p className="text-[10px] text-gray-400 mt-1">Last edited by {taskData.last_edited_by_name} on {new Date(taskData.updated_at).toLocaleDateString()}</p>
             )}
           </div>
-          <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded transition-colors shrink-0 ml-3">
-            <X className="w-4 h-4 text-gray-400" />
-          </button>
+          <div className="flex items-center gap-2 shrink-0 ml-3">
+            <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded transition-colors text-gray-400 cursor-pointer">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
         {/* Red Flag Warning Callout Banner */}
@@ -470,48 +594,350 @@ export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated, 
           </div>
         )}
 
-        {/* Verifier Sign-off Banner (Only shown when task is under_review) */}
-        {(taskData?.status || task.status) === 'under_review' && (
-          <div className="mx-5 mt-4 p-4 bg-amber-50/90 border border-amber-200 rounded-xl space-y-3">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div className="flex items-start gap-2.5">
-                <div className="p-1.5 bg-amber-500 text-white rounded-lg shrink-0 mt-0.5 shadow-xs">
-                  <MessageSquare className="w-4 h-4" />
-                </div>
-                <div>
-                  <h4 className="text-xs font-bold text-amber-950 uppercase tracking-wide">
-                    {taskData?.verifier_name ? `Assigned Verifier: ${taskData.verifier_name} (${taskData.verifier_role || 'Verifier'})` : 'Task Review & Verification Required'}
-                  </h4>
-                  <p className="text-xs text-amber-800 mt-0.5 leading-normal">
-                    {user?.role === 'admin' || ((taskData?.verifier_id || task.verifier_id) && Number(taskData?.verifier_id || task.verifier_id) === Number(user?.id))
-                      ? 'You are authorized as the Verifier to review all work logs, daily achievements, and explanations, and approve this task as completed.'
-                      : `To complete this task, please contact ${taskData?.verifier_name || 'Admin'} for verification.`}
-                  </p>
-                </div>
-              </div>
+        {/* Stage Transition Plan Review & Revision Banner */}
+        {(() => {
+          const currentT = taskData || task;
+          const planDetails = getStagePlanDetails(currentT);
+          if (!planDetails) return null;
+          const canManage = isAssignee || isCreator || isAdminOrManager;
 
-              <div className="flex items-center gap-2 shrink-0">
-                {(user?.role === 'admin' || ((taskData?.verifier_id || task.verifier_id) && Number(taskData?.verifier_id || task.verifier_id) === Number(user?.id))) && (
-                  <button
-                    onClick={() => {
-                      if (isInternTask && !mentorHasVerified && !isAssignedMentor) {
-                        const mentorDisplayName = currentTaskObj?.mentor_name || 'Assigned Mentor';
-                        alert(`Mentor Verification Required: This task assigned to Intern "${currentTaskObj?.assignee_name || 'Intern'}" must first be verified & signed-off by their assigned Mentor (${mentorDisplayName}). Admin verification can only be done AFTER mentor sign-off.`);
-                        return;
-                      }
-                      setShowVerificationReviewModal(true);
-                    }}
-                    disabled={saving}
-                    className="btn-amber bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-4 py-2 rounded-xl flex items-center justify-center gap-1.5 shrink-0 shadow-xs whitespace-nowrap cursor-pointer"
-                  >
-                    <Check className="w-4 h-4" />
-                    Verify & Mark Completed
-                  </button>
+          // Case A: Changes Requested by Reviewer / Verifier
+          if (planDetails.isChangesRequested) {
+            const isViewerReviewer = canVerifyStage && (!isAssignee || Number(user?.id) === Number(planDetails.reviewed_by_id));
+            const assigneeName = taskData?.assignee_name || task.assignee_name || 'Employee';
+            return (
+              <div className="mx-5 mt-4 p-4 bg-amber-50/90 border border-amber-300 rounded-xl space-y-2.5 animate-in fade-in">
+                <div className="flex items-start gap-2.5">
+                  <div className="p-1.5 bg-amber-500 text-white rounded-lg shrink-0 mt-0.5 shadow-xs">
+                    <AlertTriangle className="w-4 h-4" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h4 className="text-xs font-bold text-amber-950 uppercase tracking-wide">
+                      Plan Revision Requested: {planDetails.from_stage_label || planDetails.from_stage} ➔ {planDetails.to_stage_label || planDetails.to_stage}
+                    </h4>
+                    <p className="text-xs text-amber-900 mt-1 leading-normal">
+                      {isViewerReviewer ? (
+                        <>Your feedback to <strong>{assigneeName}</strong>: <em>"{planDetails.review_comment}"</em></>
+                      ) : (
+                        <>Feedback from <strong>{planDetails.reviewed_by_name || 'Verifier'}</strong>: <em>"{planDetails.review_comment}"</em></>
+                      )}
+                    </p>
+                    {planDetails.plan_notes && (
+                      <div className="text-xs text-gray-800 bg-white/80 p-2.5 rounded-lg border border-amber-200/70 mt-2 whitespace-pre-wrap leading-relaxed font-sans">
+                        <span className="font-semibold text-gray-500 block text-[10px] uppercase mb-1">
+                          {isViewerReviewer ? `${assigneeName}'s Submitted Plan:` : 'Your Submitted Plan:'}
+                        </span>
+                        {cleanReviewText(planDetails.plan_notes)}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Inline Re-submission for Assignee */}
+                {(!isViewerReviewer && canManage) && (
+                  <div className="pt-2 border-t border-amber-200/60 space-y-2">
+                    <textarea
+                      rows={2}
+                      value={inlinePlanNotes}
+                      onChange={(e) => setInlinePlanNotes(e.target.value)}
+                      placeholder="Write your revised plan or updated deliverables..."
+                      className="w-full text-xs p-2.5 bg-white border border-amber-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-amber-500 text-gray-800"
+                    />
+                    <div className="flex justify-end">
+                      <button
+                        onClick={() => handleInlineResubmitPlan(planDetails)}
+                        disabled={saving}
+                        className="btn-amber text-xs font-semibold px-3.5 py-1.5 rounded-lg flex items-center gap-1.5 shadow-xs cursor-pointer"
+                      >
+                        <Check className="w-3.5 h-3.5" />
+                        <span>{saving ? 'Submitting...' : 'Re-Submit Updated Plan'}</span>
+                      </button>
+                    </div>
+                  </div>
                 )}
               </div>
+            );
+          }
+
+          // Case B: Plan Pending Approval
+          if (planDetails.isPending) {
+            return (
+              <div className="mx-5 mt-4 p-4 bg-amber-50/90 border border-amber-200 rounded-xl space-y-2.5 animate-in fade-in">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-start gap-2.5 min-w-0 flex-1">
+                    <div className="p-1.5 bg-amber-500 text-white rounded-lg shrink-0 mt-0.5 shadow-xs">
+                      <Clock className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <h4 className="text-xs font-bold text-amber-950 uppercase tracking-wide truncate">
+                        Stage Review Pending: {planDetails.from_stage_label || planDetails.from_stage} ➔ {planDetails.to_stage_label || planDetails.to_stage}
+                      </h4>
+                      <p className="text-xs text-amber-900 mt-1 leading-normal">
+                        Submitted by <strong>{planDetails.submitted_by_name || 'Employee'}</strong> for verification by <strong>{(planDetails.verifier_name && planDetails.verifier_name.toLowerCase() !== 'admin') || (currentT.verifier_name && currentT.verifier_name.toLowerCase() !== 'admin') || 'Reviewer and Verifier'}</strong>.
+                      </p>
+                      {planDetails.achievements ? (
+                        <div className="text-xs text-gray-800 bg-white/90 p-2.5 rounded-lg border border-amber-200/70 mt-2 whitespace-pre-wrap leading-relaxed font-sans">
+                          <span className="font-semibold text-amber-800 block text-[10px] uppercase mb-0.5">🏆 Achievements & Deliverables:</span>
+                          {cleanReviewText(planDetails.achievements)}
+                        </div>
+                      ) : planDetails.plan_notes ? (
+                        <div className="text-xs text-gray-800 bg-white/90 p-2.5 rounded-lg border border-amber-200/70 mt-2 whitespace-pre-wrap leading-relaxed font-sans">
+                          <span className="font-semibold text-gray-500 block text-[10px] uppercase mb-0.5">Submitted Notes:</span>
+                          {cleanReviewText(planDetails.plan_notes)}
+                        </div>
+                      ) : null}
+
+                      {planDetails.proposed_review_time && (
+                        <div className="mt-2 text-xs font-semibold text-blue-900 bg-blue-50 border border-blue-200 rounded-lg px-2.5 py-1.5 flex items-center gap-1.5">
+                          <Calendar className="w-3.5 h-3.5 text-blue-600" />
+                          <span>Proposed Review Meeting: <strong>{planDetails.proposed_review_time}</strong></span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {!canVerifyStage && (
+                    <div className="shrink-0 flex items-center gap-2 flex-wrap">
+                      <span className="text-xs font-medium text-amber-800 bg-white/80 border border-amber-200 px-3 py-1.5 rounded-lg flex items-center gap-1.5">
+                        <Clock className="w-3.5 h-3.5 text-amber-600" />
+                        <span>Awaiting <strong>{(planDetails.verifier_name && planDetails.verifier_name.toLowerCase() !== 'admin') || (currentT.verifier_name && currentT.verifier_name.toLowerCase() !== 'admin') || 'Reviewer and Verifier'}</strong></span>
+                      </span>
+                      <a
+                        href={`https://wa.me/?text=${encodeURIComponent(`Hi ${((planDetails.verifier_name && planDetails.verifier_name.toLowerCase() !== 'admin') || (currentT.verifier_name && currentT.verifier_name.toLowerCase() !== 'admin')) ? (planDetails.verifier_name || currentT.verifier_name) : 'Reviewer and Verifier'},\n\nFollowing up on the stage review for task:\n📌 *${currentT.title}*\n📍 Stage: *${planDetails.stage_label || `${planDetails.from_stage_label || planDetails.from_stage} ➔ ${planDetails.to_stage_label || planDetails.to_stage}`}*\n\nPlease let me know when you are available for a quick review meeting so I can show you my work and we can finish it quickly. Thank you!`)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs font-semibold text-white bg-[#25D366] hover:bg-[#20bd5a] px-3 py-1.5 rounded-lg flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+                        title="Message Reviewer & Verifier on WhatsApp"
+                      >
+                        <MessageSquare className="w-3.5 h-3.5 fill-current" />
+                        <span>WhatsApp Verifier</span>
+                      </a>
+                    </div>
+                  )}
+                </div>
+
+                {/* INLINE ACTIONS FOR AUTHORIZED VERIFIER — NO NESTED MODAL */}
+                {canVerifyStage && (
+                  <div className="pt-2 border-t border-amber-200/60 space-y-2">
+                    <input
+                      type="text"
+                      value={inlineStageComment}
+                      onChange={(e) => setInlineStageComment(e.target.value)}
+                      placeholder="Optional feedback or verification notes..."
+                      className="w-full text-xs px-3 py-2 bg-white border border-amber-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-amber-500 text-gray-800"
+                    />
+                    <div className="flex items-center justify-end gap-2">
+                      <button
+                        onClick={() => handleInlineStageAction('reject', planDetails)}
+                        disabled={saving}
+                        className="px-3 py-1.5 rounded-lg border border-amber-300 bg-white hover:bg-amber-100 text-amber-800 font-semibold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5 text-amber-600" />
+                        <span>Request Changes</span>
+                      </button>
+
+                      <button
+                        onClick={() => handleInlineStageAction('approve', planDetails)}
+                        disabled={saving}
+                        className="px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+                      >
+                        <Check className="w-3.5 h-3.5" />
+                        <span>{saving ? 'Approving...' : 'Approve & Advance Stage'}</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          }
+
+          return null;
+        })()}
+
+        {/* Verifier Sign-off & Admin Final Completion Banner (under_review) */}
+        {(taskData?.status || task.status) === 'under_review' && (() => {
+          const currentT = taskData || task;
+          const assignedVerifierId = currentT.verifier_id ? Number(currentT.verifier_id) : null;
+          const isAssignedVerifier = Boolean(assignedVerifierId && assignedVerifierId === Number(user?.id));
+          const isAdmin = user?.role === 'admin';
+          const verifierName = currentT.verifier_name || 'Assigned Verifier';
+          const hasVerifierSignedOff = Boolean(currentT.verifier_verified_at);
+          const isTaskVerifierAdmin = !assignedVerifierId || assignedVerifierId === 1 || (assignedVerifierId && currentT.verifier_role === 'admin');
+
+          // Case 1: Assigned Verifier viewing (not Admin)
+          if (isAssignedVerifier && !isAdmin) {
+            return (
+              <div className={`mx-5 mt-4 p-4 rounded-xl space-y-3 ${
+                hasVerifierSignedOff
+                  ? 'bg-emerald-50/90 border border-emerald-200'
+                  : 'bg-amber-50/90 border border-amber-200'
+              }`}>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-start gap-2.5">
+                    <div className={`p-1.5 rounded-lg shrink-0 mt-0.5 shadow-xs ${
+                      hasVerifierSignedOff ? 'bg-emerald-600 text-white' : 'bg-amber-500 text-white'
+                    }`}>
+                      <ShieldCheck className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-bold text-gray-900 uppercase tracking-wide">
+                        {hasVerifierSignedOff ? 'Verifier Sign-Off Complete' : 'Assigned Verifier Review Required'}
+                      </h4>
+                      <p className="text-xs text-gray-700 mt-0.5 leading-normal">
+                        {hasVerifierSignedOff
+                          ? `You verified and signed off on this task on ${new Date(currentT.verifier_verified_at).toLocaleDateString()}: "${currentT.verifier_comment}". It is awaiting final Admin sign-off.`
+                          : 'You are the assigned Verifier. Please review all daily logs, deliverables, and explanations. Once approved, sign off to forward to Admin for final completion.'}
+                      </p>
+                    </div>
+                  </div>
+
+                  {!hasVerifierSignedOff && (
+                    <button
+                      onClick={() => {
+                        setVerificationModalConfig({
+                          title: 'Assigned Verifier Sign-Off',
+                          subtitle: `Sign off deliverables for "${currentT.title}". Task will then be forwarded to Admin for final sign-off.`,
+                          buttonText: '🛡️ Sign Off & Forward to Admin'
+                        });
+                        setShowVerificationReviewModal(true);
+                      }}
+                      disabled={saving}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-4 py-2 rounded-xl flex items-center justify-center gap-1.5 shrink-0 shadow-xs whitespace-nowrap cursor-pointer"
+                    >
+                      <ShieldCheck className="w-4 h-4" />
+                      Verify Deliverables &amp; Sign Off
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          }
+
+          // Case 2: Admin viewing
+          if (isAdmin) {
+            // Task has a specific assigned verifier who is not Admin
+            if (!isTaskVerifierAdmin) {
+              return (
+                <div className={`mx-5 mt-4 p-4 rounded-xl space-y-3 ${
+                  hasVerifierSignedOff
+                    ? 'bg-blue-50/90 border border-blue-200'
+                    : 'bg-amber-50/90 border border-amber-200'
+                }`}>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex items-start gap-2.5">
+                      <div className={`p-1.5 rounded-lg shrink-0 mt-0.5 shadow-xs ${
+                        hasVerifierSignedOff ? 'bg-blue-600 text-white' : 'bg-amber-500 text-white'
+                      }`}>
+                        <ShieldCheck className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <h4 className="text-xs font-bold text-gray-900 uppercase tracking-wide">
+                          {hasVerifierSignedOff ? 'Verifier Approved — Awaiting Admin Sign-Off' : `Awaiting Verifier: ${verifierName}`}
+                        </h4>
+                        <p className="text-xs text-gray-700 mt-0.5 leading-normal">
+                          {hasVerifierSignedOff
+                            ? `Assigned Verifier (${verifierName}) verified on ${new Date(currentT.verifier_verified_at).toLocaleDateString()}: "${currentT.verifier_comment}". Ready for Admin final completion.`
+                            : `This task must first be verified by the assigned verifier (${verifierName}) before Admin final sign-off. Admin completion will unlock after ${verifierName} signs off.`}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                      <button
+                        onClick={() => setShowMoveBackModal(true)}
+                        className="px-3 py-2 rounded-xl border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 font-semibold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+                        title="Move task back to an earlier stage"
+                      >
+                        <ArrowLeft className="w-3.5 h-3.5 text-gray-600" />
+                        <span>Move Back</span>
+                      </button>
+
+                      {hasVerifierSignedOff && (
+                        <button
+                          onClick={() => {
+                            setVerificationModalConfig({
+                              title: 'Admin Final Verification Sign-Off',
+                              subtitle: `Final sign-off to complete "${currentT.title}". Task was verified by ${verifierName}.`,
+                              buttonText: '✅ Final Sign-Off & Complete Task'
+                            });
+                            setShowVerificationReviewModal(true);
+                          }}
+                          disabled={saving}
+                          className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-4 py-2 rounded-xl flex items-center justify-center gap-1.5 shrink-0 shadow-xs whitespace-nowrap cursor-pointer"
+                        >
+                          <Check className="w-4 h-4" />
+                          Admin Final Sign-Off &amp; Complete
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            }
+
+            // Task has NO specific non-admin verifier (Admin is verifier)
+            return (
+              <div className="mx-5 mt-4 p-4 bg-emerald-50/90 border border-emerald-200 rounded-xl space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-start gap-2.5">
+                    <div className="p-1.5 bg-emerald-600 text-white rounded-lg shrink-0 mt-0.5 shadow-xs">
+                      <ShieldCheck className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-bold text-gray-900 uppercase tracking-wide">
+                        Admin Direct Verification &amp; Review
+                      </h4>
+                      <p className="text-xs text-gray-700 mt-0.5 leading-normal">
+                        You can review all deliverables and mark this task as completed, or return it to a previous stage for redo.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                    <button
+                      onClick={() => setShowMoveBackModal(true)}
+                      className="px-3 py-2 rounded-xl border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 font-semibold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+                      title="Move task back to an earlier stage"
+                    >
+                      <ArrowLeft className="w-3.5 h-3.5 text-gray-600" />
+                      <span>Move Back</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        setVerificationModalConfig({
+                          title: 'Task Verification & Completion',
+                          subtitle: `Direct verification feedback before completing "${currentT.title}".`,
+                          buttonText: '✅ Confirm & Complete Task'
+                        });
+                        setShowVerificationReviewModal(true);
+                      }}
+                      disabled={saving}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-4 py-2 rounded-xl flex items-center justify-center gap-1.5 shrink-0 shadow-xs whitespace-nowrap cursor-pointer"
+                    >
+                      <Check className="w-4 h-4" />
+                      Verify &amp; Mark Completed
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          }
+
+          // Case 3: General employee / assignee viewing
+          return (
+            <div className="mx-5 mt-4 p-3.5 bg-gray-50 border border-gray-200 rounded-xl text-xs space-y-1">
+              <div className="flex items-center gap-2 font-bold text-gray-800">
+                <Clock className="w-4 h-4 text-amber-600" />
+                <span>Task Under Review</span>
+              </div>
+              <p className="text-gray-600 text-[11px]">
+                {hasVerifierSignedOff
+                  ? `Deliverables approved by ${verifierName}. Awaiting final Admin sign-off.`
+                  : `Awaiting review and sign-off by assigned verifier: ${verifierName}.`}
+              </p>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* Verifier Assigned Info Banner (when not under_review and not completed) */}
         {(taskData?.status || task.status) !== 'under_review' && (taskData?.status || task.status) !== 'completed' && ((taskData?.verifier_id && Number(taskData.verifier_id) === Number(user?.id)) || (task.verifier_id && Number(task.verifier_id) === Number(user?.id))) && (
@@ -523,7 +949,7 @@ export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated, 
               </span>
             </div>
             <span className="text-purple-700 text-[11px]">
-              You can post reviews/guidance under the Reviews tab. Once the task is submitted, you can verify and mark it completed.
+              You can post guidance under the Stage Verification tab. Once the task is submitted, you can verify and mark it completed.
             </span>
           </div>
         )}
@@ -647,7 +1073,7 @@ export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated, 
                   try {
                     const updated = await api.updateTask(task.id, { hiring_stage: newStage });
                     setTaskData(updated);
-                    onTaskUpdated?.();
+                    onTaskUpdated?.(updated);
                   } catch (err) {
                     alert(err.message);
                   }
@@ -689,7 +1115,7 @@ export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated, 
                       try {
                         const updated = await api.updateTask(task.id, { way_of_hiring: val });
                         setTaskData(updated);
-                        onTaskUpdated?.();
+                        onTaskUpdated?.(updated);
                       } catch {}
                     }
                   }}
@@ -776,7 +1202,7 @@ export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated, 
                       try {
                         const updated = await api.updateTask(task.id, { training_video_url: val });
                         setTaskData(updated);
-                        onTaskUpdated?.();
+                        onTaskUpdated?.(updated);
                       } catch {}
                     }
                   }}
@@ -810,7 +1236,7 @@ export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated, 
                       try {
                         const updated = await api.updateTask(task.id, { training_doc_url: val });
                         setTaskData(updated);
-                        onTaskUpdated?.();
+                        onTaskUpdated?.(updated);
                       } catch {}
                     }
                   }}
@@ -896,7 +1322,7 @@ export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated, 
           
           <button onClick={() => setTab('reviews')}
             className={`flex items-center gap-1.5 px-5 py-3 text-sm font-medium transition-colors whitespace-nowrap ${tab === 'reviews' ? 'text-amber-600 border-b-2 border-amber-500 font-bold' : 'text-gray-500 hover:text-gray-700'}`}>
-            <MessageSquare className="w-4 h-4" /> Reviews ({comments.length})
+            <ShieldCheck className="w-4 h-4" /> Stage Verification ({stageVerifications.length > 0 ? stageVerifications.length : comments.length})
           </button>
           <button onClick={() => setTab('explanation')}
             className={`flex items-center gap-1.5 px-5 py-3 text-sm font-medium transition-colors whitespace-nowrap ${tab === 'explanation' ? 'text-amber-600 border-b-2 border-amber-500 font-bold' : 'text-gray-500 hover:text-gray-700'}`}>
@@ -914,117 +1340,319 @@ export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated, 
 
         {/* Tab content */}
         <div className="p-5">
-          {tab === 'reviews' && (
-            <div className="space-y-4">
-              {topComments.length === 0 ? (
-                <p className="text-sm text-gray-400 text-center py-6">No reviews or discussions yet.</p>
-              ) : (
-                topComments.map((c) => (
-                  <div key={c.id} className="space-y-2 border-b border-gray-50 pb-3">
-                    <div className="bg-amber-50/50 rounded-xl p-3.5 group">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-semibold text-gray-800">{c.admin_name || 'Admin'}</span>
-                          <span className="text-[10px] text-gray-400">{new Date(c.created_at).toLocaleDateString()}</span>
-                        </div>
-                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          {canEditComment(c) && editCommentId !== c.id && (
-                            <>
-                              <button onClick={() => startEdit(c)} className="text-gray-300 hover:text-gray-600 p-1" title="Edit">
-                                <Edit3 className="w-3 h-3" />
-                              </button>
-                              <button onClick={() => handleDeleteReview(c.id)} className="text-gray-300 hover:text-red-500 p-1" title="Delete">
-                                <Trash2 className="w-3 h-3" />
-                              </button>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                      {editCommentId === c.id ? (
-                        <div className="mt-2 flex gap-2">
-                          <input value={editText} onChange={(e) => setEditText(e.target.value)}
-                            className="input-field text-xs flex-1" autoFocus
-                            onKeyDown={(e) => e.key === 'Enter' && handleEditReview(c.id)} />
-                          <button onClick={() => handleEditReview(c.id)} className="text-emerald-600 hover:text-emerald-700 p-1"><Check className="w-3.5 h-3.5" /></button>
-                          <button onClick={() => { setEditCommentId(null); setEditText(''); }} className="text-gray-400 hover:text-gray-600 p-1"><XIcon className="w-3.5 h-3.5" /></button>
-                        </div>
-                      ) : (
-                        <p className="text-sm text-gray-600 mt-1">{c.comment_text}</p>
-                      )}
-                      {(!readOnly || canReview || isAssignee) && (
-                        <button onClick={() => setReplyToId(replyToId === c.id ? null : c.id)}
-                          className="text-[11px] text-gray-400 hover:text-amber-600 flex items-center gap-1 mt-1.5 transition-colors font-medium">
-                          <Reply className="w-3 h-3" /> Reply
-                        </button>
-                      )}
-                    </div>
+          {tab === 'reviews' && (() => {
+            const isStageCommentText = (text) => /^(\[Stage|Stage Plan|Stage Revision|Stage Approved|📝 Stage|🛡️ Stage|⚠️ Stage|ℹ️ Stage)/i.test(text || '');
+            const generalComments = comments.filter(c => !isStageCommentText(c.comment_text));
+            const topGeneralComments = generalComments.filter(c => !c.parent_id);
 
-                    {/* Replies */}
-                    {replies(c.id).map(r => (
-                      <div key={r.id} className="ml-6 mt-2 border-l-2 border-gray-200 pl-3">
-                        <div className="bg-gray-50/50 rounded-lg px-3 py-2 group">
+            // Synthesize timeline items from structured stageVerifications or parse from legacy comments if needed
+            let timelineItems = [...stageVerifications];
+            if (timelineItems.length === 0) {
+              const stageComments = comments.filter(c => isStageCommentText(c.comment_text));
+              if (stageComments.length > 0) {
+                timelineItems = stageComments.map(c => {
+                  const text = c.comment_text || '';
+                  const isApproval = /Stage Approved/i.test(text);
+                  const isRejection = /Stage Revision/i.test(text);
+                  const stageMatch = text.match(/Stage [^-]+ - ([^:]+):/i);
+                  const stageLabel = stageMatch ? stageMatch[1].trim() : 'Stage Transition';
+                  const cleanContent = text.replace(/^[\[\s]*Stage [^:]+:\s*/i, '').trim();
+                  return {
+                    id: c.id,
+                    stage_label: stageLabel,
+                    status: isApproval ? 'approved' : (isRejection ? 'changes_requested' : 'pending_approval'),
+                    submitted_by_name: !isApproval && !isRejection ? c.admin_name : null,
+                    reviewed_by_name: isApproval || isRejection ? c.admin_name : null,
+                    plan_notes: !isApproval && !isRejection ? cleanContent : null,
+                    review_comment: isRejection ? cleanContent : null,
+                    comment: isApproval ? cleanContent : null,
+                    timestamp: c.created_at
+                  };
+                });
+              }
+            }
+
+            return (
+              <div className="space-y-6">
+                {/* Timeline Header */}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="text-xs font-bold text-gray-900 uppercase tracking-wider flex items-center gap-1.5">
+                      <ShieldCheck className="w-4 h-4 text-amber-600" />
+                      <span>Stage Verification Timeline</span>
+                    </h4>
+                    <p className="text-[11px] text-gray-500 mt-0.5">
+                      Audit trail of plans, deliverables, and verifier reviews across task stages.
+                    </p>
+                  </div>
+                  {timelineItems.length > 0 && (
+                    <span className="px-2.5 py-0.5 text-[10px] font-semibold bg-gray-100 text-gray-700 rounded-full border border-gray-200">
+                      {timelineItems.length} event{timelineItems.length > 1 ? 's' : ''}
+                    </span>
+                  )}
+                </div>
+
+                {/* Vertical Timeline */}
+                {timelineItems.length === 0 ? (
+                  <div className="text-center py-8 px-4 bg-gray-50/60 rounded-2xl border border-dashed border-gray-200">
+                    <ShieldCheck className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+                    <p className="text-xs font-semibold text-gray-700">No stage verifications recorded yet</p>
+                    <p className="text-[11px] text-gray-400 mt-1 max-w-sm mx-auto">
+                      When employees submit stage plans and deliverables, the reviews will appear along this timeline.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="relative border-l-2 border-gray-200 ml-3.5 pl-6 space-y-6">
+                    {timelineItems.map((item, idx) => {
+                      const isApproved = item.status === 'approved';
+                      const isRejected = item.status === 'changes_requested';
+                      const isPending = item.status === 'pending_approval';
+
+                      const cleanItemPlan = item.plan_notes
+                        ? cleanReviewText(item.plan_notes)
+                        : '';
+
+                      return (
+                        <div key={item.id || idx} className="relative group/timeline">
+                          {/* Vertical Timeline Dot */}
+                          {isApproved ? (
+                            <div className="absolute -left-[35px] top-1.5 w-5 h-5 rounded-full bg-emerald-500 text-white flex items-center justify-center ring-4 ring-emerald-50 shadow-2xs">
+                              <Check className="w-3 h-3 stroke-[3]" />
+                            </div>
+                          ) : isRejected ? (
+                            <div className="absolute -left-[35px] top-1.5 w-5 h-5 rounded-full bg-amber-500 text-white flex items-center justify-center ring-4 ring-amber-50 shadow-2xs">
+                              <AlertTriangle className="w-3 h-3" />
+                            </div>
+                          ) : (
+                            <div className="absolute -left-[35px] top-1.5 w-5 h-5 rounded-full bg-blue-500 text-white flex items-center justify-center ring-4 ring-blue-50 shadow-2xs">
+                              <Clock className="w-3 h-3" />
+                            </div>
+                          )}
+
+                          {/* Stage Event Card */}
+                          <div className="bg-white border border-gray-200/90 rounded-2xl p-4 shadow-2xs space-y-3 hover:border-gray-300 transition-colors">
+                            {/* Header: Stage Transition Label + Status Badge */}
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 border-b border-gray-100 pb-2.5">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="font-bold text-gray-900 text-xs sm:text-sm">
+                                  {item.stage_label || `${item.from_stage_label || item.from_stage} ➔ ${item.to_stage_label || item.to_stage}`}
+                                </span>
+                                {item.is_revision && (
+                                  <span className="text-[10px] font-semibold text-amber-800 bg-amber-50 border border-amber-200 px-1.5 py-0.2 rounded">
+                                    Revision
+                                  </span>
+                                )}
+                              </div>
+
+                              <div className="flex items-center gap-2">
+                                {isApproved && (
+                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                    Approved
+                                  </span>
+                                )}
+                                {isRejected && (
+                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                                    Revision Requested
+                                  </span>
+                                )}
+                                {isPending && (
+                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                                    Pending Review
+                                  </span>
+                                )}
+                                <span className="text-[10px] text-gray-400 font-medium">
+                                  {item.timestamp ? new Date(item.timestamp).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Submitted Plan by Employee */}
+                            {cleanItemPlan && (
+                              <div className="bg-gray-50/70 border border-gray-100 rounded-xl p-3 space-y-1">
+                                <div className="flex items-center justify-between text-[11px] text-gray-500">
+                                  <span className="font-semibold text-gray-700">Plan & Thoughts</span>
+                                  <span>By <strong className="text-gray-800">{item.submitted_by_name || 'Employee'}</strong></span>
+                                </div>
+                                <p className="text-gray-800 text-xs sm:text-sm whitespace-pre-wrap leading-relaxed font-sans pt-0.5">
+                                  {cleanItemPlan}
+                                </p>
+                              </div>
+                            )}
+
+                            {/* Reviewer Feedback / Verification Note */}
+                            {item.review_comment && (
+                              <div className={`rounded-xl p-3 space-y-1 border ${
+                                isRejected 
+                                  ? 'bg-amber-50/70 border-amber-200 text-amber-950'
+                                  : 'bg-emerald-50/70 border-emerald-200 text-emerald-950'
+                              }`}>
+                                <div className="flex items-center justify-between text-[11px]">
+                                  <span className="font-bold flex items-center gap-1.5">
+                                    {isRejected ? (
+                                      <>
+                                        <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                                        <span>Feedback from {item.reviewed_by_name || 'Admin'}</span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                        <span>Verification Note from {item.reviewed_by_name || 'Admin'}</span>
+                                      </>
+                                    )}
+                                  </span>
+                                  {item.reviewed_at && (
+                                    <span className="text-[10px] text-gray-400 font-normal">
+                                      {new Date(item.reviewed_at).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-gray-800 text-xs sm:text-sm whitespace-pre-wrap leading-relaxed font-sans italic pt-0.5">
+                                  "{item.review_comment}"
+                                </p>
+                              </div>
+                            )}
+
+                            {/* Approval Sign-off Note */}
+                            {item.comment && !item.review_comment && (
+                              <div className="bg-emerald-50/70 border border-emerald-200 rounded-xl p-3 space-y-1 text-emerald-950">
+                                <div className="flex items-center justify-between text-[11px]">
+                                  <span className="font-bold flex items-center gap-1.5">
+                                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                    <span>Approved by {item.verified_by_name || 'Admin'}</span>
+                                  </span>
+                                </div>
+                                <p className="text-gray-800 text-xs sm:text-sm whitespace-pre-wrap leading-relaxed font-sans pt-0.5">
+                                  "{item.comment}"
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* General Discussion & Task Comments */}
+                <div className="pt-6 border-t border-gray-100 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h5 className="text-[11px] font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
+                      <MessageSquare className="w-3.5 h-3.5 text-gray-400" />
+                      <span>General Discussion ({generalComments.length})</span>
+                    </h5>
+                  </div>
+
+                  {topGeneralComments.length === 0 ? (
+                    <p className="text-xs text-gray-400 py-1 italic">No general discussion comments yet.</p>
+                  ) : (
+                    topGeneralComments.map((c) => (
+                      <div key={c.id} className="space-y-2 border-b border-gray-50 pb-3">
+                        <div className="bg-amber-50/50 rounded-xl p-3.5 group">
                           <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs font-medium text-gray-700">{r.admin_name || 'Admin'}</span>
-                              <span className="text-[10px] text-gray-400">{new Date(r.created_at).toLocaleDateString()}</span>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-xs font-bold text-gray-800">{c.admin_name || 'Admin'}</span>
+                              <span className="text-[10px] text-gray-400">{new Date(c.created_at).toLocaleDateString()}</span>
                             </div>
                             <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                              {canEditComment(r) && editCommentId !== r.id && (
+                              {canEditComment(c) && editCommentId !== c.id && (
                                 <>
-                                  <button onClick={() => startEdit(r)} className="text-gray-300 hover:text-gray-600 p-1" title="Edit">
+                                  <button onClick={() => startEdit(c)} className="text-gray-300 hover:text-gray-600 p-1" title="Edit">
                                     <Edit3 className="w-3 h-3" />
                                   </button>
-                                  <button onClick={() => handleDeleteReview(r.id)} className="text-gray-300 hover:text-red-500 p-1" title="Delete">
+                                  <button onClick={() => handleDeleteReview(c.id)} className="text-gray-300 hover:text-red-500 p-1" title="Delete">
                                     <Trash2 className="w-3 h-3" />
                                   </button>
                                 </>
                               )}
                             </div>
                           </div>
-                          {editCommentId === r.id ? (
+                          {editCommentId === c.id ? (
                             <div className="mt-2 flex gap-2">
                               <input value={editText} onChange={(e) => setEditText(e.target.value)}
                                 className="input-field text-xs flex-1" autoFocus
-                                onKeyDown={(e) => e.key === 'Enter' && handleEditReview(r.id)} />
-                              <button onClick={() => handleEditReview(r.id)} className="text-emerald-600 hover:text-emerald-700 p-1"><Check className="w-3.5 h-3.5" /></button>
+                                onKeyDown={(e) => e.key === 'Enter' && handleEditReview(c.id)} />
+                              <button onClick={() => handleEditReview(c.id)} className="text-emerald-600 hover:text-emerald-700 p-1"><Check className="w-3.5 h-3.5" /></button>
                               <button onClick={() => { setEditCommentId(null); setEditText(''); }} className="text-gray-400 hover:text-gray-600 p-1"><XIcon className="w-3.5 h-3.5" /></button>
                             </div>
                           ) : (
-                            <p className="text-sm text-gray-600 mt-1">{r.comment_text}</p>
+                            <p className="text-sm text-gray-700 mt-1.5 whitespace-pre-wrap leading-relaxed font-sans">{cleanReviewText(c.comment_text)}</p>
+                          )}
+                          {(!readOnly || canReview || isAssignee) && (
+                            <button onClick={() => setReplyToId(replyToId === c.id ? null : c.id)}
+                              className="text-[11px] text-gray-400 hover:text-amber-600 flex items-center gap-1 mt-1.5 transition-colors font-medium">
+                              <Reply className="w-3 h-3" /> Reply
+                            </button>
                           )}
                         </div>
-                      </div>
-                    ))}
 
-                    {/* Reply input */}
-                    {replyToId === c.id && (
-                      <div className="ml-6 mt-2 flex gap-2">
-                        <input value={replyText} onChange={(e) => setReplyText(e.target.value)}
-                          className="input-field text-xs flex-1" placeholder="Write a reply..."
-                          autoFocus
-                          onKeyDown={(e) => e.key === 'Enter' && handleSendReply(c.id)} />
-                        <button onClick={() => handleSendReply(c.id)} className="btn-amber text-xs flex items-center gap-1 px-2.5">
-                          <Send className="w-3 h-3" /> Reply
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                ))
-              )}
+                        {/* Replies */}
+                        {replies(c.id).map(r => (
+                          <div key={r.id} className="ml-6 mt-2 border-l-2 border-gray-200 pl-3">
+                            <div className="bg-gray-50/50 rounded-lg px-3 py-2 group">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs font-medium text-gray-700">{r.admin_name || 'Admin'}</span>
+                                  <span className="text-[10px] text-gray-400">{new Date(r.created_at).toLocaleDateString()}</span>
+                                </div>
+                                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  {canEditComment(r) && editCommentId !== r.id && (
+                                    <>
+                                      <button onClick={() => startEdit(r)} className="text-gray-300 hover:text-gray-600 p-1" title="Edit">
+                                        <Edit3 className="w-3 h-3" />
+                                      </button>
+                                      <button onClick={() => handleDeleteReview(r.id)} className="text-gray-300 hover:text-red-500 p-1" title="Delete">
+                                        <Trash2 className="w-3 h-3" />
+                                      </button>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+                              {editCommentId === r.id ? (
+                                <div className="mt-2 flex gap-2">
+                                  <input value={editText} onChange={(e) => setEditText(e.target.value)}
+                                    className="input-field text-xs flex-1" autoFocus
+                                    onKeyDown={(e) => e.key === 'Enter' && handleEditReview(r.id)} />
+                                  <button onClick={() => handleEditReview(r.id)} className="text-emerald-600 hover:text-emerald-700 p-1"><Check className="w-3.5 h-3.5" /></button>
+                                  <button onClick={() => { setEditCommentId(null); setEditText(''); }} className="text-gray-400 hover:text-gray-600 p-1"><XIcon className="w-3.5 h-3.5" /></button>
+                                </div>
+                              ) : (
+                                <p className="text-sm text-gray-600 mt-1 whitespace-pre-wrap">{cleanReviewText(r.comment_text)}</p>
+                              )}
+                            </div>
+                          </div>
+                        ))}
 
-              {/* Top-level review input — admin/manager, verifier, creator, or supervising mentor */}
-              {canReview && (
-                <div className="flex gap-2 pt-2 border-t border-gray-100">
-                  <input value={fbText} onChange={(e) => setFbText(e.target.value)}
-                    className="input-field text-sm flex-1" placeholder={isVerifier ? "Write a review / verifier feedback..." : isMentor ? "Write review / mentor feedback for intern..." : "Write a review..."}
-                    onKeyDown={(e) => e.key === 'Enter' && handleSendReview()} />
-                  <button onClick={handleSendReview} className="btn-amber text-sm flex items-center gap-1 px-3">
-                    <Send className="w-3.5 h-3.5" /> Send
-                  </button>
+                        {/* Reply input */}
+                        {replyToId === c.id && (
+                          <div className="ml-6 mt-2 flex gap-2">
+                            <input value={replyText} onChange={(e) => setReplyText(e.target.value)}
+                              className="input-field text-xs flex-1" placeholder="Write a reply..."
+                              autoFocus
+                              onKeyDown={(e) => e.key === 'Enter' && handleSendReply(c.id)} />
+                            <button onClick={() => handleSendReply(c.id)} className="btn-amber text-xs flex items-center gap-1 px-2.5">
+                              <Send className="w-3 h-3" /> Reply
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    ))
+                  )}
+
+                  {/* Top-level review input */}
+                  {canReview && (
+                    <div className="flex gap-2 pt-2 border-t border-gray-100">
+                      <input value={fbText} onChange={(e) => setFbText(e.target.value)}
+                        className="input-field text-sm flex-1" placeholder="Write a general comment or note on this task..."
+                        onKeyDown={(e) => e.key === 'Enter' && handleSendReview()} />
+                      <button onClick={handleSendReview} className="btn-amber text-sm flex items-center gap-1 px-3">
+                        <Send className="w-3.5 h-3.5" /> Send
+                      </button>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-          )}
+              </div>
+            );
+          })()}
           {tab === 'explanation' && (
             <div className="space-y-5">
               {/* Add new logic log */}
@@ -1474,13 +2102,16 @@ export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated, 
         isOpen={showVerificationReviewModal}
         onClose={() => setShowVerificationReviewModal(false)}
         task={taskData || task}
+        title={verificationModalConfig.title || 'Task Verification & Review'}
+        subtitle={verificationModalConfig.subtitle || 'Mandatory verification feedback before completing task'}
+        buttonText={verificationModalConfig.buttonText || 'Confirm & Complete Task'}
         onConfirm={async (verification_comment) => {
           setSaving(true);
           try {
             const updated = await api.updateTask(task.id, { status: 'completed', verification_comment });
             setTaskData(updated);
             api.getComments(task.id).then(setComments).catch(() => {});
-            onTaskUpdated?.();
+            onTaskUpdated?.(updated);
           } catch (err) {
             alert(err.message || 'Failed to complete verification.');
           } finally {
@@ -1489,27 +2120,12 @@ export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated, 
         }}
       />
 
-      {(() => {
-        const activePillarStages = getPillarStagesList(taskData?.pillar || task.pillar);
-        const currStatus = taskData?.status || task.status;
-        const currIdx = activePillarStages.findIndex(s => s.key === currStatus);
-        const targetIdx = Math.min(currIdx + 1, activePillarStages.length - 1);
-        const fromStg = activePillarStages[currIdx] || activePillarStages[0];
-        const toStg = activePillarStages[targetIdx] || activePillarStages[activePillarStages.length - 1];
-
-        return (
-          <StageVerificationModal
-            isOpen={showStageVerifyModal}
-            onClose={() => setShowStageVerifyModal(false)}
-            task={taskData || task}
-            fromStageLabel={fromStg?.label}
-            toStageLabel={toStg?.label}
-            fromStageKey={fromStg?.key}
-            toStageKey={toStg?.key}
-            onConfirm={handleConfirmModalStageVerification}
-          />
-        );
-      })()}
+      <MoveBackModal
+        isOpen={showMoveBackModal}
+        onClose={() => setShowMoveBackModal(false)}
+        task={taskData || task}
+        onConfirm={handleMoveBack}
+      />
     </div>
   );
 }

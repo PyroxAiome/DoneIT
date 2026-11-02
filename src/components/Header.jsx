@@ -223,7 +223,7 @@ export default function Header({ user, onLogout, onChangePassword, onViewTask })
     : [];
 
   return (
-    <header className="border-b border-gray-200 bg-white/80 backdrop-blur-sm sticky top-0 z-50">
+    <header className="border-b border-gray-200 bg-white/95 backdrop-blur-md sticky top-0 z-50 shadow-xs">
       <div className="max-w-7xl mx-auto px-2 sm:px-6 lg:px-8 h-12 sm:h-14 flex items-center justify-between">
         <div className="flex items-center gap-2 sm:gap-3">
           <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-amber-50 border border-amber-200 flex items-center justify-center">

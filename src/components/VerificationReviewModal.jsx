@@ -1,7 +1,15 @@
 import React, { useState } from 'react';
 import { ShieldCheck, MessageSquare, X, CheckCircle2 } from 'lucide-react';
 
-export default function VerificationReviewModal({ isOpen, onClose, task, onConfirm }) {
+export default function VerificationReviewModal({
+  isOpen,
+  onClose,
+  task,
+  title = 'Task Verification & Review',
+  subtitle = 'Mandatory verification feedback before completing task',
+  buttonText = 'Confirm & Complete Task',
+  onConfirm
+}) {
   const [commentText, setCommentText] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -54,14 +62,14 @@ export default function VerificationReviewModal({ isOpen, onClose, task, onConfi
             </div>
             <div>
               <h3 className="font-bold text-gray-900 text-base">
-                Task Verification & Review
+                {title}
               </h3>
               <p className="text-xs text-emerald-700 font-medium">
-                Mandatory verification feedback before completing task
+                {subtitle}
               </p>
             </div>
           </div>
-          <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-lg transition-colors">
+          <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer">
             <X className="w-5 h-5 text-gray-400" />
           </button>
         </div>
@@ -130,14 +138,14 @@ export default function VerificationReviewModal({ isOpen, onClose, task, onConfi
             <button
               type="submit"
               disabled={submitting || !commentText.trim()}
-              className="btn-emerald bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-bold px-5 py-2.5 rounded-xl flex items-center gap-2 shadow-xs transition-all"
+              className="btn-emerald bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-bold px-5 py-2.5 rounded-xl flex items-center gap-2 shadow-xs transition-all cursor-pointer"
             >
               {submitting ? (
                 <>Saving & Verifying...</>
               ) : (
                 <>
                   <CheckCircle2 className="w-4 h-4" />
-                  Confirm & Complete Task
+                  {buttonText}
                 </>
               )}
             </button>

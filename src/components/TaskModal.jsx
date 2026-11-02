@@ -517,7 +517,7 @@ export default function TaskModal({ isOpen, onClose, onSaved, task, employees, o
                 <span className="text-[10px] text-amber-600 font-normal">Can verify & approve completion</span>
               </label>
               <select value={form.verifier_id} onChange={handleChange('verifier_id')} className="input-field">
-                <option value="">Default (Admin / System)</option>
+                <option value="">Admin (Default Verifier)</option>
                 {verifierCandidates.map((emp) => (
                   <option key={emp.id} value={emp.id}>
                     {emp.name} ({getRoleDisplay(emp)})

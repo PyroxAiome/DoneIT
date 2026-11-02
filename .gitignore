@@ -16,3 +16,6 @@ Thumbs.db
 
 # Local uploads
 uploads/
+
+# Scratch & test scripts
+scratch/

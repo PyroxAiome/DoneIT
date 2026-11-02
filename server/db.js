@@ -234,6 +234,8 @@ const initDatabase = async () => {
     ALTER TABLE tasks ADD COLUMN IF NOT EXISTS product_line TEXT DEFAULT 'general';
     ALTER TABLE tasks ADD COLUMN IF NOT EXISTS product_line_other TEXT DEFAULT '';
     ALTER TABLE tasks ADD COLUMN IF NOT EXISTS stage_verifications TEXT DEFAULT '[]';
+    ALTER TABLE tasks ADD COLUMN IF NOT EXISTS verifier_verified_at TIMESTAMP;
+    ALTER TABLE tasks ADD COLUMN IF NOT EXISTS verifier_comment TEXT DEFAULT '';
     ALTER TABLE tasks DROP CONSTRAINT IF EXISTS tasks_status_check;
 
     CREATE TABLE IF NOT EXISTS admin_comments (

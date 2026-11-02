@@ -35,8 +35,19 @@ app.use((req, res, next) => {
 // Initialize database tables, then start server
 initDatabase()
   .then(() => {
-    app.listen(PORT, () => {
+    const server = app.listen(PORT, () => {
       console.log(`DoneIt server running on http://localhost:${PORT}`);
+    });
+
+    server.on('error', (err) => {
+      if (err.code === 'EADDRINUSE') {
+        console.error(`\n❌ Port ${PORT} is already in use by another process!`);
+        console.error(`To free port ${PORT}, run:`);
+        console.error(`  lsof -ti :${PORT} | xargs kill -9\n`);
+      } else {
+        console.error('Server error:', err);
+      }
+      process.exit(1);
     });
   })
   .catch((err) => {
