@@ -7,13 +7,12 @@ export default function TaskVerificationModal({ isOpen, onClose, task }) {
 
   if (!isOpen || !task) return null;
 
-  const rawVerifier = task.verifier_name || task.mentor_name;
-  const isNamedVerifier = rawVerifier && rawVerifier.toLowerCase() !== 'admin';
-  const verifierName = isNamedVerifier ? rawVerifier : 'Reviewer and Verifier';
-  const verifierRole = task.verifier_role || 'Verifier';
+  const mentorName = task.mentor_name || task.assignee_mentor_name;
+  const verifierName = task.verifier_name || mentorName || 'Admin';
+  const verifierRole = task.verifier_role || (task.verifier_name ? 'Verifier' : 'Admin');
 
   const generateWhatsAppMessage = () => {
-    const salutation = isNamedVerifier ? `Hi ${verifierName}` : `Hi Reviewer and Verifier`;
+    const salutation = `Hi ${verifierName}`;
     let msg = `${salutation},\n\nI have completed the task on DoneIt:\n📌 *${task.title}*`;
 
     if (achievements.trim()) {
@@ -49,7 +48,7 @@ export default function TaskVerificationModal({ isOpen, onClose, task }) {
                 Task Verification Required
               </h3>
               <p className="text-xs text-amber-700 font-medium">
-                Assigned: {isNamedVerifier ? `${verifierName} (${verifierRole})` : 'Reviewer and Verifier'}
+                Assigned: {verifierName} ({verifierRole})
               </p>
             </div>
           </div>
@@ -61,7 +60,7 @@ export default function TaskVerificationModal({ isOpen, onClose, task }) {
         <div className="bg-amber-50/60 border border-amber-100 rounded-xl p-3.5 space-y-2">
           <p className="text-xs font-bold text-gray-900 truncate">{task.title}</p>
           <p className="text-xs text-gray-600 leading-relaxed">
-            Great work! In accordance with company workflow rules, completed tasks require review and verification by <span className="font-semibold text-gray-900">{isNamedVerifier ? verifierName : 'your Reviewer and Verifier'}</span> before final completion.
+            Great work! In accordance with company workflow rules, completed tasks require review and verification by <span className="font-semibold text-gray-900">{verifierName}</span> before final completion.
           </p>
         </div>
 
@@ -72,7 +71,7 @@ export default function TaskVerificationModal({ isOpen, onClose, task }) {
             <span>Verification Meeting Guidance</span>
           </div>
           <p className="text-[11px] text-blue-950 leading-relaxed font-medium">
-            Show your work with your reviewer and verifier at a given time. Be specific and clear with your task — it should finish fast.
+            Show your work with your verifier at a given time. Be specific and clear with your task — it should finish fast.
           </p>
         </div>
 
@@ -108,7 +107,7 @@ export default function TaskVerificationModal({ isOpen, onClose, task }) {
             </button>
           </div>
           <p className="text-[11px] text-gray-600 leading-normal">
-            Request a review meeting time with {isNamedVerifier ? verifierName : 'your Reviewer and Verifier'} on WhatsApp to show your work and complete verification fast.
+            Request a review meeting time with {verifierName} on WhatsApp to show your work and complete verification fast.
           </p>
           <a
             href={whatsappUrl}

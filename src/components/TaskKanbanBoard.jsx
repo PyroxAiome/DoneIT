@@ -675,9 +675,9 @@ export default function TaskKanbanBoard({
 
                             return null;
                           })()}
-                          <div className="flex items-center gap-1 text-[10px]" title={`Verifier: ${(t.verifier_name && t.verifier_name.toLowerCase() !== 'admin') ? t.verifier_name : 'Reviewer & Verifier'}`}>
+                          <div className="flex items-center gap-1 text-[10px]" title={`Verifier: ${t.verifier_name || 'Admin'}`}>
                             <ShieldCheck className="w-3 h-3 text-amber-600 shrink-0" />
-                            <span className="truncate text-amber-800">Verifier: <strong>{(t.verifier_name && t.verifier_name.toLowerCase() !== 'admin') ? t.verifier_name : 'Reviewer & Verifier'}</strong></span>
+                            <span className="truncate text-amber-800">Verifier: <strong>{t.verifier_name || 'Admin'}</strong></span>
                           </div>
                           {(t.start_date || t.due_date) && (
                             <div className={`flex items-center gap-1 text-[10px] ${isOverdue ? 'text-red-600 font-bold' : 'text-gray-500'}`}>
@@ -745,7 +745,7 @@ export default function TaskKanbanBoard({
                                   <span className="truncate">Stage Review Pending: {planDetails.to_stage_label || planDetails.to_stage}</span>
                                 </div>
                                 <div className="text-[10px] text-amber-800 truncate">
-                                  Verifier: <strong>{(t.verifier_name && t.verifier_name.toLowerCase() !== 'admin') || (planDetails.verifier_name && planDetails.verifier_name.toLowerCase() !== 'admin') || 'Reviewer & Verifier'}</strong>
+                                  Verifier: <strong>{t.verifier_name || planDetails.verifier_name || 'Admin'}</strong>
                                 </div>
                                 {canVerifyStage ? (
                                   <button
@@ -759,7 +759,7 @@ export default function TaskKanbanBoard({
                                   </button>
                                 ) : (
                                   <div className="mt-1 text-[10px] text-gray-500 italic bg-white/60 p-1 rounded border border-amber-100 text-center">
-                                    ⏳ Awaiting {(t.verifier_name && t.verifier_name.toLowerCase() !== 'admin') ? t.verifier_name : 'Reviewer & Verifier'} verification
+                                    ⏳ Awaiting {t.verifier_name || 'Admin'} verification
                                   </div>
                                 )}
                               </div>

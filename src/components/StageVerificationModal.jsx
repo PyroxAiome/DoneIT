@@ -59,9 +59,8 @@ export default function StageVerificationModal({
   if (!isOpen || !task) return null;
 
   // Determine who will verify this task
-  const rawVerifier = task.verifier_name || task.mentor_name || task.assignee_mentor_name;
-  const isNamedVerifier = rawVerifier && rawVerifier.toLowerCase() !== 'admin';
-  const verifierName = isNamedVerifier ? rawVerifier : 'Reviewer and Verifier';
+  const mentorName = task.mentor_name || task.assignee_mentor_name;
+  const verifierName = task.verifier_name || mentorName || 'Admin';
 
   const activeRedo = [...stageHistory].reverse().find(v => v.type === 'admin_redo_request' && v.status === 'redo_required');
 
@@ -70,7 +69,7 @@ export default function StageVerificationModal({
       ? `${fromStageLabel} ➔ ${toStageLabel}` 
       : (toStageLabel || toStageKey || 'Next Stage');
 
-    const salutation = isNamedVerifier ? `Hi ${verifierName}` : `Hi Reviewer and Verifier`;
+    const salutation = `Hi ${verifierName}`;
 
     let msg = `${salutation},\n\nI would like to request stage verification for my task on DoneIt:\n📌 *${task.title}*\n📍 Stage: *${stageName}*`;
 
@@ -347,10 +346,10 @@ export default function StageVerificationModal({
             <div className="bg-amber-50/80 border border-amber-200 rounded-xl p-3 text-xs space-y-1 text-amber-900">
               <div className="flex items-center gap-1.5 font-bold text-[11px] text-amber-800">
                 <ShieldCheck className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                <span>Stage Review Required by {isNamedVerifier ? verifierName : 'Reviewer and Verifier'}</span>
+                <span>Stage Review Required by {verifierName}</span>
               </div>
               <p className="text-[11px] text-amber-800/90 leading-relaxed">
-                Only the assigned {isNamedVerifier ? `verifier (${verifierName})` : 'Reviewer and Verifier'} can approve and advance this task to <strong>{toStageLabel || toStageKey}</strong>. Document your achievements below and request review timing on WhatsApp.
+                Only the assigned verifier ({verifierName}) can approve and advance this task to <strong>{toStageLabel || toStageKey}</strong>. Document your achievements below and request review timing on WhatsApp.
               </p>
             </div>
 
@@ -412,10 +411,10 @@ export default function StageVerificationModal({
                 <span>Review Verification Guidance</span>
               </div>
               <p className="text-[11px] text-blue-950 leading-relaxed font-medium">
-                Show your work with your reviewer and verifier at a given time. Be specific and clear with your task — it should finish fast.
+                Show your work with your verifier at a given time. Be specific and clear with your task — it should finish fast.
               </p>
               <p className="text-[10px] text-blue-800/80">
-                Request a convenient time directly from {isNamedVerifier ? verifierName : 'your Reviewer and Verifier'} via the WhatsApp button below.
+                Request a convenient time directly from {verifierName} via the WhatsApp button below.
               </p>
             </div>
 
@@ -424,7 +423,7 @@ export default function StageVerificationModal({
               <div className="flex items-center justify-between text-xs">
                 <span className="font-bold text-gray-800 flex items-center gap-1.5">
                   <MessageSquare className="w-3.5 h-3.5 text-[#25D366]" />
-                  <span>Message {isNamedVerifier ? verifierName : 'Reviewer and Verifier'} on WhatsApp</span>
+                  <span>Message {verifierName} on WhatsApp</span>
                 </span>
                 <button
                   type="button"
@@ -436,7 +435,7 @@ export default function StageVerificationModal({
                 </button>
               </div>
               <p className="text-[11px] text-gray-600 leading-normal">
-                Directly WhatsApp {isNamedVerifier ? verifierName : 'your Reviewer and Verifier'} to request a meeting time with your achievements and work pre-filled.
+                Directly WhatsApp {verifierName} to request a meeting time with your achievements and work pre-filled.
               </p>
               <a
                 href={getWhatsAppUrl()}
@@ -485,7 +484,7 @@ export default function StageVerificationModal({
                 </span>
               </div>
               <p className="text-gray-800 text-xs leading-relaxed font-medium">
-                Show your work with your reviewer and verifier at a given time. Be specific and clear with your task — it should finish fast.
+                Show your work with your verifier at a given time. Be specific and clear with your task — it should finish fast.
               </p>
 
               {(pendingPlan?.achievements || cleanPendingText) && (
@@ -503,7 +502,7 @@ export default function StageVerificationModal({
               <div className="flex items-center justify-between text-xs">
                 <span className="font-bold text-gray-800 flex items-center gap-1.5">
                   <MessageSquare className="w-3.5 h-3.5 text-[#25D366]" />
-                  <span>Connect with {isNamedVerifier ? verifierName : 'Reviewer and Verifier'} on WhatsApp</span>
+                  <span>Connect with {verifierName} on WhatsApp</span>
                 </span>
                 <button
                   type="button"
@@ -515,7 +514,7 @@ export default function StageVerificationModal({
                 </button>
               </div>
               <p className="text-[11px] text-gray-600 leading-normal">
-                Request a review meeting time with {isNamedVerifier ? verifierName : 'your Reviewer and Verifier'} to verify and finish your stage fast.
+                Request a review meeting time with {verifierName} to verify and finish your stage fast.
               </p>
               <a
                 href={getWhatsAppUrl()}
@@ -524,7 +523,7 @@ export default function StageVerificationModal({
                 className="w-full py-2 px-3 bg-[#25D366] hover:bg-[#20bd5a] text-white font-semibold text-xs rounded-lg flex items-center justify-center gap-2 shadow-xs transition-colors cursor-pointer"
               >
                 <MessageSquare className="w-4 h-4 fill-current" />
-                <span>Message {isNamedVerifier ? verifierName : 'Reviewer and Verifier'} on WhatsApp</span>
+                <span>Message {verifierName} on WhatsApp</span>
                 <ExternalLink className="w-3 h-3" />
               </a>
             </div>

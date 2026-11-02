@@ -263,9 +263,9 @@ function TaskCard({ task, compact, onEdit, onDelete, onSelect, onViewDetail, onV
                 {task.assignee_name}
               </span>
             ) : null}
-            <span className="flex items-center gap-1 font-medium text-amber-800 text-[9px] sm:text-[10px]" title={`Verifier: ${(task.verifier_name && task.verifier_name.toLowerCase() !== 'admin') ? task.verifier_name : 'Reviewer & Verifier'}`}>
+            <span className="flex items-center gap-1 font-medium text-amber-800 text-[9px] sm:text-[10px]" title={`Verifier: ${task.verifier_name || 'Admin'}`}>
               <ShieldCheck className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-amber-600" />
-              Verifier: <strong className="font-semibold">{(task.verifier_name && task.verifier_name.toLowerCase() !== 'admin') ? task.verifier_name : 'Reviewer & Verifier'}</strong>
+              Verifier: <strong className="font-semibold">{task.verifier_name || 'Admin'}</strong>
             </span>
             {task.duration_type === 'short_term' ? (
               <span className="text-[9px] sm:text-[10px] px-1.5 py-0.5 rounded border font-semibold bg-amber-50 text-amber-800 border-amber-300 flex items-center gap-1">
@@ -447,8 +447,8 @@ function TaskCard({ task, compact, onEdit, onDelete, onSelect, onViewDetail, onV
                 Number(task.verifier_id) === Number(user?.id)
                   ? 'bg-amber-100 text-amber-900 border-amber-300 font-bold animate-pulse'
                   : 'bg-amber-50 text-amber-800 border-amber-200'
-              }`} title={`Awaiting verification review by ${(task.verifier_name && task.verifier_name.toLowerCase() !== 'admin') ? task.verifier_name : 'Reviewer & Verifier'}`}>
-                🛡️ Verifier: {Number(task.verifier_id) === Number(user?.id) ? 'You (Review)' : `${(task.verifier_name && task.verifier_name.toLowerCase() !== 'admin') ? task.verifier_name : 'Reviewer & Verifier'} (Review)`}
+              }`} title={`Awaiting verification review by ${task.verifier_name || 'Admin'}`}>
+                🛡️ Verifier: {Number(task.verifier_id) === Number(user?.id) ? 'You (Review)' : `${task.verifier_name || 'Admin'} (Review)`}
               </span>
             )}
           </div>
@@ -458,8 +458,8 @@ function TaskCard({ task, compact, onEdit, onDelete, onSelect, onViewDetail, onV
               task.verifier_id && Number(task.verifier_id) === Number(user?.id)
                 ? 'bg-purple-100 text-purple-900 border-purple-300 font-semibold'
                 : 'text-purple-700 bg-purple-50 border-purple-200/60'
-            }`} title={`Task verifier: ${(task.verifier_name && task.verifier_name.toLowerCase() !== 'admin') ? task.verifier_name : 'Reviewer & Verifier'} (${task.verifier_role || (task.verifier_id ? 'Verifier' : 'Reviewer & Verifier')})`}>
-              🛡️ Verifier: {task.verifier_id && Number(task.verifier_id) === Number(user?.id) ? 'You' : ((task.verifier_name && task.verifier_name.toLowerCase() !== 'admin') ? task.verifier_name : 'Reviewer & Verifier')}
+            }`} title={`Task verifier: ${task.verifier_name || 'Admin'} (${task.verifier_role || (task.verifier_id ? 'Verifier' : 'Default Admin')})`}>
+              🛡️ Verifier: {task.verifier_id && Number(task.verifier_id) === Number(user?.id) ? 'You' : (task.verifier_name || 'Admin')}
             </span>
           </div>
         )}

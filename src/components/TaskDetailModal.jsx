@@ -673,7 +673,7 @@ export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated, 
                         Stage Review Pending: {planDetails.from_stage_label || planDetails.from_stage} ➔ {planDetails.to_stage_label || planDetails.to_stage}
                       </h4>
                       <p className="text-xs text-amber-900 mt-1 leading-normal">
-                        Submitted by <strong>{planDetails.submitted_by_name || 'Employee'}</strong> for verification by <strong>{(planDetails.verifier_name && planDetails.verifier_name.toLowerCase() !== 'admin') || (currentT.verifier_name && currentT.verifier_name.toLowerCase() !== 'admin') || 'Reviewer and Verifier'}</strong>.
+                        Submitted by <strong>{planDetails.submitted_by_name || 'Employee'}</strong> for verification by <strong>{planDetails.verifier_name || currentT.verifier_name || 'Admin'}</strong>.
                       </p>
                       {planDetails.achievements ? (
                         <div className="text-xs text-gray-800 bg-white/90 p-2.5 rounded-lg border border-amber-200/70 mt-2 whitespace-pre-wrap leading-relaxed font-sans">
@@ -700,14 +700,14 @@ export default function TaskDetailModal({ isOpen, onClose, task, onTaskUpdated, 
                     <div className="shrink-0 flex items-center gap-2 flex-wrap">
                       <span className="text-xs font-medium text-amber-800 bg-white/80 border border-amber-200 px-3 py-1.5 rounded-lg flex items-center gap-1.5">
                         <Clock className="w-3.5 h-3.5 text-amber-600" />
-                        <span>Awaiting <strong>{(planDetails.verifier_name && planDetails.verifier_name.toLowerCase() !== 'admin') || (currentT.verifier_name && currentT.verifier_name.toLowerCase() !== 'admin') || 'Reviewer and Verifier'}</strong></span>
+                        <span>Awaiting <strong>{planDetails.verifier_name || currentT.verifier_name || 'Admin'}</strong></span>
                       </span>
                       <a
-                        href={`https://wa.me/?text=${encodeURIComponent(`Hi ${((planDetails.verifier_name && planDetails.verifier_name.toLowerCase() !== 'admin') || (currentT.verifier_name && currentT.verifier_name.toLowerCase() !== 'admin')) ? (planDetails.verifier_name || currentT.verifier_name) : 'Reviewer and Verifier'},\n\nFollowing up on the stage review for task:\n📌 *${currentT.title}*\n📍 Stage: *${planDetails.stage_label || `${planDetails.from_stage_label || planDetails.from_stage} ➔ ${planDetails.to_stage_label || planDetails.to_stage}`}*\n\nPlease let me know when you are available for a quick review meeting so I can show you my work and we can finish it quickly. Thank you!`)}`}
+                        href={`https://wa.me/?text=${encodeURIComponent(`Hi ${planDetails.verifier_name || currentT.verifier_name || 'Admin'},\n\nFollowing up on the stage review for task:\n📌 *${currentT.title}*\n📍 Stage: *${planDetails.stage_label || `${planDetails.from_stage_label || planDetails.from_stage} ➔ ${planDetails.to_stage_label || planDetails.to_stage}`}*\n\nPlease let me know when you are available for a quick review meeting so I can show you my work and we can finish it quickly. Thank you!`)}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-xs font-semibold text-white bg-[#25D366] hover:bg-[#20bd5a] px-3 py-1.5 rounded-lg flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
-                        title="Message Reviewer & Verifier on WhatsApp"
+                        title={`Message ${planDetails.verifier_name || currentT.verifier_name || 'Admin'} on WhatsApp`}
                       >
                         <MessageSquare className="w-3.5 h-3.5 fill-current" />
                         <span>WhatsApp Verifier</span>
